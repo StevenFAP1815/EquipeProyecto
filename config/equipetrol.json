@@ -1,0 +1,559 @@
+{
+      "map": {
+    "image": "../data/equipetrol.png",
+    "attribution": "© OpenStreetMap contributors",
+    "bounds": {
+      "north": -17.74893,
+      "south": -17.77402,
+      "west": -63.2037,
+      "east": -63.17426
+    }
+  },
+  "nodes": [
+    {
+      "id": "n0",
+      "lat": -17.76622,
+      "lon": -63.198267
+    },
+    {
+      "id": "n1",
+      "lat": -17.764681,
+      "lon": -63.195608
+    },
+    {
+      "id": "n2",
+      "lat": -17.766305,
+      "lon": -63.194865
+    },
+    {
+      "id": "n3",
+      "lat": -17.76489,
+      "lon": -63.196015
+    },
+    {
+      "id": "n4",
+      "lat": -17.766999,
+      "lon": -63.196948
+    },
+    {
+      "id": "n5",
+      "lat": -17.766502,
+      "lon": -63.197308
+    },
+    {
+      "id": "n6",
+      "lat": -17.76529,
+      "lon": -63.195526
+    },
+    {
+      "id": "n7",
+      "lat": -17.764929,
+      "lon": -63.195898
+    },
+    {
+      "id": "n8",
+      "lat": -17.765811,
+      "lon": -63.195186
+    },
+    {
+      "id": "n9",
+      "lat": -17.765226,
+      "lon": -63.195453
+    },
+    {
+      "id": "n10",
+      "lat": -17.766749,
+      "lon": -63.194454
+    },
+    {
+      "id": "n11",
+      "lat": -17.767308,
+      "lon": -63.194211
+    },
+    {
+      "id": "n12",
+      "lat": -17.768103,
+      "lon": -63.199331
+    },
+    {
+      "id": "n13",
+      "lat": -17.766801,
+      "lon": -63.194537
+    },
+    {
+      "id": "n14",
+      "lat": -17.76414,
+      "lon": -63.193609
+    },
+    {
+      "id": "n15",
+      "lat": -17.764426,
+      "lon": -63.192785
+    },
+    {
+      "id": "n16",
+      "lat": -17.766253,
+      "lon": -63.194783
+    },
+    {
+      "id": "n17",
+      "lat": -17.764391,
+      "lon": -63.191353
+    },
+    {
+      "id": "n18",
+      "lat": -17.767243,
+      "lon": -63.198451
+    },
+    {
+      "id": "n19",
+      "lat": -17.767762,
+      "lon": -63.198069
+    },
+    {
+      "id": "n20",
+      "lat": -17.765754,
+      "lon": -63.195105
+    },
+    {
+      "id": "n21",
+      "lat": -17.768175,
+      "lon": -63.197581
+    },
+    {
+      "id": "n22",
+      "lat": -17.765927,
+      "lon": -63.197737
+    },
+    {
+      "id": "n23",
+      "lat": -17.764764,
+      "lon": -63.195623
+    },
+    {
+      "id": "n24",
+      "lat": -17.764693,
+      "lon": -63.193286
+    },
+    {
+      "id": "n25",
+      "lat": -17.766289,
+      "lon": -63.198216
+    },
+    {
+      "id": "n26",
+      "lat": -17.766738,
+      "lon": -63.198801
+    },
+    {
+      "id": "n27",
+      "lat": -17.767957,
+      "lon": -63.19623
+    },
+    {
+      "id": "n28",
+      "lat": -17.764699,
+      "lon": -63.196134
+    },
+    {
+      "id": "n29",
+      "lat": -17.767474,
+      "lon": -63.196575
+    }
+  ],
+  "streets": [
+    {
+      "id": "s0",
+      "name": "Sin Nombre",
+      "from": "n0",
+      "to": "n25",
+      "oneWay": false
+    },
+    {
+      "id": "s1",
+      "name": "Avenida San Martín",
+      "from": "n2",
+      "to": "n13",
+      "oneWay": true
+    },
+    {
+      "id": "s2",
+      "name": "Calle Córdoba",
+      "from": "n2",
+      "to": "n29",
+      "oneWay": true
+    },
+    {
+      "id": "s3",
+      "name": "Calle Córdoba",
+      "from": "n2",
+      "to": "n16",
+      "oneWay": false
+    },
+    {
+      "id": "s4",
+      "name": "Sin Nombre",
+      "from": "n3",
+      "to": "n7",
+      "oneWay": true
+    },
+    {
+      "id": "s5",
+      "name": "Calle Enrique Finot",
+      "from": "n4",
+      "to": "n5",
+      "oneWay": false
+    },
+    {
+      "id": "s6",
+      "name": "Calle Enrique Finot",
+      "from": "n4",
+      "to": "n29",
+      "oneWay": false
+    },
+    {
+      "id": "s7",
+      "name": "Calle La Plata",
+      "from": "n4",
+      "to": "n8",
+      "oneWay": true
+    },
+    {
+      "id": "s8",
+      "name": "Calle Enrique Finot",
+      "from": "n5",
+      "to": "n22",
+      "oneWay": false
+    },
+    {
+      "id": "s9",
+      "name": "Calle Enrique Finot",
+      "from": "n5",
+      "to": "n4",
+      "oneWay": false
+    },
+    {
+      "id": "s10",
+      "name": "Calle Colonia Nacional Florida",
+      "from": "n5",
+      "to": "n18",
+      "oneWay": false
+    },
+    {
+      "id": "s11",
+      "name": "Calle Colonia Nacional Florida",
+      "from": "n5",
+      "to": "n6",
+      "oneWay": false
+    },
+    {
+      "id": "s12",
+      "name": "Avenida San Martín",
+      "from": "n6",
+      "to": "n8",
+      "oneWay": true
+    },
+    {
+      "id": "s13",
+      "name": "Calle Colonia Nacional Florida",
+      "from": "n6",
+      "to": "n5",
+      "oneWay": false
+    },
+    {
+      "id": "s14",
+      "name": "Avenida San Martín",
+      "from": "n7",
+      "to": "n6",
+      "oneWay": true
+    },
+    {
+      "id": "s15",
+      "name": "Sin Nombre",
+      "from": "n7",
+      "to": "n23",
+      "oneWay": true
+    },
+    {
+      "id": "s16",
+      "name": "Avenida San Martín",
+      "from": "n8",
+      "to": "n2",
+      "oneWay": true
+    },
+    {
+      "id": "s17",
+      "name": "Calle La Plata",
+      "from": "n8",
+      "to": "n20",
+      "oneWay": true
+    },
+    {
+      "id": "s18",
+      "name": "Calle 9 Este",
+      "from": "n9",
+      "to": "n14",
+      "oneWay": false
+    },
+    {
+      "id": "s19",
+      "name": "Avenida San Martín",
+      "from": "n9",
+      "to": "n23",
+      "oneWay": true
+    },
+    {
+      "id": "s20",
+      "name": "Calle Tucumán",
+      "from": "n10",
+      "to": "n13",
+      "oneWay": false
+    },
+    {
+      "id": "s21",
+      "name": "Avenida San Martín",
+      "from": "n10",
+      "to": "n16",
+      "oneWay": true
+    },
+    {
+      "id": "s22",
+      "name": "Calle Colonia Nacional Florida",
+      "from": "n12",
+      "to": "n18",
+      "oneWay": false
+    },
+    {
+      "id": "s23",
+      "name": "Avenida San Martín",
+      "from": "n13",
+      "to": "n11",
+      "oneWay": true
+    },
+    {
+      "id": "s24",
+      "name": "Calle Tucumán",
+      "from": "n13",
+      "to": "n10",
+      "oneWay": false
+    },
+    {
+      "id": "s25",
+      "name": "Calle 9A Norte",
+      "from": "n14",
+      "to": "n24",
+      "oneWay": true
+    },
+    {
+      "id": "s26",
+      "name": "Calle 9 Este",
+      "from": "n14",
+      "to": "n9",
+      "oneWay": false
+    },
+    {
+      "id": "s27",
+      "name": "Avenida San Martín",
+      "from": "n16",
+      "to": "n20",
+      "oneWay": true
+    },
+    {
+      "id": "s28",
+      "name": "Calle Córdoba",
+      "from": "n16",
+      "to": "n2",
+      "oneWay": false
+    },
+    {
+      "id": "s29",
+      "name": "Calle Córdoba",
+      "from": "n16",
+      "to": "n17",
+      "oneWay": true
+    },
+    {
+      "id": "s30",
+      "name": "Calle Hernán Aldava Paz",
+      "from": "n18",
+      "to": "n26",
+      "oneWay": false
+    },
+    {
+      "id": "s31",
+      "name": "Calle Colonia Nacional Florida",
+      "from": "n18",
+      "to": "n5",
+      "oneWay": false
+    },
+    {
+      "id": "s32",
+      "name": "Calle Hernán Aldava Paz",
+      "from": "n18",
+      "to": "n19",
+      "oneWay": false
+    },
+    {
+      "id": "s33",
+      "name": "Calle Colonia Nacional Florida",
+      "from": "n18",
+      "to": "n12",
+      "oneWay": false
+    },
+    {
+      "id": "s34",
+      "name": "Calle La Plata",
+      "from": "n19",
+      "to": "n4",
+      "oneWay": true
+    },
+    {
+      "id": "s35",
+      "name": "Calle Hernán Aldava Paz",
+      "from": "n19",
+      "to": "n21",
+      "oneWay": false
+    },
+    {
+      "id": "s36",
+      "name": "Calle Hernán Aldava Paz",
+      "from": "n19",
+      "to": "n18",
+      "oneWay": false
+    },
+    {
+      "id": "s37",
+      "name": "Avenida San Martín",
+      "from": "n20",
+      "to": "n9",
+      "oneWay": true
+    },
+    {
+      "id": "s38",
+      "name": "Calle La Plata",
+      "from": "n20",
+      "to": "n24",
+      "oneWay": true
+    },
+    {
+      "id": "s39",
+      "name": "Calle Hernán Aldava Paz",
+      "from": "n21",
+      "to": "n19",
+      "oneWay": false
+    },
+    {
+      "id": "s40",
+      "name": "Calle Enrique Finot",
+      "from": "n22",
+      "to": "n5",
+      "oneWay": false
+    },
+    {
+      "id": "s41",
+      "name": "Avenida Noel Kempff Mercado",
+      "from": "n22",
+      "to": "n3",
+      "oneWay": true
+    },
+    {
+      "id": "s42",
+      "name": "Sin Nombre",
+      "from": "n23",
+      "to": "n1",
+      "oneWay": true
+    },
+    {
+      "id": "s43",
+      "name": "Calle La Plata",
+      "from": "n24",
+      "to": "n15",
+      "oneWay": true
+    },
+    {
+      "id": "s44",
+      "name": "Sin Nombre",
+      "from": "n25",
+      "to": "n0",
+      "oneWay": false
+    },
+    {
+      "id": "s45",
+      "name": "Avenida Noel Kempff Mercado",
+      "from": "n25",
+      "to": "n22",
+      "oneWay": true
+    },
+    {
+      "id": "s46",
+      "name": "Calle Hernán Aldava Paz",
+      "from": "n26",
+      "to": "n18",
+      "oneWay": false
+    },
+    {
+      "id": "s47",
+      "name": "Avenida Noel Kempff Mercado",
+      "from": "n26",
+      "to": "n25",
+      "oneWay": true
+    },
+    {
+      "id": "s48",
+      "name": "Calle Tucumán",
+      "from": "n27",
+      "to": "n13",
+      "oneWay": true
+    },
+    {
+      "id": "s49",
+      "name": "Calle Enrique Finot",
+      "from": "n27",
+      "to": "n29",
+      "oneWay": false
+    },
+    {
+      "id": "s50",
+      "name": "Avenida Noel Kempff Mercado",
+      "from": "n28",
+      "to": "n0",
+      "oneWay": true
+    },
+    {
+      "id": "s51",
+      "name": "Sin Nombre",
+      "from": "n28",
+      "to": "n3",
+      "oneWay": true
+    },
+    {
+      "id": "s52",
+      "name": "Calle Córdoba",
+      "from": "n29",
+      "to": "n21",
+      "oneWay": true
+    },
+    {
+      "id": "s53",
+      "name": "Calle Enrique Finot",
+      "from": "n29",
+      "to": "n4",
+      "oneWay": false
+    },
+    {
+      "id": "s54",
+      "name": "Calle Enrique Finot",
+      "from": "n29",
+      "to": "n27",
+      "oneWay": false
+    }
+  ],
+  "restaurants": [
+    { "id": "r0", "name": "Example", "node": "n0", "pickupSlots": 1, "prepTimeMs": [60000, 240000] },
+    { "id": "r1", "name": "Example", "node": "n0", "pickupSlots": 1, "prepTimeMs": [60000, 240000] },
+    { "id": "r2", "name": "Example", "node": "n0", "pickupSlots": 1, "prepTimeMs": [60000, 240000] },
+    { "id": "r3", "name": "Example", "node": "n0", "pickupSlots": 1, "prepTimeMs": [60000, 240000] },
+    { "id": "r4", "name": "Example", "node": "n0", "pickupSlots": 1, "prepTimeMs": [60000, 240000] },
+    { "id": "r5", "name": "Example", "node": "n0", "pickupSlots": 1, "prepTimeMs": [60000, 240000] }
+]
+}
