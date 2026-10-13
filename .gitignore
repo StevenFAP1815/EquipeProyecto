@@ -4,3 +4,4 @@ env/
 # Carpetas Extras
 build/
 extra/
+bin/
