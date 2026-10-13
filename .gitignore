@@ -1,2 +1,6 @@
 # Entorno virtual
 env/
+
+# Carpetas Extras
+build/
+extra/
