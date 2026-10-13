@@ -1,559 +1,1465 @@
 {
-      "map": {
+  "map": {
     "image": "../data/equipetrol.png",
     "attribution": "© OpenStreetMap contributors",
     "bounds": {
-      "north": -17.74893,
-      "south": -17.77402,
-      "west": -63.2037,
-      "east": -63.17426
+      "north": -17.76056,
+      "south": -17.77174,
+      "west": -63.20192,
+      "east": -63.19111
     }
   },
+
   "nodes": [
     {
       "id": "n0",
-      "lat": -17.76622,
-      "lon": -63.198267
+      "lat": -17.760869,
+      "lon": -63.19837
     },
     {
       "id": "n1",
-      "lat": -17.764681,
-      "lon": -63.195608
+      "lat": -17.76259,
+      "lon": -63.201224
     },
     {
       "id": "n2",
-      "lat": -17.766305,
-      "lon": -63.194865
+      "lat": -17.763049,
+      "lon": -63.200875
     },
     {
       "id": "n3",
-      "lat": -17.76489,
-      "lon": -63.196015
+      "lat": -17.76305,
+      "lon": -63.200874
     },
     {
       "id": "n4",
-      "lat": -17.766999,
-      "lon": -63.196948
+      "lat": -17.7635,
+      "lon": -63.20051
     },
     {
       "id": "n5",
-      "lat": -17.766502,
-      "lon": -63.197308
+      "lat": -17.763519,
+      "lon": -63.200495
     },
     {
       "id": "n6",
-      "lat": -17.76529,
-      "lon": -63.195526
+      "lat": -17.763963,
+      "lon": -63.200119
     },
     {
       "id": "n7",
-      "lat": -17.764929,
-      "lon": -63.195898
+      "lat": -17.764404,
+      "lon": -63.199763
     },
     {
       "id": "n8",
-      "lat": -17.765811,
-      "lon": -63.195186
+      "lat": -17.764413,
+      "lon": -63.199755
     },
     {
       "id": "n9",
-      "lat": -17.765226,
-      "lon": -63.195453
+      "lat": -17.765005,
+      "lon": -63.199283
     },
     {
       "id": "n10",
-      "lat": -17.766749,
-      "lon": -63.194454
+      "lat": -17.765393,
+      "lon": -63.199803
     },
     {
       "id": "n11",
-      "lat": -17.767308,
-      "lon": -63.194211
+      "lat": -17.76581,
+      "lon": -63.200347
     },
     {
       "id": "n12",
-      "lat": -17.768103,
-      "lon": -63.199331
+      "lat": -17.765812,
+      "lon": -63.20035
     },
     {
       "id": "n13",
-      "lat": -17.766801,
-      "lon": -63.194537
+      "lat": -17.766378,
+      "lon": -63.201052
     },
     {
       "id": "n14",
-      "lat": -17.76414,
-      "lon": -63.193609
+      "lat": -17.767655,
+      "lon": -63.200001
     },
     {
       "id": "n15",
-      "lat": -17.764426,
-      "lon": -63.192785
+      "lat": -17.767563,
+      "lon": -63.199894
     },
     {
       "id": "n16",
-      "lat": -17.766253,
-      "lon": -63.194783
+      "lat": -17.768114,
+      "lon": -63.199347
     },
     {
       "id": "n17",
-      "lat": -17.764391,
-      "lon": -63.191353
+      "lat": -17.768436,
+      "lon": -63.197899
     },
     {
       "id": "n18",
-      "lat": -17.767243,
-      "lon": -63.198451
+      "lat": -17.768599,
+      "lon": -63.197894
     },
     {
       "id": "n19",
-      "lat": -17.767762,
-      "lon": -63.198069
+      "lat": -17.768732,
+      "lon": -63.197325
     },
     {
       "id": "n20",
-      "lat": -17.765754,
-      "lon": -63.195105
+      "lat": -17.76864,
+      "lon": -63.197239
     },
     {
       "id": "n21",
-      "lat": -17.768175,
-      "lon": -63.197581
+      "lat": -17.768171,
+      "lon": -63.197572
     },
     {
       "id": "n22",
-      "lat": -17.765927,
-      "lon": -63.197737
+      "lat": -17.768206,
+      "lon": -63.197743
     },
     {
       "id": "n23",
-      "lat": -17.764764,
-      "lon": -63.195623
+      "lat": -17.767767,
+      "lon": -63.198076
     },
     {
       "id": "n24",
-      "lat": -17.764693,
-      "lon": -63.193286
+      "lat": -17.767749,
+      "lon": -63.198089
     },
     {
       "id": "n25",
-      "lat": -17.766289,
-      "lon": -63.198216
+      "lat": -17.767241,
+      "lon": -63.198451
     },
     {
       "id": "n26",
-      "lat": -17.766738,
-      "lon": -63.198801
+      "lat": -17.76723,
+      "lon": -63.198459
     },
     {
       "id": "n27",
-      "lat": -17.767957,
-      "lon": -63.19623
+      "lat": -17.766726,
+      "lon": -63.198821
     },
     {
       "id": "n28",
-      "lat": -17.764699,
-      "lon": -63.196134
+      "lat": -17.765916,
+      "lon": -63.197757
     },
     {
       "id": "n29",
-      "lat": -17.767474,
-      "lon": -63.196575
+      "lat": -17.765914,
+      "lon": -63.197754
+    },
+    {
+      "id": "n30",
+      "lat": -17.765357,
+      "lon": -63.19695
+    },
+    {
+      "id": "n31",
+      "lat": -17.764954,
+      "lon": -63.196328
+    },
+    {
+      "id": "n32",
+      "lat": -17.76495,
+      "lon": -63.196325
+    },
+    {
+      "id": "n33",
+      "lat": -17.764714,
+      "lon": -63.19614
+    },
+    {
+      "id": "n34",
+      "lat": -17.764377,
+      "lon": -63.196172
+    },
+    {
+      "id": "n35",
+      "lat": -17.763999,
+      "lon": -63.196317
+    },
+    {
+      "id": "n36",
+      "lat": -17.763514,
+      "lon": -63.19695
+    },
+    {
+      "id": "n37",
+      "lat": -17.763513,
+      "lon": -63.19695
+    },
+    {
+      "id": "n38",
+      "lat": -17.763208,
+      "lon": -63.196998
+    },
+    {
+      "id": "n39",
+      "lat": -17.762795,
+      "lon": -63.1971
+    },
+    {
+      "id": "n40",
+      "lat": -17.762794,
+      "lon": -63.1971
+    },
+    {
+      "id": "n41",
+      "lat": -17.762789,
+      "lon": -63.197103
+    },
+    {
+      "id": "n42",
+      "lat": -17.762329,
+      "lon": -63.197427
+    },
+    {
+      "id": "n43",
+      "lat": -17.761829,
+      "lon": -63.197743
+    },
+    {
+      "id": "n44",
+      "lat": -17.761375,
+      "lon": -63.198049
+    },
+    {
+      "id": "n45",
+      "lat": -17.761352,
+      "lon": -63.198062
+    },
+    {
+      "id": "n46",
+      "lat": -17.761183,
+      "lon": -63.198163
+    },
+    {
+      "id": "n47",
+      "lat": -17.760991,
+      "lon": -63.198281
+    },
+    {
+      "id": "n48",
+      "lat": -17.760871,
+      "lon": -63.198364
+    },
+    {
+      "id": "n49",
+      "lat": -17.763992,
+      "lon": -63.196318
+    },
+    {
+      "id": "n50",
+      "lat": -17.763384,
+      "lon": -63.196436
+    },
+    {
+      "id": "n51",
+      "lat": -17.763111,
+      "lon": -63.196597
+    },
+    {
+      "id": "n52",
+      "lat": -17.762792,
+      "lon": -63.197104
+    },
+    {
+      "id": "n53",
+      "lat": -17.764951,
+      "lon": -63.196329
+    },
+    {
+      "id": "n54",
+      "lat": -17.764882,
+      "lon": -63.196039
+    },
+    {
+      "id": "n55",
+      "lat": -17.765105,
+      "lon": -63.195532
+    },
+    {
+      "id": "n56",
+      "lat": -17.765107,
+      "lon": -63.195527
+    },
+    {
+      "id": "n57",
+      "lat": -17.768687,
+      "lon": -63.197282
+    },
+    {
+      "id": "n58",
+      "lat": -17.769016,
+      "lon": -63.19671
+    },
+    {
+      "id": "n59",
+      "lat": -17.769642,
+      "lon": -63.195624
+    },
+    {
+      "id": "n60",
+      "lat": -17.770157,
+      "lon": -63.195844
+    },
+    {
+      "id": "n61",
+      "lat": -17.770421,
+      "lon": -63.194462
+    },
+    {
+      "id": "n62",
+      "lat": -17.770423,
+      "lon": -63.19445
+    },
+    {
+      "id": "n63",
+      "lat": -17.771475,
+      "lon": -63.192841
+    },
+    {
+      "id": "n64",
+      "lat": -17.770561,
+      "lon": -63.192004
+    },
+    {
+      "id": "n65",
+      "lat": -17.767277,
+      "lon": -63.194165
+    },
+    {
+      "id": "n66",
+      "lat": -17.766777,
+      "lon": -63.194492
+    },
+    {
+      "id": "n67",
+      "lat": -17.766287,
+      "lon": -63.194825
+    },
+    {
+      "id": "n68",
+      "lat": -17.766279,
+      "lon": -63.19483
+    },
+    {
+      "id": "n69",
+      "lat": -17.765797,
+      "lon": -63.195152
+    },
+    {
+      "id": "n70",
+      "lat": -17.765793,
+      "lon": -63.195155
+    },
+    {
+      "id": "n71",
+      "lat": -17.765271,
+      "lon": -63.195495
+    },
+    {
+      "id": "n72",
+      "lat": -17.765102,
+      "lon": -63.195533
+    },
+    {
+      "id": "n73",
+      "lat": -17.765103,
+      "lon": -63.195533
+    },
+    {
+      "id": "n74",
+      "lat": -17.764761,
+      "lon": -63.195616
+    },
+    {
+      "id": "n75",
+      "lat": -17.764473,
+      "lon": -63.195554
+    },
+    {
+      "id": "n76",
+      "lat": -17.764424,
+      "lon": -63.195857
+    },
+    {
+      "id": "n77",
+      "lat": -17.763993,
+      "lon": -63.196321
+    },
+    {
+      "id": "n78",
+      "lat": -17.769018,
+      "lon": -63.196713
+    },
+    {
+      "id": "n79",
+      "lat": -17.768446,
+      "lon": -63.195882
+    },
+    {
+      "id": "n80",
+      "lat": -17.768441,
+      "lon": -63.195875
+    },
+    {
+      "id": "n81",
+      "lat": -17.767272,
+      "lon": -63.194176
+    },
+    {
+      "id": "n82",
+      "lat": -17.76863,
+      "lon": -63.197244
+    },
+    {
+      "id": "n83",
+      "lat": -17.767956,
+      "lon": -63.196241
+    },
+    {
+      "id": "n84",
+      "lat": -17.767944,
+      "lon": -63.196223
+    },
+    {
+      "id": "n85",
+      "lat": -17.766761,
+      "lon": -63.194504
+    },
+    {
+      "id": "n86",
+      "lat": -17.768165,
+      "lon": -63.197582
+    },
+    {
+      "id": "n87",
+      "lat": -17.76748,
+      "lon": -63.196581
+    },
+    {
+      "id": "n88",
+      "lat": -17.767471,
+      "lon": -63.196568
+    },
+    {
+      "id": "n89",
+      "lat": -17.766276,
+      "lon": -63.194825
+    },
+    {
+      "id": "n90",
+      "lat": -17.767751,
+      "lon": -63.198091
+    },
+    {
+      "id": "n91",
+      "lat": -17.767001,
+      "lon": -63.196954
+    },
+    {
+      "id": "n92",
+      "lat": -17.767,
+      "lon": -63.196953
+    },
+    {
+      "id": "n93",
+      "lat": -17.765791,
+      "lon": -63.195152
+    },
+    {
+      "id": "n94",
+      "lat": -17.76723,
+      "lon": -63.19846
+    },
+    {
+      "id": "n95",
+      "lat": -17.766498,
+      "lon": -63.197312
+    },
+    {
+      "id": "n96",
+      "lat": -17.766495,
+      "lon": -63.197307
+    },
+    {
+      "id": "n97",
+      "lat": -17.765275,
+      "lon": -63.195505
+    },
+    {
+      "id": "n98",
+      "lat": -17.765914,
+      "lon": -63.197759
+    },
+    {
+      "id": "n99",
+      "lat": -17.766496,
+      "lon": -63.197314
+    },
+    {
+      "id": "n100",
+      "lat": -17.766991,
+      "lon": -63.19696
+    },
+    {
+      "id": "n101",
+      "lat": -17.767476,
+      "lon": -63.196584
+    },
+    {
+      "id": "n102",
+      "lat": -17.767941,
+      "lon": -63.196225
+    },
+    {
+      "id": "n103",
+      "lat": -17.768431,
+      "lon": -63.195882
+    },
+    {
+      "id": "n104",
+      "lat": -17.769292,
+      "lon": -63.195258
+    },
+    {
+      "id": "n105",
+      "lat": -17.769304,
+      "lon": -63.195249
+    },
+    {
+      "id": "n106",
+      "lat": -17.770422,
+      "lon": -63.194461
+    },
+    {
+      "id": "n107",
+      "lat": -17.769631,
+      "lon": -63.195635
+    },
+    {
+      "id": "n108",
+      "lat": -17.769289,
+      "lon": -63.195254
+    },
+    {
+      "id": "n109",
+      "lat": -17.765003,
+      "lon": -63.199282
+    },
+    {
+      "id": "n110",
+      "lat": -17.764181,
+      "lon": -63.198054
+    },
+    {
+      "id": "n111",
+      "lat": -17.763512,
+      "lon": -63.196949
+    },
+    {
+      "id": "n112",
+      "lat": -17.764405,
+      "lon": -63.199765
+    },
+    {
+      "id": "n113",
+      "lat": -17.762787,
+      "lon": -63.1971
+    },
+    {
+      "id": "n114",
+      "lat": -17.763951,
+      "lon": -63.200124
+    },
+    {
+      "id": "n115",
+      "lat": -17.762337,
+      "lon": -63.197422
+    },
+    {
+      "id": "n116",
+      "lat": -17.763501,
+      "lon": -63.200511
+    },
+    {
+      "id": "n117",
+      "lat": -17.761827,
+      "lon": -63.197749
+    },
+    {
+      "id": "n118",
+      "lat": -17.763051,
+      "lon": -63.200876
+    },
+    {
+      "id": "n119",
+      "lat": -17.761351,
+      "lon": -63.19806
+    },
+    {
+      "id": "n120",
+      "lat": -17.765806,
+      "lon": -63.20035
+    },
+    {
+      "id": "n121",
+      "lat": -17.767113,
+      "lon": -63.199347
+    },
+    {
+      "id": "n122",
+      "lat": -17.766725,
+      "lon": -63.198822
+    },
+    {
+      "id": "n123",
+      "lat": -17.767563,
+      "lon": -63.199899
+    },
+    {
+      "id": "n124",
+      "lat": -17.767119,
+      "lon": -63.199349
     }
   ],
   "streets": [
     {
       "id": "s0",
-      "name": "Sin Nombre",
       "from": "n0",
-      "to": "n25",
+      "to": "n1",
       "oneWay": false
     },
     {
       "id": "s1",
-      "name": "Avenida San Martín",
-      "from": "n2",
-      "to": "n13",
-      "oneWay": true
+      "from": "n1",
+      "to": "n2",
+      "oneWay": false
     },
     {
       "id": "s2",
-      "name": "Calle Córdoba",
       "from": "n2",
-      "to": "n29",
-      "oneWay": true
+      "to": "n3",
+      "oneWay": false
     },
     {
       "id": "s3",
-      "name": "Calle Córdoba",
-      "from": "n2",
-      "to": "n16",
+      "from": "n3",
+      "to": "n4",
       "oneWay": false
     },
     {
       "id": "s4",
-      "name": "Sin Nombre",
-      "from": "n3",
-      "to": "n7",
-      "oneWay": true
+      "from": "n4",
+      "to": "n5",
+      "oneWay": false
     },
     {
       "id": "s5",
-      "name": "Calle Enrique Finot",
-      "from": "n4",
-      "to": "n5",
+      "from": "n5",
+      "to": "n6",
       "oneWay": false
     },
     {
       "id": "s6",
-      "name": "Calle Enrique Finot",
-      "from": "n4",
-      "to": "n29",
+      "from": "n6",
+      "to": "n7",
       "oneWay": false
     },
     {
       "id": "s7",
-      "name": "Calle La Plata",
-      "from": "n4",
+      "from": "n7",
       "to": "n8",
-      "oneWay": true
+      "oneWay": false
     },
     {
       "id": "s8",
-      "name": "Calle Enrique Finot",
-      "from": "n5",
-      "to": "n22",
+      "from": "n8",
+      "to": "n9",
       "oneWay": false
     },
     {
       "id": "s9",
-      "name": "Calle Enrique Finot",
-      "from": "n5",
-      "to": "n4",
-      "oneWay": false
-    },
-    {
-      "id": "s10",
-      "name": "Calle Colonia Nacional Florida",
-      "from": "n5",
-      "to": "n18",
-      "oneWay": false
-    },
-    {
-      "id": "s11",
-      "name": "Calle Colonia Nacional Florida",
-      "from": "n5",
-      "to": "n6",
-      "oneWay": false
-    },
-    {
-      "id": "s12",
-      "name": "Avenida San Martín",
-      "from": "n6",
-      "to": "n8",
-      "oneWay": true
-    },
-    {
-      "id": "s13",
-      "name": "Calle Colonia Nacional Florida",
-      "from": "n6",
-      "to": "n5",
-      "oneWay": false
-    },
-    {
-      "id": "s14",
-      "name": "Avenida San Martín",
-      "from": "n7",
-      "to": "n6",
-      "oneWay": true
-    },
-    {
-      "id": "s15",
-      "name": "Sin Nombre",
-      "from": "n7",
-      "to": "n23",
-      "oneWay": true
-    },
-    {
-      "id": "s16",
-      "name": "Avenida San Martín",
-      "from": "n8",
-      "to": "n2",
-      "oneWay": true
-    },
-    {
-      "id": "s17",
-      "name": "Calle La Plata",
-      "from": "n8",
-      "to": "n20",
-      "oneWay": true
-    },
-    {
-      "id": "s18",
-      "name": "Calle 9 Este",
       "from": "n9",
-      "to": "n14",
-      "oneWay": false
-    },
-    {
-      "id": "s19",
-      "name": "Avenida San Martín",
-      "from": "n9",
-      "to": "n23",
-      "oneWay": true
-    },
-    {
-      "id": "s20",
-      "name": "Calle Tucumán",
-      "from": "n10",
-      "to": "n13",
-      "oneWay": false
-    },
-    {
-      "id": "s21",
-      "name": "Avenida San Martín",
-      "from": "n10",
-      "to": "n16",
-      "oneWay": true
-    },
-    {
-      "id": "s22",
-      "name": "Calle Colonia Nacional Florida",
-      "from": "n12",
-      "to": "n18",
-      "oneWay": false
-    },
-    {
-      "id": "s23",
-      "name": "Avenida San Martín",
-      "from": "n13",
-      "to": "n11",
-      "oneWay": true
-    },
-    {
-      "id": "s24",
-      "name": "Calle Tucumán",
-      "from": "n13",
       "to": "n10",
       "oneWay": false
     },
     {
-      "id": "s25",
-      "name": "Calle 9A Norte",
-      "from": "n14",
-      "to": "n24",
-      "oneWay": true
-    },
-    {
-      "id": "s26",
-      "name": "Calle 9 Este",
-      "from": "n14",
-      "to": "n9",
+      "id": "s10",
+      "from": "n10",
+      "to": "n11",
       "oneWay": false
     },
     {
-      "id": "s27",
-      "name": "Avenida San Martín",
-      "from": "n16",
-      "to": "n20",
-      "oneWay": true
-    },
-    {
-      "id": "s28",
-      "name": "Calle Córdoba",
-      "from": "n16",
-      "to": "n2",
-      "oneWay": false
-    },
-    {
-      "id": "s29",
-      "name": "Calle Córdoba",
-      "from": "n16",
-      "to": "n17",
-      "oneWay": true
-    },
-    {
-      "id": "s30",
-      "name": "Calle Hernán Aldava Paz",
-      "from": "n18",
-      "to": "n26",
-      "oneWay": false
-    },
-    {
-      "id": "s31",
-      "name": "Calle Colonia Nacional Florida",
-      "from": "n18",
-      "to": "n5",
-      "oneWay": false
-    },
-    {
-      "id": "s32",
-      "name": "Calle Hernán Aldava Paz",
-      "from": "n18",
-      "to": "n19",
-      "oneWay": false
-    },
-    {
-      "id": "s33",
-      "name": "Calle Colonia Nacional Florida",
-      "from": "n18",
+      "id": "s11",
+      "from": "n11",
       "to": "n12",
       "oneWay": false
     },
     {
-      "id": "s34",
-      "name": "Calle La Plata",
-      "from": "n19",
-      "to": "n4",
-      "oneWay": true
-    },
-    {
-      "id": "s35",
-      "name": "Calle Hernán Aldava Paz",
-      "from": "n19",
-      "to": "n21",
+      "id": "s12",
+      "from": "n12",
+      "to": "n13",
       "oneWay": false
     },
     {
-      "id": "s36",
-      "name": "Calle Hernán Aldava Paz",
-      "from": "n19",
+      "id": "s13",
+      "from": "n13",
+      "to": "n14",
+      "oneWay": false
+    },
+    {
+      "id": "s14",
+      "from": "n14",
+      "to": "n15",
+      "oneWay": false
+    },
+    {
+      "id": "s15",
+      "from": "n15",
+      "to": "n16",
+      "oneWay": false
+    },
+    {
+      "id": "s16",
+      "from": "n16",
+      "to": "n17",
+      "oneWay": false
+    },
+    {
+      "id": "s17",
+      "from": "n17",
       "to": "n18",
       "oneWay": false
     },
     {
-      "id": "s37",
-      "name": "Avenida San Martín",
-      "from": "n20",
-      "to": "n9",
-      "oneWay": true
-    },
-    {
-      "id": "s38",
-      "name": "Calle La Plata",
-      "from": "n20",
-      "to": "n24",
-      "oneWay": true
-    },
-    {
-      "id": "s39",
-      "name": "Calle Hernán Aldava Paz",
-      "from": "n21",
+      "id": "s18",
+      "from": "n18",
       "to": "n19",
       "oneWay": false
     },
     {
-      "id": "s40",
-      "name": "Calle Enrique Finot",
-      "from": "n22",
-      "to": "n5",
+      "id": "s19",
+      "from": "n19",
+      "to": "n20",
       "oneWay": false
     },
     {
-      "id": "s41",
-      "name": "Avenida Noel Kempff Mercado",
-      "from": "n22",
-      "to": "n3",
-      "oneWay": true
-    },
-    {
-      "id": "s42",
-      "name": "Sin Nombre",
-      "from": "n23",
-      "to": "n1",
-      "oneWay": true
-    },
-    {
-      "id": "s43",
-      "name": "Calle La Plata",
-      "from": "n24",
-      "to": "n15",
-      "oneWay": true
-    },
-    {
-      "id": "s44",
-      "name": "Sin Nombre",
-      "from": "n25",
-      "to": "n0",
+      "id": "s20",
+      "from": "n20",
+      "to": "n21",
       "oneWay": false
     },
     {
-      "id": "s45",
-      "name": "Avenida Noel Kempff Mercado",
-      "from": "n25",
+      "id": "s21",
+      "from": "n21",
       "to": "n22",
-      "oneWay": true
-    },
-    {
-      "id": "s46",
-      "name": "Calle Hernán Aldava Paz",
-      "from": "n26",
-      "to": "n18",
       "oneWay": false
     },
     {
-      "id": "s47",
-      "name": "Avenida Noel Kempff Mercado",
-      "from": "n26",
+      "id": "s22",
+      "from": "n22",
+      "to": "n23",
+      "oneWay": false
+    },
+    {
+      "id": "s23",
+      "from": "n23",
+      "to": "n24",
+      "oneWay": false
+    },
+    {
+      "id": "s24",
+      "from": "n24",
       "to": "n25",
-      "oneWay": true
+      "oneWay": false
     },
     {
-      "id": "s48",
-      "name": "Calle Tucumán",
-      "from": "n27",
-      "to": "n13",
-      "oneWay": true
+      "id": "s25",
+      "from": "n25",
+      "to": "n26",
+      "oneWay": false
     },
     {
-      "id": "s49",
-      "name": "Calle Enrique Finot",
+      "id": "s26",
+      "from": "n26",
+      "to": "n27",
+      "oneWay": false
+    },
+    {
+      "id": "s27",
       "from": "n27",
+      "to": "n28",
+      "oneWay": false
+    },
+    {
+      "id": "s28",
+      "from": "n28",
       "to": "n29",
       "oneWay": false
     },
     {
+      "id": "s29",
+      "from": "n29",
+      "to": "n30",
+      "oneWay": false
+    },
+    {
+      "id": "s30",
+      "from": "n30",
+      "to": "n31",
+      "oneWay": false
+    },
+    {
+      "id": "s31",
+      "from": "n31",
+      "to": "n32",
+      "oneWay": false
+    },
+    {
+      "id": "s32",
+      "from": "n32",
+      "to": "n33",
+      "oneWay": false
+    },
+    {
+      "id": "s33",
+      "from": "n33",
+      "to": "n34",
+      "oneWay": false
+    },
+    {
+      "id": "s34",
+      "from": "n34",
+      "to": "n35",
+      "oneWay": false
+    },
+    {
+      "id": "s35",
+      "from": "n35",
+      "to": "n36",
+      "oneWay": false
+    },
+    {
+      "id": "s36",
+      "from": "n36",
+      "to": "n37",
+      "oneWay": false
+    },
+    {
+      "id": "s37",
+      "from": "n37",
+      "to": "n38",
+      "oneWay": false
+    },
+    {
+      "id": "s38",
+      "from": "n38",
+      "to": "n39",
+      "oneWay": false
+    },
+    {
+      "id": "s39",
+      "from": "n39",
+      "to": "n40",
+      "oneWay": false
+    },
+    {
+      "id": "s40",
+      "from": "n40",
+      "to": "n41",
+      "oneWay": false
+    },
+    {
+      "id": "s41",
+      "from": "n41",
+      "to": "n42",
+      "oneWay": false
+    },
+    {
+      "id": "s42",
+      "from": "n42",
+      "to": "n43",
+      "oneWay": false
+    },
+    {
+      "id": "s43",
+      "from": "n43",
+      "to": "n44",
+      "oneWay": false
+    },
+    {
+      "id": "s44",
+      "from": "n44",
+      "to": "n45",
+      "oneWay": false
+    },
+    {
+      "id": "s45",
+      "from": "n45",
+      "to": "n46",
+      "oneWay": false
+    },
+    {
+      "id": "s46",
+      "from": "n46",
+      "to": "n47",
+      "oneWay": false
+    },
+    {
+      "id": "s47",
+      "from": "n47",
+      "to": "n48",
+      "oneWay": false
+    },
+    {
+      "id": "s48",
+      "from": "n49",
+      "to": "n50",
+      "oneWay": false
+    },
+    {
+      "id": "s49",
+      "from": "n50",
+      "to": "n51",
+      "oneWay": false
+    },
+    {
       "id": "s50",
-      "name": "Avenida Noel Kempff Mercado",
-      "from": "n28",
-      "to": "n0",
-      "oneWay": true
+      "from": "n51",
+      "to": "n39",
+      "oneWay": false
     },
     {
       "id": "s51",
-      "name": "Sin Nombre",
-      "from": "n28",
-      "to": "n3",
-      "oneWay": true
+      "from": "n39",
+      "to": "n52",
+      "oneWay": false
     },
     {
       "id": "s52",
-      "name": "Calle Córdoba",
-      "from": "n29",
-      "to": "n21",
-      "oneWay": true
+      "from": "n53",
+      "to": "n32",
+      "oneWay": false
     },
     {
       "id": "s53",
-      "name": "Calle Enrique Finot",
-      "from": "n29",
-      "to": "n4",
+      "from": "n32",
+      "to": "n54",
       "oneWay": false
     },
     {
       "id": "s54",
-      "name": "Calle Enrique Finot",
-      "from": "n29",
-      "to": "n27",
+      "from": "n54",
+      "to": "n55",
+      "oneWay": false
+    },
+    {
+      "id": "s55",
+      "from": "n55",
+      "to": "n56",
+      "oneWay": false
+    },
+    {
+      "id": "s56",
+      "from": "n57",
+      "to": "n58",
+      "oneWay": false
+    },
+    {
+      "id": "s57",
+      "from": "n58",
+      "to": "n59",
+      "oneWay": false
+    },
+    {
+      "id": "s58",
+      "from": "n59",
+      "to": "n60",
+      "oneWay": false
+    },
+    {
+      "id": "s59",
+      "from": "n60",
+      "to": "n61",
+      "oneWay": false
+    },
+    {
+      "id": "s60",
+      "from": "n61",
+      "to": "n62",
+      "oneWay": false
+    },
+    {
+      "id": "s61",
+      "from": "n62",
+      "to": "n63",
+      "oneWay": false
+    },
+    {
+      "id": "s62",
+      "from": "n63",
+      "to": "n64",
+      "oneWay": false
+    },
+    {
+      "id": "s63",
+      "from": "n64",
+      "to": "n65",
+      "oneWay": false
+    },
+    {
+      "id": "s64",
+      "from": "n65",
+      "to": "n66",
+      "oneWay": false
+    },
+    {
+      "id": "s65",
+      "from": "n66",
+      "to": "n67",
+      "oneWay": false
+    },
+    {
+      "id": "s66",
+      "from": "n67",
+      "to": "n68",
+      "oneWay": false
+    },
+    {
+      "id": "s67",
+      "from": "n68",
+      "to": "n69",
+      "oneWay": false
+    },
+    {
+      "id": "s68",
+      "from": "n69",
+      "to": "n70",
+      "oneWay": false
+    },
+    {
+      "id": "s69",
+      "from": "n70",
+      "to": "n71",
+      "oneWay": false
+    },
+    {
+      "id": "s70",
+      "from": "n71",
+      "to": "n55",
+      "oneWay": false
+    },
+    {
+      "id": "s71",
+      "from": "n55",
+      "to": "n72",
+      "oneWay": false
+    },
+    {
+      "id": "s72",
+      "from": "n73",
+      "to": "n74",
+      "oneWay": false
+    },
+    {
+      "id": "s73",
+      "from": "n74",
+      "to": "n75",
+      "oneWay": false
+    },
+    {
+      "id": "s74",
+      "from": "n75",
+      "to": "n76",
+      "oneWay": false
+    },
+    {
+      "id": "s75",
+      "from": "n76",
+      "to": "n77",
+      "oneWay": false
+    },
+    {
+      "id": "s76",
+      "from": "n78",
+      "to": "n58",
+      "oneWay": false
+    },
+    {
+      "id": "s77",
+      "from": "n58",
+      "to": "n79",
+      "oneWay": false
+    },
+    {
+      "id": "s78",
+      "from": "n79",
+      "to": "n80",
+      "oneWay": false
+    },
+    {
+      "id": "s79",
+      "from": "n80",
+      "to": "n81",
+      "oneWay": false
+    },
+    {
+      "id": "s80",
+      "from": "n82",
+      "to": "n83",
+      "oneWay": false
+    },
+    {
+      "id": "s81",
+      "from": "n83",
+      "to": "n84",
+      "oneWay": false
+    },
+    {
+      "id": "s82",
+      "from": "n84",
+      "to": "n85",
+      "oneWay": false
+    },
+    {
+      "id": "s83",
+      "from": "n86",
+      "to": "n87",
+      "oneWay": false
+    },
+    {
+      "id": "s84",
+      "from": "n87",
+      "to": "n88",
+      "oneWay": false
+    },
+    {
+      "id": "s85",
+      "from": "n88",
+      "to": "n68",
+      "oneWay": false
+    },
+    {
+      "id": "s86",
+      "from": "n68",
+      "to": "n89",
+      "oneWay": false
+    },
+    {
+      "id": "s87",
+      "from": "n90",
+      "to": "n24",
+      "oneWay": false
+    },
+    {
+      "id": "s88",
+      "from": "n24",
+      "to": "n91",
+      "oneWay": false
+    },
+    {
+      "id": "s89",
+      "from": "n91",
+      "to": "n92",
+      "oneWay": false
+    },
+    {
+      "id": "s90",
+      "from": "n92",
+      "to": "n70",
+      "oneWay": false
+    },
+    {
+      "id": "s91",
+      "from": "n70",
+      "to": "n93",
+      "oneWay": false
+    },
+    {
+      "id": "s92",
+      "from": "n94",
+      "to": "n26",
+      "oneWay": false
+    },
+    {
+      "id": "s93",
+      "from": "n26",
+      "to": "n95",
+      "oneWay": false
+    },
+    {
+      "id": "s94",
+      "from": "n95",
+      "to": "n96",
+      "oneWay": false
+    },
+    {
+      "id": "s95",
+      "from": "n96",
+      "to": "n97",
+      "oneWay": false
+    },
+    {
+      "id": "s96",
+      "from": "n98",
+      "to": "n28",
+      "oneWay": false
+    },
+    {
+      "id": "s97",
+      "from": "n28",
+      "to": "n99",
+      "oneWay": false
+    },
+    {
+      "id": "s98",
+      "from": "n99",
+      "to": "n95",
+      "oneWay": false
+    },
+    {
+      "id": "s99",
+      "from": "n95",
+      "to": "n100",
+      "oneWay": false
+    },
+    {
+      "id": "s100",
+      "from": "n100",
+      "to": "n92",
+      "oneWay": false
+    },
+    {
+      "id": "s101",
+      "from": "n92",
+      "to": "n101",
+      "oneWay": false
+    },
+    {
+      "id": "s102",
+      "from": "n101",
+      "to": "n87",
+      "oneWay": false
+    },
+    {
+      "id": "s103",
+      "from": "n87",
+      "to": "n102",
+      "oneWay": false
+    },
+    {
+      "id": "s104",
+      "from": "n102",
+      "to": "n84",
+      "oneWay": false
+    },
+    {
+      "id": "s105",
+      "from": "n84",
+      "to": "n103",
+      "oneWay": false
+    },
+    {
+      "id": "s106",
+      "from": "n103",
+      "to": "n80",
+      "oneWay": false
+    },
+    {
+      "id": "s107",
+      "from": "n80",
+      "to": "n104",
+      "oneWay": false
+    },
+    {
+      "id": "s108",
+      "from": "n104",
+      "to": "n105",
+      "oneWay": false
+    },
+    {
+      "id": "s109",
+      "from": "n105",
+      "to": "n61",
+      "oneWay": false
+    },
+    {
+      "id": "s110",
+      "from": "n61",
+      "to": "n106",
+      "oneWay": false
+    },
+    {
+      "id": "s111",
+      "from": "n107",
+      "to": "n104",
+      "oneWay": false
+    },
+    {
+      "id": "s112",
+      "from": "n104",
+      "to": "n108",
+      "oneWay": false
+    },
+    {
+      "id": "s113",
+      "from": "n109",
+      "to": "n110",
+      "oneWay": false
+    },
+    {
+      "id": "s114",
+      "from": "n110",
+      "to": "n37",
+      "oneWay": false
+    },
+    {
+      "id": "s115",
+      "from": "n37",
+      "to": "n111",
+      "oneWay": false
+    },
+    {
+      "id": "s116",
+      "from": "n112",
+      "to": "n7",
+      "oneWay": false
+    },
+    {
+      "id": "s117",
+      "from": "n7",
+      "to": "n41",
+      "oneWay": false
+    },
+    {
+      "id": "s118",
+      "from": "n41",
+      "to": "n113",
+      "oneWay": false
+    },
+    {
+      "id": "s119",
+      "from": "n114",
+      "to": "n115",
+      "oneWay": false
+    },
+    {
+      "id": "s120",
+      "from": "n116",
+      "to": "n4",
+      "oneWay": false
+    },
+    {
+      "id": "s121",
+      "from": "n4",
+      "to": "n117",
+      "oneWay": false
+    },
+    {
+      "id": "s122",
+      "from": "n118",
+      "to": "n3",
+      "oneWay": false
+    },
+    {
+      "id": "s123",
+      "from": "n3",
+      "to": "n45",
+      "oneWay": false
+    },
+    {
+      "id": "s124",
+      "from": "n45",
+      "to": "n119",
+      "oneWay": false
+    },
+    {
+      "id": "s125",
+      "from": "n120",
+      "to": "n11",
+      "oneWay": false
+    },
+    {
+      "id": "s126",
+      "from": "n11",
+      "to": "n121",
+      "oneWay": false
+    },
+    {
+      "id": "s127",
+      "from": "n121",
+      "to": "n122",
+      "oneWay": false
+    },
+    {
+      "id": "s128",
+      "from": "n123",
+      "to": "n124",
       "oneWay": false
     }
   ],
   "restaurants": [
-    { "id": "r0", "name": "Example", "node": "n0", "pickupSlots": 1, "prepTimeMs": [60000, 240000] },
-    { "id": "r1", "name": "Example", "node": "n0", "pickupSlots": 1, "prepTimeMs": [60000, 240000] },
-    { "id": "r2", "name": "Example", "node": "n0", "pickupSlots": 1, "prepTimeMs": [60000, 240000] },
-    { "id": "r3", "name": "Example", "node": "n0", "pickupSlots": 1, "prepTimeMs": [60000, 240000] },
-    { "id": "r4", "name": "Example", "node": "n0", "pickupSlots": 1, "prepTimeMs": [60000, 240000] },
-    { "id": "r5", "name": "Example", "node": "n0", "pickupSlots": 1, "prepTimeMs": [60000, 240000] }
-]
+    {
+      "id": "r0",
+      "name": "Memphis Burger",
+      "node": "n35",
+      "pickupSlots": 1,
+      "prepTimeMs": [60000, 240000]
+    },
+    {
+      "id": "r1",
+      "name": "Pollo Solar",
+      "node": "n26",
+      "pickupSlots": 1,
+      "prepTimeMs": [60000, 240000]
+    },
+    {
+      "id": "r2",
+      "name": "Señor Lomo",
+      "node": "n8",
+      "pickupSlots": 1,
+      "prepTimeMs": [60000, 240000]
+    },
+    {
+      "id": "r3",
+      "name": "Vaca Morena",
+      "node": "n29",
+      "pickupSlots": 1,
+      "prepTimeMs": [60000, 240000]
+    },
+    {
+      "id": "r4",
+      "name": "Pasta Madre",
+      "node": "n33",
+      "pickupSlots": 1,
+      "prepTimeMs": [60000, 240000]
+    },
+    {
+      "id": "r5",
+      "name": "Bamboo Sushi",
+      "node": "n60",
+      "pickupSlots": 1,
+      "prepTimeMs": [60000, 240000]
+    }
+  ],
+  "fleet": { "couriers": 8, "bagCapacity": 3, "speedKmh": 30, "startNode": "n0" },
+  "orders": { "meanIntervalMs": 20000, "burstMax": 12, "maxPending": 50, "seed": 42 },
+  "dispatch": { "quoteTimeoutMs": 200, "acceptTimeoutMs": 600000 },
+  "incidents": { "breakdownProbability": 0.02 },
+  "simulation": { "durationS": 3600, "timeScale": 60 }
 }
