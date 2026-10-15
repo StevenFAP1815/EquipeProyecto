@@ -1,49 +1,61 @@
-cmake_minimum_required(VERSION 3.14)
-project(delivery_sim CXX)
+cmake_minimum_required(VERSION 3.16)
+project(equipetrol_delivery LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 if(NOT CMAKE_BUILD_TYPE)
-  set(CMAKE_BUILD_TYPE Release)
+    set(CMAKE_BUILD_TYPE Release)
 endif()
 
-# Asegurar que los binarios se generen ordenados en build/bin
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-
-# --- Biblioteca JSON (nlohmann) ---
-find_package(nlohmann_json 3.11 QUIET)
-if(NOT nlohmann_json_FOUND)
-  include(FetchContent)
-  FetchContent_Declare(
-    json
-    URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
-  )
-  FetchContent_MakeAvailable(json)
+if(MSVC)
+    add_compile_options(/W4 /permissive-)
+else()
+    add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-find_package(Threads REQUIRED)
+# ---- Dependencias ----
+find_package(OpenCV REQUIRED COMPONENTS core highgui imgproc imgcodecs)
 
-# --- OpenCV ---
-# En MSYS2 UCRT64, find_package encuentra la configuración exacta exportada por OpenCV 5/4
-find_package(OpenCV REQUIRED)
-
-# --- Pruebas de visualizacion ---
-# NOTA: Agrega src/MapLoader.cpp si ahí está implementado MapLoader::loadFromFile
-add_executable(validar_visualizacion_mapa 
-    tests/validar_visualizacion_mapa.cpp
-    # src/MapLoader.cpp  <-- Descomenta si tienes un archivo .cpp para MapLoader
+include(FetchContent)
+FetchContent_Declare(
+    nlohmann_json
+    GIT_REPOSITORY https://github.com/nlohmann/json.git
+    GIT_TAG v3.11.3
 )
+FetchContent_MakeAvailable(nlohmann_json)
 
-target_include_directories(validar_visualizacion_mapa PRIVATE 
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-)
-
-target_compile_options(validar_visualizacion_mapa PRIVATE -Wall -Wextra)
-
-# Enlace moderno usando el target importado de OpenCV
-target_link_libraries(validar_visualizacion_mapa PRIVATE 
-    Threads::Threads 
-    nlohmann_json::nlohmann_json 
+# ---- Target ----
+add_executable(delivery_sim src/main.cpp)
+target_include_directories(delivery_sim PRIVATE include)
+target_link_libraries(delivery_sim PRIVATE
     ${OpenCV_LIBS}
+    nlohmann_json::nlohmann_json
 )
+
+# ---- ThreadSanitizer (opcional) ----
+option(ENABLE_TSAN "Build with ThreadSanitizer" OFF)
+if(ENABLE_TSAN)
+    if(MSVC)
+        message(FATAL_ERROR "ENABLE_TSAN no está soportado con MSVC. Use Clang o GCC en Linux/WSL2.")
+    endif()
+
+    # Detectar si el linker puede encontrar libtsan (solo en toolchains que la proveen)
+    include(CheckCXXSourceCompiles)
+    set(CMAKE_REQUIRED_FLAGS "-fsanitize=thread")
+    set(CMAKE_REQUIRED_LINK_OPTIONS "-fsanitize=thread")
+    check_cxx_source_compiles("int main(){return 0;}" TSAN_SUPPORTED)
+    unset(CMAKE_REQUIRED_FLAGS)
+    unset(CMAKE_REQUIRED_LINK_OPTIONS)
+
+    if(NOT TSAN_SUPPORTED)
+        message(FATAL_ERROR
+            "ENABLE_TSAN=ON pero el toolchain actual no provee libtsan "
+            "(caso típico: MSYS2/MinGW en Windows). "
+            "Ejecute esta configuración en Linux o WSL2.")
+    endif()
+
+    target_compile_options(delivery_sim PRIVATE -fsanitize=thread -g -O1)
+    target_link_options(delivery_sim PRIVATE -fsanitize=thread)
+endif()
