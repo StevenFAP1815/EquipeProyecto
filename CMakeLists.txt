@@ -30,6 +30,7 @@ FetchContent_MakeAvailable(nlohmann_json)
 set(DELIVERY_SOURCES
     src/main.cpp
     src/core/GeoBounds.cpp
+    src/infra/ConfigLoader.cpp
 )
 add_executable(delivery_sim ${DELIVERY_SOURCES})
 

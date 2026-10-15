@@ -1,0 +1,20 @@
+{
+  "map": {
+    "image": "data/equipetrol.png",
+    "attribution": "(c) OpenStreetMap contributors",
+    "bounds": { "north": -17.7500, "south": -17.7700, "west": -63.2000, "east": -63.1800 }
+  },
+  "nodes": [
+    { "id": "n0", "lat": -17.7550, "lon": -63.1950 },
+    { "id": "n1", "lat": -17.7560, "lon": -63.1940 }
+  ],
+  "streets": [
+    { "id": "s0", "from": "n99", "to": "n1", "oneWay": false }
+  ],
+  "restaurants": [],
+  "fleet": { "couriers": 1, "bagCapacity": 1, "speedKmh": 30, "startNode": "n0" },
+  "orders": { "meanIntervalMs": 20000, "burstMax": 4, "maxPending": 20, "seed": 42 },
+  "dispatch": { "quoteTimeoutMs": 200, "acceptTimeoutMs": 600000 },
+  "incidents": { "breakdownProbability": 0.02 },
+  "simulation": { "durationS": 3600, "timeScale": 60 }
+}
