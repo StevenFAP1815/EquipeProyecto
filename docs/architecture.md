@@ -58,4 +58,4 @@ equipetrol-delivery/
 
 ## 6. Decisiones de señales y render
 
-Ver `docs/design-decisions.md` (DD-004, DD-005).
+Ver `docs/design-decisions.md` (DD-004, DD-006).
