@@ -1,56 +1,80 @@
+#include <delivery/core/CityModel.hpp>
 #include <delivery/core/GeoBounds.hpp>
+#include <delivery/infra/Config.hpp>
 
 #include <iostream>
+#include <unordered_map>
 
 int main() {
     using namespace delivery::core;
+    using namespace delivery::infra;
 
-    // Caja de prueba: un cuadrado ficticio alrededor de Equipetrol.
-    // Valores ilustrativos, no son los reales (esos vienen en Etapa 3).
-    GeoBounds bounds(
-        /*north=*/ -17.7500,
-        /*south=*/ -17.7700,
-        /*west =*/ -63.2000,
-        /*east =*/ -63.1800
-    );
+    // Construimos una Config minima a mano (sin JSON todavia).
+    Config cfg;
 
-    try {
-        bounds.validate();
-    } catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << "\n";
-        return 1;
+    cfg.map.imagePath   = "data/equipetrol.png";
+    cfg.map.attribution = "(c) OpenStreetMap contributors";
+    cfg.map.bounds      = GeoBounds(-17.7500, -17.7700, -63.2000, -63.1800);
+
+    cfg.nodes.push_back(Node{NodeId("n0"), -17.7550, -63.1950});
+    cfg.nodes.push_back(Node{NodeId("n1"), -17.7600, -63.1900});
+
+    cfg.streets.push_back(Street{StreetId("s0"),
+                                 NodeId("n0"), NodeId("n1"),
+                                 /*oneWay=*/false});
+
+    cfg.restaurants.push_back(Restaurant{
+        RestaurantId("r0"),
+        "Example",
+        NodeId("n0"),
+        /*pickupSlots=*/1,
+        TimeRange{60000, 240000}
+    });
+
+    cfg.fleet.couriers    = 8;
+    cfg.fleet.bagCapacity = 3;
+    cfg.fleet.speedKmh    = 30.0;
+    cfg.fleet.startNode   = NodeId("n0");
+
+    cfg.orders.meanIntervalMs = 20000;
+    cfg.orders.burstMax       = 12;
+    cfg.orders.maxPending     = 50;
+    cfg.orders.seed           = 42;
+
+    cfg.dispatch.quoteTimeoutMs  = 200;
+    cfg.dispatch.acceptTimeoutMs = 600000;
+
+    cfg.incidents.breakdownProbability = 0.02;
+
+    cfg.simulation.durationS = 3600;
+    cfg.simulation.timeScale = 60.0;
+
+    // Rellenamos los indices auxiliares a mano (en el loader sera automatico).
+    for (std::size_t i = 0; i < cfg.nodes.size(); ++i) {
+        cfg.nodeIndex.emplace(cfg.nodes[i].id, i);
+    }
+    for (std::size_t i = 0; i < cfg.streets.size(); ++i) {
+        cfg.streetIndex.emplace(cfg.streets[i].id, i);
+    }
+    for (std::size_t i = 0; i < cfg.restaurants.size(); ++i) {
+        cfg.restaurantIndex.emplace(cfg.restaurants[i].id, i);
     }
 
-    const int width = 800;
-    const int height = 600;
+    // Sanity check: buscar por id.
+    const auto it = cfg.nodeIndex.find(NodeId("n1"));
+    if (it == cfg.nodeIndex.end()) {
+        std::cerr << "ERROR: n1 no encontrado en nodeIndex\n";
+        return 1;
+    }
+    const Node& n1 = cfg.nodes[it->second];
+    std::cout << "n1 -> lat=" << n1.lat << " lon=" << n1.lon << "\n";
 
-    // Esquina noroeste: debe caer en pixel (0, 0).
-    const LatLon nw{bounds.north(), bounds.west()};
-    // Esquina sureste: debe caer en pixel (width-1, height-1).
-    const LatLon se{bounds.south(), bounds.east()};
-    // Centro: debe caer cerca del centro del pixel.
-    const LatLon center{(bounds.north() + bounds.south()) / 2.0,
-                        (bounds.west() + bounds.east()) / 2.0};
+    std::cout << "nodes="       << cfg.nodes.size()
+              << " streets="    << cfg.streets.size()
+              << " restaurants="<< cfg.restaurants.size()
+              << " couriers="   << cfg.fleet.couriers
+              << "\n";
 
-    const Pixel pNW = bounds.toPixel(nw, width, height);
-    const Pixel pSE = bounds.toPixel(se, width, height);
-    const Pixel pC  = bounds.toPixel(center, width, height);
-
-    std::cout << "NW -> (" << pNW.x << ", " << pNW.y << ")  expected (0, 0)\n";
-    std::cout << "SE -> (" << pSE.x << ", " << pSE.y << ")  expected ("
-              << (width - 1) << ", " << (height - 1) << ")\n";
-    std::cout << "C  -> (" << pC.x << ", " << pC.y << ")  expected (~"
-              << (width / 2) << ", ~" << (height / 2) << ")\n";
-
-    // Round-trip: pixel -> geo -> pixel debe devolver el mismo pixel.
-    const LatLon back = bounds.fromPixel(pC, width, height);
-    const Pixel  rt   = bounds.toPixel(back, width, height);
-    std::cout << "Round-trip: (" << rt.x << ", " << rt.y << ")  expected ("
-              << pC.x << ", " << pC.y << ")\n";
-
-    // Distancia: NW a SE por Haversine, sanity check.
-    const double d = GeoBounds::distanceMeters(nw, se);
-    std::cout << "Distance NW->SE: " << d << " m\n";
-
+    std::cout << "Config OK\n";
     return 0;
 }

@@ -27,8 +27,13 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(nlohmann_json)
 
 # ---- Target ----
-add_executable(delivery_sim src/main.cpp)
-target_include_directories(delivery_sim PRIVATE include)
+set(DELIVERY_SOURCES
+    src/main.cpp
+    src/core/GeoBounds.cpp
+)
+add_executable(delivery_sim ${DELIVERY_SOURCES})
+
+target_include_directories(delivery_sim PRIVATE include src)
 target_link_libraries(delivery_sim PRIVATE
     ${OpenCV_LIBS}
     nlohmann_json::nlohmann_json
