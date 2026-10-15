@@ -1,7 +1,15 @@
-# Entorno virtual
+# Entornos y binarios
 env/
-
-# Carpetas Extras
-build/
-extra/
 bin/
+build/
+*.exe
+*.dll
+*.o
+*.obj
+
+# Editor y cache
+.vscode/
+.cache/
+compile_commands.json
+*.tmp
+EOF
