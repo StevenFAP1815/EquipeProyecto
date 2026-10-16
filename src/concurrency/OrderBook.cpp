@@ -62,4 +62,8 @@ std::uint64_t OrderBook::rejectedCount() const {
     return rejectedCount_;
 }
 
+void OrderBook::wakeAll() noexcept {
+    cv_.notify_all();
+}
+
 }  // namespace delivery::concurrency

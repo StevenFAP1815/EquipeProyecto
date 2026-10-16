@@ -90,3 +90,49 @@ donde el codigo compila sin cambios.
 - Etapa 0: bootstrap, toolchain verificado, primer commit.
 - Etapa 1: dominio (core/), config (infra/), tests automatizados con Catch2,
   20 tests passing, cero warnings.
+
+## 7. Estado de Etapa 2
+
+### Hilos activos
+
+| Hilo | Rol | Creado en | Joineado en |
+|------|-----|-----------|-------------|
+| main | orquesta, espera duracion | - | - |
+| tProducer | OrderGenerator::run | main | main |
+| tConsumer | consumerLoop (placeholder del despachador) | main | main |
+
+### Recursos compartidos
+
+- `OrderBook book`: monitor con deque + mutex + CV. Acceso solo via
+  tryPush / waitAndPop / size / rejectedCount / capacity / wakeAll.
+- `ShutdownToken stop`: bool + mutex + CV. Acceso via requestStop /
+  stopRequested / waitForStop.
+- `std::atomic<uint64_t> orderIdCounter`: contador de ids unicos.
+- `std::atomic<uint64_t> consumedCount`: contador de consumo del
+  consumidor de prueba.
+
+### Argumento anti-race por objeto compartido (Fila 10)
+
+**OrderBook:** todos los miembros mutables (queue_, rejectedCount_) son
+accesibles solo bajo `mutex_`. La CV se usa con predicados que consultan
+queue_ y stop bajo lock. La notificacion se hace DESPUES de liberar el
+lock. No hay data races posibles.
+
+**ShutdownToken:** stop_ es bool protegido por mutex_. Toda lectura y
+escritura pasa por el lock. La CV se usa con predicado explicito.
+
+**orderIdCounter:** std::atomic<uint64_t> con fetch_add. Los ids son
+unicos incluso bajo contencion.
+
+**consumedCount:** std::atomic<uint64_t> con fetch_add. Solo se lee al
+final, tras join de todos los hilos.
+
+### Canales de comunicacion
+
+- Productor -> OrderBook: tryPush(Order&&) bajo lock.
+- OrderBook -> Consumidor: waitAndPop(stop) bajo lock, con CV.
+- Shutdown -> OrdenBook CV: wakeAll() (DD-017).
+
+### Filas del mapa de conceptos cubiertas en Etapa 2
+
+1, 3, 4, 10, 11, 12, 14, 15.

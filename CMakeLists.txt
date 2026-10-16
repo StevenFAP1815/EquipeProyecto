@@ -38,10 +38,14 @@ set(DELIVERY_SOURCES
 add_executable(delivery_sim ${DELIVERY_SOURCES})
 
 target_include_directories(delivery_sim PRIVATE include src)
+
+find_package(Threads REQUIRED)
 target_link_libraries(delivery_sim PRIVATE
     ${OpenCV_LIBS}
     nlohmann_json::nlohmann_json
+    Threads::Threads
 )
+
 # ---- Tests ----
 enable_testing()
 add_subdirectory(tests)

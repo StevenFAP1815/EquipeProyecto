@@ -152,3 +152,73 @@ Formato: contexto, alternativas, decisión, justificación, consecuencias.
   fixtures de test.
 - Consecuencias: los tests son autocontenidos; mover equipetrol.json en
   Etapa 3 no afecta a los tests.
+
+  ## DD-015: Order con enum class OrderState y struct plano
+- Etapa: 2
+- Contexto: los pedidos tienen 6 estados y transiciones unidireccionales.
+- Alternativas: enum plano, enum class, state pattern.
+- Decision: enum class OrderState + struct Order aggregate copiable/movible.
+- Justificacion: enum class evita colisiones de nombres; el struct plano
+  permite construir campo a campo sin constructores con 6 argumentos.
+- Consecuencias: las transiciones no se validan en el tipo (se validan en
+  OrderBook y en el despachador); una state machine completa se pospone.
+
+## DD-016: OrderBook como monitor con deque + mutex + CV
+- Etapa: 2
+- Contexto: recurso compartido entre productor y consumidor.
+- Alternativas: queue + mutex + CV, deque + mutex + CV, lock-free.
+- Decision: deque + mutex + CV (monitor clasico).
+- Justificacion: Fila 14 del mapa de conceptos. La cola nunca se accede
+  sin el lock. Fila 15: CV con predicado explicito.
+- Consecuencias: la cola no puede iterarse desde fuera sin copia bajo lock.
+  Regla documentada en el header.
+
+## DD-017: OrderBook expone wakeAll para notificacion externa
+- Etapa: 2
+- Contexto: ShutdownToken notifica a su propia CV. La CV del OrderBook
+  espera en un predicado que incluye stop.stopRequested(). Sin notificar
+  a la CV del book, el consumidor no despierta al solicitar shutdown.
+- Alternativas: ShutdownToken con registro generico de CVs (complejo);
+  wakeAll() explicito (simple).
+- Decision: OrderBook::wakeAll() publico, noexcept, no toma lock.
+- Justificacion: solucion minima; el codigo que solicita shutdown conoce
+  que CVs debe despertar. Deuda tecnica: si en Etapa 9 hay > 3 CVs,
+  reconsiderar con un mecanismo de registro.
+- Consecuencias: el contrato de wakeAll es "solo notificar, no cambiar
+  estado". Cualquier cambio de estado debe hacerse bajo lock antes de
+  llamar a wakeAll.
+
+## DD-018: Intervalos exponenciales para pedidos (modelo de Poisson)
+- Etapa: 2
+- Contexto: el proyecto pide "intervalos aleatorios" con media
+  meanIntervalMs.
+- Alternativas: uniforme [0, 2*media], exponencial con media media.
+- Decision: exponencial. Modela correctamente un proceso de Poisson.
+- Justificacion: es el modelo estandar de llegadas aleatorias sin memoria.
+- Consecuencias: los sleeps reales tienen cola larga; en Etapa 10 se
+  ajustara empiricamente con experimentos.
+
+## DD-019: Reproducibilidad del OrderGenerator
+- Etapa: 2
+- Contexto: el proyecto exige reproducibilidad con la misma seed.
+- Alternativas: seed global compartido (race), seed por generador
+  (elegida).
+- Decision: un mt19937_64 por generador con seed derivada via SplitMix64.
+- Justificacion: cada generador tiene su propia secuencia independiente,
+  reproducible desde la seed maestra. En Etapa 2 hay un generador; en
+  Etapa 3+ habra varios.
+- Consecuencias: la reproducibilidad end-to-end se verifica manualmente
+  (dos ejecuciones con la misma seed producen el mismo resumen). Los
+  tests unitarios verifican deriveSeed (parte pura).
+
+## DD-020: main orquesta y espera por duracion simulada
+- Etapa: 2
+- Contexto: en Etapa 2 no hay senales; la simulacion termina por duracion.
+- Alternativas: sleep largo en main, waitForStop en el token.
+- Decision: sleep proporcional a durationS / timeScale; luego requestStop
+  y wakeAll; join de todos los hilos.
+- Justificacion: seccion 4 permite pausar para representar el paso del
+  tiempo simulado. Fila 1 del mapa: creacion explicita de hilos con join
+  deliberado.
+- Consecuencias: en Etapa 9 se sustituye el sleep por espera de senales.
+  Los hilos siempre se joinean, nunca se abandonan.

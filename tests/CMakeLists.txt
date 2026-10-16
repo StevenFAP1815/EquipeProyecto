@@ -19,6 +19,7 @@ endif()
 add_executable(delivery_tests
     test_geobounds.cpp
     test_config_loader.cpp
+    test_order_book.cpp
 )
 
 target_include_directories(delivery_tests PRIVATE
@@ -30,6 +31,9 @@ target_link_libraries(delivery_tests PRIVATE
     Catch2::Catch2WithMain
     nlohmann_json::nlohmann_json
 )
+
+find_package(Threads REQUIRED)
+target_link_libraries(delivery_tests PRIVATE Threads::Threads)
 
 # Compilamos los .cpp de producción directamente en el target de tests
 # para no obligar a construir una librería separada todavía.

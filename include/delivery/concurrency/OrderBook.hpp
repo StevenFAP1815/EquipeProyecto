@@ -58,6 +58,16 @@ public:
     // Numero total de pedidos rechazados por queueFull desde la creacion.
     std::uint64_t rejectedCount() const;
 
+        // Despierta a todos los hilos que esperan en waitAndPop.
+    // NO modifica el estado del libro. Uso: cuando un factor externo
+    // (por ejemplo, ShutdownToken) cambia una condicion que forma parte
+    // del predicado de waitAndPop, hay que notificar para que la CV
+    // reevalue el predicado.
+    //
+    // Precaucion: si el predicado sigue siendo falso, el hilo vuelve a
+    // dormir. Es seguro llamar a wakeAll en cualquier momento.
+    void wakeAll() noexcept;
+
 private:
     mutable std::mutex mutex_;
     std::condition_variable cv_;
