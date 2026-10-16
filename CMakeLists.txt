@@ -31,6 +31,7 @@ set(DELIVERY_SOURCES
     src/main.cpp
     src/core/GeoBounds.cpp
     src/infra/ConfigLoader.cpp
+    src/concurrency/ShutdownToken.cpp
 )
 add_executable(delivery_sim ${DELIVERY_SOURCES})
 

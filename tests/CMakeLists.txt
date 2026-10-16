@@ -36,6 +36,7 @@ target_link_libraries(delivery_tests PRIVATE
 target_sources(delivery_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/src/core/GeoBounds.cpp
     ${CMAKE_SOURCE_DIR}/src/infra/ConfigLoader.cpp
+    ${CMAKE_SOURCE_DIR}/src/concurrency/ShutdownToken.cpp
 )
 
 # Registrar los tests con CTest.
