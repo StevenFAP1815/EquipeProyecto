@@ -20,19 +20,20 @@ Ver: https://www.openstreetmap.org/copyright
 | C++ | 17 | Estándar del proyecto |
 | CMake | ≥ 3.16 | Sistema de build |
 | Ninja | ≥ 1.11 | Generador (alternativa: Make) |
-| g++ (MSYS2 UCRT64) | ≥ 13 | Compilador |
-| OpenCV | 4.x | Ventana y renderizado (solo Etapa 4+) |
-| nlohmann/json | 3.11.3 | Lectura y escritura JSON (vía FetchContent) |
-| Catch2 | 3.5.2 | Tests (vía FetchContent, solo target `delivery_tests`) |
-| Python | 3.x | Script `tools/osm_to_config.py` (solo desarrollo, no runtime) |
+| g++ (MSYS2 UCRT64) | ≥ 13 | Compilador (Windows) |
+| g++ (Ubuntu WSL2) | ≥ 11 | Compilador (Linux, para TSan) |
+| OpenCV | 4.x | Ventana y renderizado (Etapa 4+) |
+| nlohmann/json | 3.11.3 | Lectura y escritura JSON (FetchContent) |
+| Catch2 | 3.5.2 | Tests (FetchContent, solo target `delivery_tests`) |
+| Python | 3.x | Script `tools/osm_to_config.py` (solo desarrollo) |
 
 
 ## Compilación
 
 ```bash
 mkdir build && cd build
-cmake ..
-cmake --build .        # o: ninja, o: make
+cmake -G Ninja ..
+cmake --build .
 
 ## Opción: ThreadSanitizer
 cmake -DENABLE_TSAN=ON ..
@@ -55,7 +56,7 @@ Ver [`docs/architecture.md`](docs/architecture.md).
 
 ## Esquema de hilos
 
-> TODO (DP.12)
+> TODO (DP.12) diagrama de hilos y canales. Se completará en Etapa 12.
 
 ## Mapa de conceptos
 
