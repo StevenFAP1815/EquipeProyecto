@@ -1,0 +1,12 @@
+{
+  "nodes": [
+    { "id": "n0", "lat": -17.7550, "lon": -63.1950 }
+  ],
+  "streets": [],
+  "restaurants": [],
+  "fleet": { "couriers": 1, "bagCapacity": 1, "speedKmh": 30, "startNode": "n0" },
+  "orders": { "meanIntervalMs": 20000, "burstMax": 4, "maxPending": 20, "seed": 42 },
+  "dispatch": { "quoteTimeoutMs": 200, "acceptTimeoutMs": 600000 },
+  "incidents": { "breakdownProbability": 0.02 },
+  "simulation": { "durationS": 3600, "timeScale": 60 }
+}

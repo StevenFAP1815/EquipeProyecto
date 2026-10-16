@@ -1,27 +1,39 @@
+#include <delivery/infra/ConfigLoader.hpp>
+
 #include <iostream>
-#include <opencv2/core.hpp>
-#include <opencv2/highgui.hpp>
-#include <opencv2/imgproc.hpp>
+#include <string>
 
-int main() {
-    std::cout << "Simulation has started..." << std::endl;
+int main(int argc, char** argv) {
+    using namespace delivery::infra;
 
-    cv::Mat canvas = cv::Mat::zeros(600, 800, CV_8UC3);
-    cv::putText(canvas,
-                "Equipetrol Delivery - toolchain OK",
-                cv::Point(40, 300),
-                cv::FONT_HERSHEY_SIMPLEX,
-                1.0,
-                cv::Scalar(255, 255, 255),
-                2);
+    if (argc < 2) {
+        std::cerr << "Usage: delivery_sim <config.json> [--log <path>]\n";
+        return 1;
+    }
 
-    cv::namedWindow("Equipetrol Delivery", cv::WINDOW_AUTOSIZE);
-    cv::imshow("Equipetrol Delivery", canvas);
+    try {
+        const Config cfg = loadConfigFromFile(argv[1]);
 
-    std::cout << "Press any key in the window to exit..." << std::endl;
-    cv::waitKey(0);
-
-    cv::destroyAllWindows();
-    std::cout << "Clean exit." << std::endl;
-    return 0;
+        std::cout << "Config loaded successfully.\n";
+        std::cout << "  map.image       : " << cfg.map.imagePath << "\n";
+        std::cout << "  map.attribution : " << cfg.map.attribution << "\n";
+        std::cout << "  map.bounds      : N=" << cfg.map.bounds.north()
+                  << " S=" << cfg.map.bounds.south()
+                  << " W=" << cfg.map.bounds.west()
+                  << " E=" << cfg.map.bounds.east() << "\n";
+        std::cout << "  nodes           : " << cfg.nodes.size() << "\n";
+        std::cout << "  streets         : " << cfg.streets.size() << "\n";
+        std::cout << "  restaurants     : " << cfg.restaurants.size() << "\n";
+        std::cout << "  fleet.couriers  : " << cfg.fleet.couriers << "\n";
+        std::cout << "  fleet.startNode : " << cfg.fleet.startNode << "\n";
+        std::cout << "  orders.seed     : " << cfg.orders.seed << "\n";
+        std::cout << "  simulation.timeScale : " << cfg.simulation.timeScale << "\n";
+        return 0;
+    } catch (const ConfigError& e) {
+        std::cerr << "Configuration error: " << e.what() << "\n";
+        return 1;
+    } catch (const std::exception& e) {
+        std::cerr << "Unexpected error: " << e.what() << "\n";
+        return 2;
+    }
 }
