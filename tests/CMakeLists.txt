@@ -19,6 +19,7 @@ endif()
 add_executable(delivery_tests
     test_geobounds.cpp
     test_config_loader.cpp
+    test_order_book.cpp
 )
 
 target_include_directories(delivery_tests PRIVATE
@@ -31,11 +32,17 @@ target_link_libraries(delivery_tests PRIVATE
     nlohmann_json::nlohmann_json
 )
 
+find_package(Threads REQUIRED)
+target_link_libraries(delivery_tests PRIVATE Threads::Threads)
+
 # Compilamos los .cpp de producción directamente en el target de tests
 # para no obligar a construir una librería separada todavía.
 target_sources(delivery_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/src/core/GeoBounds.cpp
     ${CMAKE_SOURCE_DIR}/src/infra/ConfigLoader.cpp
+    ${CMAKE_SOURCE_DIR}/src/concurrency/ShutdownToken.cpp
+    ${CMAKE_SOURCE_DIR}/src/concurrency/OrderBook.cpp
+    ${CMAKE_SOURCE_DIR}/src/sim/OrderGenerator.cpp
 )
 
 # Registrar los tests con CTest.
