@@ -2,6 +2,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <string_view>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -19,34 +20,38 @@ namespace {
 using nlohmann::json;
 using namespace delivery::core;
 
+
 [[noreturn]] void schemaError(const std::string& what) {
     throw ConfigSchemaError(what);
 }
 
-const nlohmann::json& requireMember(const nlohmann::json& obj, const std::string& key,
-                                    std::string_view context) {
+const json& requireMember(const json& obj, std::string_view key,
+                        std::string_view context) {
     if (!obj.is_object()) {
         schemaError("expected JSON object at " + std::string(context));
     }
+    // nlohmann::json::find acepta std::string_view en v3.11.
     const auto it = obj.find(key);
     if (it == obj.end()) {
-        schemaError("missing required property '" + key + "' at " + std::string(context));
+        schemaError("missing required property '" + std::string(key) +
+                    "' at " + std::string(context));
     }
     return *it;
 }
 
-std::string readString(const json& obj, const std::string& key,
-                       const std::string& context) {
+std::string readString(const json& obj, std::string_view key,std::string_view context){
     const json& v = requireMember(obj, key, context);
     if (!v.is_string()) {
-        schemaError("property '" + key + "' at " + context + " must be a string");
+        schemaError("property '" + std::string(key) + "' at " +
+                std::string(context) + " must be a string");
     }
-    return v.get<std::string>();
+return v.get<std::string>();
 }
 
 long long readIntRaw(const json& v, const std::string& key,
-                     const std::string& context,
-                     long long minValue, long long maxValue) {
+                    const std::string& context,
+                    long long minValue, long long maxValue){
+
     if (!v.is_number_integer() && !v.is_number_unsigned()) {
         schemaError("property '" + key + "' at " + context +
                     " must be an integer");

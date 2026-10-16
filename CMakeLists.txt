@@ -39,6 +39,9 @@ target_link_libraries(delivery_sim PRIVATE
     ${OpenCV_LIBS}
     nlohmann_json::nlohmann_json
 )
+# ---- Tests ----
+enable_testing()
+add_subdirectory(tests)
 
 # ---- ThreadSanitizer (opcional) ----
 option(ENABLE_TSAN "Build with ThreadSanitizer" OFF)
