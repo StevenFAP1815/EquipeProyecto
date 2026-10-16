@@ -52,3 +52,103 @@ Formato: contexto, alternativas, decisión, justificación, consecuencias.
   Valgrind y Helgrind, cubriendo todos los requisitos de DP.11.
 - Consecuencias: el CMake `ENABLE_TSAN=ON` seguirá existiendo y funcionará en
   Linux/WSL2; en Windows se documenta como no soportado por el toolchain.
+
+  ## DD-007: Strong typedefs con wrapper struct sobre std::string
+- Etapa: 1
+- Contexto: los IDs del dominio (nodos, calles, restaurantes, repartidores,
+  pedidos) son cadenas como "n0", "s3", "r1", "c5", "o17". Necesitamos que
+  el compilador impida mezclarlos.
+- Alternativas: using alias (cero seguridad), enum class (los IDs no son
+  enteros), wrapper struct (seguro, elegido).
+- Decision: wrapper struct con constructor explicito, comparadores ==, !=, <,
+  especializacion de std::hash y operator<<.
+- Justificacion: `using OrderId = std::string` haria que OrderId y CourierId
+  fueran el mismo tipo; el compilador aceptaria pasarlos intercambiados.
+  El wrapper previene ese bug en tiempo de compilacion.
+- Consecuencias: verbosidad reducida por macro DELIVERY_DEFINE_ID_TYPE;
+  requiere especializar std::hash por tipo (hecho via TypeName##Hash).
+
+## DD-008: Jerarquia de excepciones para errores de configuracion
+- Etapa: 1
+- Contexto: el loader puede fallar de muchas formas (archivo ilegible, JSON
+  mal formado, campo faltante, tipo incorrecto, nodo huerfano, ID duplicado).
+- Alternativas: std::optional + out-param, std::variant<Config, Error>,
+  excepciones con jerarquia.
+- Decision: excepciones con jerarquia (ConfigError base, cuatro derivadas:
+  FileError, JsonError, SchemaError, ReferenceError).
+- Justificacion: main captura ConfigError con un solo catch; los tests
+  capturan el tipo especifico sin depender del texto del mensaje.
+- Consecuencias: el flujo es lineal en main; los mensajes de error incluyen
+  contexto (id, campo, valor).
+
+## DD-009: Uso de std::string_view en helpers de validacion JSON
+- Etapa: 1
+- Contexto: los helpers de ConfigLoader reciben claves y contextos como
+  literales. Usar const std::string& provocaba warnings -Wdangling-reference
+  en GCC 13+ porque el compilador no puede probar que el const json& devuelto
+  no dependa del temporal creado para el parametro.
+- Alternativas: std::string (crea copias), const char* (pierde longitud),
+  std::string_view (no posee, cero copias).
+- Decision: std::string_view en todos los parametros de entrada.
+- Justificacion: elimina el warning, evita copias, es el tipo correcto para
+  "cadena no propietaria de solo lectura".
+- Consecuencias: concatenaciones requieren std::string(key) explicito;
+  nlohmann/json v3.11 acepta string_view en find().
+
+## DD-010: Config anidada con indices auxiliares
+- Etapa: 1
+- Contexto: el JSON tiene secciones anidadas (map, fleet, orders, dispatch,
+  incidents, simulation) mas arrays de nodos, calles y restaurantes.
+- Alternativas: Config plana, Config anidada, nlohmann::json directo.
+- Decision: Config anidada (sub-structs por seccion) + indices auxiliares
+  unordered_map<Id, size_t> para busquedas O(1).
+- Justificacion: refleja el JSON, agrupa por dominio, y evita lookups lineales
+  durante la simulacion.
+- Consecuencias: ConfigLoader construye los indices tras validar unicidad;
+  cualquier busqueda de nodo por id es O(1).
+
+## DD-011: Catch2 v3 via FetchContent para tests
+- Etapa: 1
+- Contexto: el proyecto no exige framework de tests, pero sin tests cualquier
+  refactor de Etapa 3+ es ruleta rusa.
+- Alternativas: asserts caseros, Catch2, GoogleTest, Doctest.
+- Decision: Catch2 v3 via FetchContent, con find_package como primera opcion.
+- Justificacion: header-only/amalgamado, cero dependencias del sistema,
+  integracion con CTest via catch_discover_tests, target separado que no
+  contamina el binario de produccion.
+- Consecuencias: el target delivery_tests no viola la restriccion del
+  proyecto (binario delivery_sim sigue siendo STL + OpenCV + JSON).
+
+## DD-012: GeoBounds con proyeccion equirectangular
+- Etapa: 1
+- Contexto: convertir lat/lon a pixeles sobre una imagen de mapa.
+- Alternativas: Mercator (compleja, overkill), equirectangular (suficiente
+  a escala de ciudad).
+- Decision: equirectangular simple con latitud invertida en Y.
+- Justificacion: la zona cubre ~3 km; la curvatura terrestre es despreciable.
+  La formula es legible, testeable y sin dependencias.
+- Consecuencias: fuera del bounding box, los pixeles caen fuera de la imagen;
+  el llamador decide si clampear. fromPixel permite round-trip para tests.
+
+## DD-013: main solo orquesta, sin logica de validacion
+- Etapa: 1
+- Contexto: main debe cargar config, manejar errores y salir. La validacion
+  vive en ConfigLoader.
+- Alternativas: validar en main (intestable), validar en loader (testeable).
+- Decision: main solo invoca loadConfigFromFile y captura ConfigError.
+- Justificacion: separacion de responsabilidades; tests pueden invocar
+  parseConfig sin tocar disco ni main.
+- Consecuencias: main cambia poco entre etapas; agregar --log es un cambio
+  local.
+
+## DD-014: JSONs invalidos en tests/data, no en config/
+- Etapa: 1
+- Contexto: los tests requieren fixtures invalidos para verificar rechazos.
+- Alternativas: ponerlos en config/ (contaminan el entregable), ponerlos en
+  tests/data/ (aislados).
+- Decision: tests/data/ con archivos nombrados invalid_*.json.
+- Justificacion: config/ esta reservado para configuraciones de simulacion
+  reales (equipetrol.json y experimentos de DP.10). tests/data/ contiene
+  fixtures de test.
+- Consecuencias: los tests son autocontenidos; mover equipetrol.json en
+  Etapa 3 no afecta a los tests.

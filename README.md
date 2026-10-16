@@ -3,7 +3,7 @@
 Simulación concurrente de despacho de delivery sobre la Zona Equipetrol
 (Santa Cruz de la Sierra, Bolivia), construida en C++17.
 
-> Proyecto final del Curso de Concurrencia en C++.
+> Proyecto de Concurrencia en C++.
 
 ## Atribución del mapa
 
@@ -14,13 +14,38 @@ Ver: https://www.openstreetmap.org/copyright
 
 ## Dependencias
 
-> TODO (Etapa 0, Paso 1): versiones exactas
+
+| Componente | Versión | Uso |
+|------------|---------|-----|
+| C++ | 17 | Estándar del proyecto |
+| CMake | ≥ 3.16 | Sistema de build |
+| Ninja | ≥ 1.11 | Generador (alternativa: Make) |
+| g++ (MSYS2 UCRT64) | ≥ 13 | Compilador |
+| OpenCV | 4.x | Ventana y renderizado (solo Etapa 4+) |
+| nlohmann/json | 3.11.3 | Lectura y escritura JSON (vía FetchContent) |
+| Catch2 | 3.5.2 | Tests (vía FetchContent, solo target `delivery_tests`) |
+| Python | 3.x | Script `tools/osm_to_config.py` (solo desarrollo, no runtime) |
+
 
 ## Compilación
 
-> TODO (Etapa 0)
+```bash
+mkdir build && cd build
+cmake ..
+cmake --build .        # o: ninja, o: make
+
+## Opción: ThreadSanitizer
+cmake -DENABLE_TSAN=ON ..
+cmake --build . 
+
+## Tests
+cd build
+ctest --output-on-failure
 
 ## Ejecución
+
+./delivery_sim <config.json> [--log <path>]
+Ejemplo: ./delivery_sim ../config/equipetrol.json
 
 > TODO (Etapa 0)
 
