@@ -34,6 +34,8 @@ set(DELIVERY_SOURCES
     src/concurrency/ShutdownToken.cpp
     src/concurrency/OrderBook.cpp
     src/sim/OrderGenerator.cpp
+    src/core/PathFinder.cpp
+    src/core/StreetNetwork.cpp
 )
 add_executable(delivery_sim ${DELIVERY_SOURCES})
 
