@@ -46,6 +46,8 @@ target_sources(delivery_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/src/core/StreetNetwork.cpp
     ${CMAKE_SOURCE_DIR}/src/core/PathFinder.cpp
     ${CMAKE_SOURCE_DIR}/src/sim/SimClock.cpp
+    ${CMAKE_SOURCE_DIR}/src/sim/Courier.cpp
+    ${CMAKE_SOURCE_DIR}/src/sim/Fleet.cpp
 )
 
 # Registrar los tests con CTest.

@@ -37,6 +37,8 @@ set(DELIVERY_SOURCES
     src/core/PathFinder.cpp
     src/core/StreetNetwork.cpp
     src/sim/SimClock.cpp
+    src/sim/Courier.cpp
+    src/sim/Fleet.cpp
 )
 add_executable(delivery_sim ${DELIVERY_SOURCES})
 
