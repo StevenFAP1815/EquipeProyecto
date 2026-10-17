@@ -2,36 +2,510 @@
   "map": {
     "image": "data/equipetrol.png",
     "attribution": "(c) OpenStreetMap contributors",
-    "bounds": { "north": -17.7500, "south": -17.7700, "west": -63.2000, "east": -63.1800 }
+    "bounds": {
+      "north": -17.75743285458704,
+      "south": -17.774863357012652,
+      "west": -63.212969137429,
+      "east": -63.1855033171165
+    }
   },
   "nodes": [
-    { "id": "n0", "lat": -17.7550, "lon": -63.1950 },
-    { "id": "n1", "lat": -17.7560, "lon": -63.1940 },
-    { "id": "n2", "lat": -17.7570, "lon": -63.1930 },
-    { "id": "n3", "lat": -17.7580, "lon": -63.1920 },
-    { "id": "n4", "lat": -17.7590, "lon": -63.1910 }
+    {
+      "id": "n0",
+      "lat": -17.7647643,
+      "lon": -63.1956234
+    },
+    {
+      "id": "n1",
+      "lat": -17.7634693,
+      "lon": -63.1964596
+    },
+    {
+      "id": "n2",
+      "lat": -17.7695219,
+      "lon": -63.200882
+    },
+    {
+      "id": "n3",
+      "lat": -17.7696143,
+      "lon": -63.2002535
+    },
+    {
+      "id": "n4",
+      "lat": -17.7681028,
+      "lon": -63.1993306
+    },
+    {
+      "id": "n5",
+      "lat": -17.7704267,
+      "lon": -63.194436
+    },
+    {
+      "id": "n6",
+      "lat": -17.7700405,
+      "lon": -63.1973504
+    },
+    {
+      "id": "n7",
+      "lat": -17.7681752,
+      "lon": -63.197581
+    },
+    {
+      "id": "n8",
+      "lat": -17.768443,
+      "lon": -63.1958822
+    },
+    {
+      "id": "n9",
+      "lat": -17.7663053,
+      "lon": -63.1948655
+    },
+    {
+      "id": "n10",
+      "lat": -17.766999,
+      "lon": -63.1969478
+    },
+    {
+      "id": "n11",
+      "lat": -17.7665017,
+      "lon": -63.1973085
+    },
+    {
+      "id": "n12",
+      "lat": -17.7658107,
+      "lon": -63.1951856
+    },
+    {
+      "id": "n13",
+      "lat": -17.771489,
+      "lon": -63.192845
+    },
+    {
+      "id": "n14",
+      "lat": -17.7673084,
+      "lon": -63.1942107
+    },
+    {
+      "id": "n15",
+      "lat": -17.7668014,
+      "lon": -63.1945366
+    },
+    {
+      "id": "n16",
+      "lat": -17.7667493,
+      "lon": -63.1944541
+    },
+    {
+      "id": "n17",
+      "lat": -17.7662526,
+      "lon": -63.1947835
+    },
+    {
+      "id": "n18",
+      "lat": -17.7646934,
+      "lon": -63.1932864
+    },
+    {
+      "id": "n19",
+      "lat": -17.7672583,
+      "lon": -63.1941272
+    },
+    {
+      "id": "n20",
+      "lat": -17.7732766,
+      "lon": -63.1937813
+    },
+    {
+      "id": "n21",
+      "lat": -17.7727762,
+      "lon": -63.1977175
+    },
+    {
+      "id": "n22",
+      "lat": -17.7717283,
+      "lon": -63.1930187
+    },
+    {
+      "id": "n23",
+      "lat": -17.7709397,
+      "lon": -63.1946755
+    },
+    {
+      "id": "n24",
+      "lat": -17.7701053,
+      "lon": -63.1964024
+    },
+    {
+      "id": "n25",
+      "lat": -17.7724124,
+      "lon": -63.1902843
+    },
+    {
+      "id": "n26",
+      "lat": -17.7704775,
+      "lon": -63.2010718
+    },
+    {
+      "id": "n27",
+      "lat": -17.7648902,
+      "lon": -63.1960153
+    },
+    {
+      "id": "n28",
+      "lat": -17.7636301,
+      "lon": -63.1967493
+    },
+    {
+      "id": "n29",
+      "lat": -17.7705588,
+      "lon": -63.1920018
+    },
+    {
+      "id": "n30",
+      "lat": -17.7646992,
+      "lon": -63.196134
+    },
+    {
+      "id": "n31",
+      "lat": -17.7644328,
+      "lon": -63.1958198
+    },
+    {
+      "id": "n32",
+      "lat": -17.7693965,
+      "lon": -63.2014599
+    },
+    {
+      "id": "n33",
+      "lat": -17.7723417,
+      "lon": -63.1904224
+    }
   ],
   "streets": [
-    { "id": "s0", "from": "n0", "to": "n1", "oneWay": false },
-    { "id": "s1", "from": "n1", "to": "n2", "oneWay": false },
-    { "id": "s2", "from": "n2", "to": "n3", "oneWay": false },
-    { "id": "s3", "from": "n3", "to": "n4", "oneWay": false },
-    { "id": "s4", "from": "n0", "to": "n4", "oneWay": true },
-    { "id": "s5", "from": "n1", "to": "n3", "oneWay": false }
+    {
+      "id": "s0",
+      "from": "n12",
+      "to": "n9",
+      "oneWay": true
+    },
+    {
+      "id": "s1",
+      "from": "n9",
+      "to": "n15",
+      "oneWay": true
+    },
+    {
+      "id": "s2",
+      "from": "n15",
+      "to": "n14",
+      "oneWay": true
+    },
+    {
+      "id": "s3",
+      "from": "n29",
+      "to": "n19",
+      "oneWay": true
+    },
+    {
+      "id": "s4",
+      "from": "n31",
+      "to": "n30",
+      "oneWay": true
+    },
+    {
+      "id": "s5",
+      "from": "n6",
+      "to": "n3",
+      "oneWay": false
+    },
+    {
+      "id": "s6",
+      "from": "n3",
+      "to": "n2",
+      "oneWay": false
+    },
+    {
+      "id": "s7",
+      "from": "n14",
+      "to": "n8",
+      "oneWay": true
+    },
+    {
+      "id": "s8",
+      "from": "n9",
+      "to": "n7",
+      "oneWay": true
+    },
+    {
+      "id": "s9",
+      "from": "n13",
+      "to": "n5",
+      "oneWay": false
+    },
+    {
+      "id": "s10",
+      "from": "n5",
+      "to": "n8",
+      "oneWay": false
+    },
+    {
+      "id": "s11",
+      "from": "n8",
+      "to": "n10",
+      "oneWay": false
+    },
+    {
+      "id": "s12",
+      "from": "n10",
+      "to": "n11",
+      "oneWay": false
+    },
+    {
+      "id": "s13",
+      "from": "n14",
+      "to": "n19",
+      "oneWay": false
+    },
+    {
+      "id": "s14",
+      "from": "n6",
+      "to": "n21",
+      "oneWay": false
+    },
+    {
+      "id": "s15",
+      "from": "n22",
+      "to": "n23",
+      "oneWay": true
+    },
+    {
+      "id": "s16",
+      "from": "n23",
+      "to": "n5",
+      "oneWay": false
+    },
+    {
+      "id": "s17",
+      "from": "n29",
+      "to": "n33",
+      "oneWay": false
+    },
+    {
+      "id": "s18",
+      "from": "n31",
+      "to": "n1",
+      "oneWay": true
+    },
+    {
+      "id": "s19",
+      "from": "n28",
+      "to": "n1",
+      "oneWay": false
+    },
+    {
+      "id": "s20",
+      "from": "n10",
+      "to": "n12",
+      "oneWay": true
+    },
+    {
+      "id": "s21",
+      "from": "n22",
+      "to": "n20",
+      "oneWay": false
+    },
+    {
+      "id": "s22",
+      "from": "n29",
+      "to": "n13",
+      "oneWay": false
+    },
+    {
+      "id": "s23",
+      "from": "n16",
+      "to": "n15",
+      "oneWay": false
+    },
+    {
+      "id": "s24",
+      "from": "n19",
+      "to": "n16",
+      "oneWay": true
+    },
+    {
+      "id": "s25",
+      "from": "n16",
+      "to": "n17",
+      "oneWay": true
+    },
+    {
+      "id": "s26",
+      "from": "n17",
+      "to": "n0",
+      "oneWay": true
+    },
+    {
+      "id": "s27",
+      "from": "n3",
+      "to": "n4",
+      "oneWay": false
+    },
+    {
+      "id": "s28",
+      "from": "n4",
+      "to": "n11",
+      "oneWay": false
+    },
+    {
+      "id": "s29",
+      "from": "n2",
+      "to": "n32",
+      "oneWay": false
+    },
+    {
+      "id": "s30",
+      "from": "n13",
+      "to": "n22",
+      "oneWay": false
+    },
+    {
+      "id": "s31",
+      "from": "n30",
+      "to": "n27",
+      "oneWay": true
+    },
+    {
+      "id": "s32",
+      "from": "n27",
+      "to": "n0",
+      "oneWay": true
+    },
+    {
+      "id": "s33",
+      "from": "n5",
+      "to": "n24",
+      "oneWay": false
+    },
+    {
+      "id": "s34",
+      "from": "n24",
+      "to": "n6",
+      "oneWay": false
+    },
+    {
+      "id": "s35",
+      "from": "n26",
+      "to": "n2",
+      "oneWay": false
+    },
+    {
+      "id": "s36",
+      "from": "n23",
+      "to": "n24",
+      "oneWay": true
+    },
+    {
+      "id": "s37",
+      "from": "n25",
+      "to": "n33",
+      "oneWay": true
+    },
+    {
+      "id": "s38",
+      "from": "n12",
+      "to": "n18",
+      "oneWay": true
+    },
+    {
+      "id": "s39",
+      "from": "n9",
+      "to": "n17",
+      "oneWay": false
+    }
   ],
   "restaurants": [
     {
-      "id": "r0", "name": "Example R0", "node": "n1",
-      "pickupSlots": 1, "prepTimeMs": [60000, 240000]
+      "id": "r0",
+      "name": "Natsumi",
+      "node": "n8",
+      "pickupSlots": 1,
+      "prepTimeMs": [
+        60000,
+        240000
+      ]
     },
     {
-      "id": "r1", "name": "Example R1", "node": "n3",
-      "pickupSlots": 2, "prepTimeMs": [30000, 120000]
+      "id": "r1",
+      "name": "Lovi",
+      "node": "n1",
+      "pickupSlots": 1,
+      "prepTimeMs": [
+        60000,
+        240000
+      ]
+    },
+    {
+      "id": "r2",
+      "name": "Tinto",
+      "node": "n26",
+      "pickupSlots": 1,
+      "prepTimeMs": [
+        60000,
+        240000
+      ]
+    },
+    {
+      "id": "r3",
+      "name": "Beef And Bunz",
+      "node": "n18",
+      "pickupSlots": 1,
+      "prepTimeMs": [
+        60000,
+        240000
+      ]
+    },
+    {
+      "id": "r4",
+      "name": "La Suisse",
+      "node": "n11",
+      "pickupSlots": 1,
+      "prepTimeMs": [
+        60000,
+        240000
+      ]
+    },
+    {
+      "id": "r5",
+      "name": "Parroquia La Santa Cruz",
+      "node": "n1",
+      "pickupSlots": 1,
+      "prepTimeMs": [
+        60000,
+        240000
+      ]
     }
   ],
-  "fleet": { "couriers": 3, "bagCapacity": 2, "speedKmh": 30, "startNode": "n0" },
-  "orders": { "meanIntervalMs": 20000, "burstMax": 4, "maxPending": 20, "seed": 42 },
-  "dispatch": { "quoteTimeoutMs": 200, "acceptTimeoutMs": 600000 },
-  "incidents": { "breakdownProbability": 0.02 },
-  "simulation": { "durationS": 3600, "timeScale": 60 }
+  "fleet": {
+    "couriers": 8,
+    "bagCapacity": 3,
+    "speedKmh": 30,
+    "startNode": "n9"
+  },
+  "orders": {
+    "meanIntervalMs": 20000,
+    "burstMax": 12,
+    "maxPending": 50,
+    "seed": 42
+  },
+  "dispatch": {
+    "quoteTimeoutMs": 200,
+    "acceptTimeoutMs": 600000
+  },
+  "incidents": {
+    "breakdownProbability": 0.02
+  },
+  "simulation": {
+    "durationS": 3600,
+    "timeScale": 60
+  }
 }
