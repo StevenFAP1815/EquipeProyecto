@@ -4,7 +4,7 @@ Simulación concurrente de despacho de pedidos de comida sobre la Zona Equipetro
 
 Varios hilos trabajan al mismo tiempo: un generador de pedidos, un hilo por cada motociclista repartidor y, en próximas etapas, un despachador y una ventana que dibuja el mapa en vivo.
 
-> **Estado:** Etapa 10 (análisis con herramientas) terminada. Qué está hecho, qué falta y los problemas conocidos están en [`docs/progress.md`](docs/progress.md).
+> **Estado:** Etapa 11 (experimentos) terminada. Qué está hecho, qué falta y los problemas conocidos están en [`docs/progress.md`](docs/progress.md).
 
 ## Documentación
 
@@ -90,5 +90,5 @@ Revisé y aprobé cada cambio antes de integrarlo. Cada Pull Request tiene notas
 ## Pendiente para el informe final (DP.12)
 
 - Diagrama de hilos y canales: versión actual en tablas en [`docs/architecture.md`](docs/architecture.md); el diagrama completo llega en la Etapa 12.
-- Experimentos (DP.10): Etapa 11.
+- Experimentos (DP.10): [`docs/experiments.md`](docs/experiments.md); datos crudos en `experiments/`.
 - Resultados del análisis con herramientas (DP.11): [`docs/tools-analysis.md`](docs/tools-analysis.md); salidas completas en `analysis/raw/`.
