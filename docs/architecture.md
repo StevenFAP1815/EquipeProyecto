@@ -56,8 +56,8 @@ EquipeProyecto/
 |---|---|---|---|---|
 | `main` | `main()` | — | `SimClock::waitUntilMs(duración)` | — |
 | `tProducer` | `OrderGenerator::run` | Un pedido (o una ráfaga) por intervalo aleatorio | `SimClock::waitUntilMs(próximo pedido)` | `main` / `main` |
-| `tDispatcher` | `provisionalDispatchLoop` (provisional: manda un repartidor libre al restaurante del pedido; será el despachador real en la Etapa 5) | Cada pedido del libro | `OrderBook::waitAndPop` (CV) | `main` / `main` |
-| `courier[i]` (uno por repartidor) | `Courier::run` | Cada destino asignado; dentro, cada tramo y cada paso | `cv_.wait` (sin destino) y `SimClock::waitUntilMs` (en movimiento) | `Fleet::start` / `Fleet::join` |
+| `tDispatcher` | `provisionalDispatchLoop` (provisional: asigna cada pedido al primer repartidor libre; será el despachador real en la Etapa 5) | Cada pedido del libro | `OrderBook::waitAndPop` (CV) y, si no hay repartidor libre, `freedSignal.waitForChange` | `main` / `main` |
+| `courier[i]` (uno por repartidor) | `Courier::run` | Cada pedido asignado: ir al restaurante, esperar la comida, ir al cliente; dentro, cada tramo y cada paso | `cv_.wait` (sin pedido) y `SimClock::waitUntilMs` (en movimiento) | `Fleet::start` / `Fleet::join` |
 | `tRenderer` | `Renderer::run` | Un cuadro cada ~33 ms: copia el fondo, lee posición y estado de cada repartidor (bajo su candado) y dibuja | `cv::waitKey(33)`: pausa para fijar los FPS, permitida por el brief | `main` / `main` |
 | `dispatcher` | Etapa 5 | Cada pedido nuevo | `future::wait_for(quoteTimeoutMs)` | — |
 
@@ -66,7 +66,8 @@ EquipeProyecto/
 | Canal | Entre | Mecanismo |
 |---|---|---|
 | `OrderBook` | generador → despachador | Monitor: `deque` + `mutex` + `condition_variable` |
-| `Courier::setTarget` | despachador (Etapa 5) → repartidor | Monitor del repartidor: `stateMutex_` + `cv_` |
+| `ChangeSignal freedSignal` | repartidor → despachador | Contador de versión + `mutex` + `condition_variable`: el repartidor hace `notify()` al quedar libre; el despachador espera con `waitForChange` |
+| `Courier::tryAssign` | despachador → repartidor | Monitor del repartidor: `stateMutex_` + `cv_` |
 | `SimClock` | cualquier hilo ↔ reloj | `cv_.wait_until` hasta la hora real equivalente; `wakeAll()` al apagar |
 | `ShutdownToken` | `main` → todos | `std::atomic<bool>`; `waitForStop()` con `mutex` + `condition_variable` |
 | Lecturas de estado (`position()`, `state()`, `currentNode()`) | repartidor → render/despachador | Copias tomadas bajo `stateMutex_` |
@@ -74,7 +75,7 @@ EquipeProyecto/
 ### Orden de apagado
 
 ```
-stop.requestStop() → clock.wakeAll() → book.wakeAll() → join(tProducer) → join(tDispatcher) → join(tRenderer) → fleet.join()
+stop.requestStop() → clock.wakeAll() → book.wakeAll() → freedSignal.wakeAll() → join(tProducer) → join(tDispatcher) → join(tRenderer) → fleet.join()
 ```
 Si el usuario pulsa ESC o cierra la ventana, `Renderer::run` llama a `stop.requestStop()` y `clock.wakeAll()`: `main` despierta de su espera y sigue exactamente el mismo orden de apagado.
 
@@ -87,7 +88,8 @@ Si el usuario pulsa ESC o cierra la ventana, `Renderer::run` llama a `stop.reque
 | `OrderBook` | `queue_` y `rejectedCount_` solo se leen y escriben con `mutex_` tomado; no se devuelven referencias al interior. |
 | `ShutdownToken` | `stop_` es `std::atomic<bool>`: lecturas y escrituras son indivisibles. |
 | `SimClock` | Después del constructor solo se leen `timeScale_` y `startReal_`, que son `const`. El `mutex_` existe solo para la condition variable. |
-| `Courier` | `state_`, `position_`, `currentNode_`, `pendingTarget_` y `lastIdleMs_` solo se acceden con `stateMutex_`. Las consultas devuelven copias. |
+| `Courier` | `state_`, `position_`, `currentNode_`, `job_` (el pedido que lleva), `delivered_`, `failed_` y `lastIdleMs_` solo se acceden con `stateMutex_`. Las consultas devuelven copias. |
+| `ChangeSignal` | `version_` solo se lee y se escribe con `mutex_`. |
 | `StreetNetwork` | Inmutable después de construirse; se comparte como `shared_ptr<const StreetNetwork>`. Solo hay lecturas. |
 | `Config` | Se construye antes de crear los hilos y después solo se lee (`const`). |
 | `Renderer` | Su imagen de fondo solo la usa el hilo `tRenderer`. Lee a los demás únicamente por métodos que toman su candado (`Courier::position/state`, `OrderBook::size/rejectedCount`) o por atómicos (`orderIdCounter`). |

@@ -1,20 +1,24 @@
 #include <delivery/sim/Courier.hpp>
 
+#include <utility>
+
 namespace delivery::sim {
 namespace {
 constexpr int kStepsPerSegment = 20;
 }
 
 Courier::Courier(core::CourierId id,
-                std::shared_ptr<const core::StreetNetwork> network,
-                SimClock& clock,
-                concurrency::ShutdownToken& stop,
-                double speedKmh,
-                core::NodeId startNode)
+                 std::shared_ptr<const core::StreetNetwork> network,
+                 SimClock& clock,
+                 concurrency::ShutdownToken& stop,
+                 concurrency::ChangeSignal& freedSignal,
+                 double speedKmh,
+                 core::NodeId startNode)
     : id_(std::move(id)),
       network_(std::move(network)),
       clock_(clock),
       stop_(stop),
+      freedSignal_(freedSignal),
       speedKmh_(speedKmh),
       currentNode_(std::move(startNode)) {
     const auto coords = network_->nodeLatLon(currentNode_);
@@ -24,13 +28,15 @@ Courier::Courier(core::CourierId id,
     lastIdleMs_ = clock_.nowMs();
 }
 
-bool Courier::setTarget(const core::NodeId& target) {
+bool Courier::tryAssign(core::Order& order) {
     {
         std::lock_guard<std::mutex> lock(stateMutex_);
-        if (state_ != CourierState::Idle) {
+        if (state_ != CourierState::Idle || job_.has_value()) {
             return false;
         }
-        pendingTarget_ = target;
+        order.state = core::OrderState::Assigned;
+        order.assignedCourier = id_;
+        job_ = std::move(order);
         state_ = CourierState::MovingToRestaurant;
     }
     cv_.notify_one();
@@ -49,6 +55,11 @@ CourierState Courier::state() const {
     return state_;
 }
 
+bool Courier::isAvailable() const {
+    std::lock_guard<std::mutex> lock(stateMutex_);
+    return state_ == CourierState::Idle && !job_.has_value();
+}
+
 core::LatLon Courier::position() const {
     std::lock_guard<std::mutex> lock(stateMutex_);
     return position_;
@@ -57,6 +68,29 @@ core::LatLon Courier::position() const {
 core::NodeId Courier::currentNode() const {
     std::lock_guard<std::mutex> lock(stateMutex_);
     return currentNode_;
+}
+
+std::optional<core::NodeId> Courier::activeDeliveryNode() const {
+    std::lock_guard<std::mutex> lock(stateMutex_);
+    if (!job_) {
+        return std::nullopt;
+    }
+    return job_->deliveryNode;
+}
+
+bool Courier::hasOrder() const {
+    std::lock_guard<std::mutex> lock(stateMutex_);
+    return job_.has_value();
+}
+
+std::uint64_t Courier::deliveredCount() const {
+    std::lock_guard<std::mutex> lock(stateMutex_);
+    return delivered_;
+}
+
+std::uint64_t Courier::failedCount() const {
+    std::lock_guard<std::mutex> lock(stateMutex_);
+    return failed_;
 }
 
 std::int64_t Courier::lastIdleMs() const {
@@ -69,78 +103,116 @@ void Courier::setPosition(const core::LatLon& pos) {
     position_ = pos;
 }
 
+void Courier::setState(CourierState state) {
+    std::lock_guard<std::mutex> lock(stateMutex_);
+    state_ = state;
+}
+
+void Courier::finishJob(bool delivered) {
+    {
+        std::lock_guard<std::mutex> lock(stateMutex_);
+        job_.reset();
+        if (delivered) {
+            ++delivered_;
+        } else {
+            ++failed_;
+        }
+        state_ = CourierState::Idle;
+        lastIdleMs_ = clock_.nowMs();
+    }
+    freedSignal_.notify();
+}
+
 void Courier::run() {
-    while (!stop_.stopRequested()) {
+    while (true) {
         core::NodeId from;
-        core::NodeId target;
+        core::NodeId restaurantNode;
+        core::NodeId deliveryNode;
+        std::int64_t readyAtMs = 0;
         {
             std::unique_lock<std::mutex> lock(stateMutex_);
             cv_.wait(lock, [&] {
-                return pendingTarget_.has_value() || stop_.stopRequested();
+                return job_.has_value() || stop_.stopRequested();
             });
             if (stop_.stopRequested()) {
-                break;
+                return;
             }
-            if (!pendingTarget_) {
-                continue;
-            }
-            target = *pendingTarget_;
-            pendingTarget_.reset();
             from = currentNode_;
+            restaurantNode = job_->restaurantNode;
+            deliveryNode = job_->deliveryNode;
+            readyAtMs = job_->readyAtMs;
         }
 
-        const auto route = core::findShortestPath(*network_, from, target);
-        if (route) {
-            doMovement(*route);
+        if (!travel(from, restaurantNode)) {
+            if (stop_.stopRequested()) {
+                return;
+            }
+            finishJob(false);
+            continue;
+        }
+
+        setState(CourierState::PickingUp);
+        if (!clock_.waitUntilMs(readyAtMs, stop_)) {
+            return;
         }
 
         {
             std::lock_guard<std::mutex> lock(stateMutex_);
-            state_ = CourierState::Idle;
-            lastIdleMs_ = clock_.nowMs();
+            job_->state = core::OrderState::PickedUp;
+            state_ = CourierState::Delivering;
         }
+
+        if (!travel(restaurantNode, deliveryNode)) {
+            if (stop_.stopRequested()) {
+                return;
+            }
+            finishJob(false);
+            continue;
+        }
+
+        finishJob(true);
     }
 }
 
-void Courier::doMovement(const core::RouteResult& route) {
-    if (route.path.size() < 2) {
-        return;
+bool Courier::travel(const core::NodeId& from, const core::NodeId& to) {
+    const auto route = core::findShortestPath(*network_, from, to);
+    if (!route) {
+        return false;
     }
+    return doMovement(*route);
+}
 
+bool Courier::doMovement(const core::RouteResult& route) {
     const double speedMetersPerMs = speedKmh_ / 3600.0;
 
     for (std::size_t i = 0; i + 1 < route.path.size(); ++i) {
-        if (stop_.stopRequested()) return;
-
-        const auto aOpt = network_->nodeLatLon(route.path[i]);
-        const auto bOpt = network_->nodeLatLon(route.path[i + 1]);
-        if (!aOpt || !bOpt) continue;
-
+        const auto a = network_->nodeLatLon(route.path[i]);
+        const auto b = network_->nodeLatLon(route.path[i + 1]);
         const auto edgeLen = network_->edgeLength(route.path[i], route.path[i + 1]);
-        if (!edgeLen) continue;
+        if (!a || !b || !edgeLen) {
+            return false;
+        }
 
         const double travelMs = *edgeLen / speedMetersPerMs;
         const std::int64_t t0 = clock_.nowMs();
 
         for (int s = 1; s <= kStepsPerSegment; ++s) {
-            if (stop_.stopRequested()) return;
-
             const double alpha = static_cast<double>(s) / kStepsPerSegment;
-
             const std::int64_t targetMs =
                 t0 + static_cast<std::int64_t>(travelMs * alpha);
             if (!clock_.waitUntilMs(targetMs, stop_)) {
-                return;
+                return false;
             }
 
             core::LatLon p;
-            p.lat = aOpt->lat + (bOpt->lat - aOpt->lat) * alpha;
-            p.lon = aOpt->lon + (bOpt->lon - aOpt->lon) * alpha;
+            p.lat = a->lat + (b->lat - a->lat) * alpha;
+            p.lon = a->lon + (b->lon - a->lon) * alpha;
             setPosition(p);
         }
 
         std::lock_guard<std::mutex> lock(stateMutex_);
         currentNode_ = route.path[i + 1];
     }
+    return true;
 }
 }

@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
+#include <delivery/concurrency/ChangeSignal.hpp>
 #include <delivery/concurrency/OrderBook.hpp>
 #include <delivery/concurrency/ShutdownToken.hpp>
 #include <delivery/core/StreetNetwork.hpp>
@@ -60,10 +61,44 @@ std::vector<std::string> generateOrders(std::uint64_t seed) {
     return orders;
 }
 
-void waitUntilIdle(const sim::Courier& courier) {
-    while (courier.state() != sim::CourierState::Idle) {
+void waitUntilFree(const sim::Courier& courier) {
+    while (!courier.isAvailable()) {
         std::this_thread::sleep_for(1ms);
     }
+}
+
+core::Order makeOrder(const char* id, const char* restaurantNode,
+                      const char* deliveryNode, std::int64_t readyAtMs) {
+    core::Order o;
+    o.id = core::OrderId(id);
+    o.restaurantNode = core::NodeId(restaurantNode);
+    o.deliveryNode = core::NodeId(deliveryNode);
+    o.readyAtMs = readyAtMs;
+    return o;
+}
+
+infra::Config makeOneWayLine() {
+    infra::Config cfg;
+    cfg.nodes = {
+        core::Node{core::NodeId("n0"), -17.7600, -63.2000},
+        core::Node{core::NodeId("n1"), -17.7600, -63.1950},
+        core::Node{core::NodeId("n2"), -17.7600, -63.1900},
+        core::Node{core::NodeId("n3"), -17.7600, -63.1850},
+    };
+    cfg.streets = {
+        core::Street{core::StreetId("s0"), core::NodeId("n0"), core::NodeId("n1"), true},
+        core::Street{core::StreetId("s1"), core::NodeId("n1"), core::NodeId("n2"), true},
+        core::Street{core::StreetId("s2"), core::NodeId("n2"), core::NodeId("n3"), true},
+    };
+    return cfg;
+}
+
+void stopCourier(concurrency::ShutdownToken& stop, sim::SimClock& clock,
+                 sim::Courier& courier, std::thread& worker) {
+    stop.requestStop();
+    clock.wakeAll();
+    courier.wake();
+    worker.join();
 }
 }
 
@@ -81,49 +116,122 @@ TEST_CASE("OrderGenerator: otra semilla produce otros pedidos",
     REQUIRE(generateOrders(42) != generateOrders(7));
 }
 
-TEST_CASE("Courier: el segundo viaje parte desde donde termino el primero",
+TEST_CASE("Courier: recoge en el restaurante y entrega en el destino",
           "[courier]") {
-    infra::Config cfg;
-    cfg.nodes = {
-        core::Node{core::NodeId("n0"), -17.7600, -63.2000},
-        core::Node{core::NodeId("n1"), -17.7600, -63.1950},
-        core::Node{core::NodeId("n2"), -17.7600, -63.1900},
-        core::Node{core::NodeId("n3"), -17.7600, -63.1850},
-    };
-    cfg.streets = {
-        core::Street{core::StreetId("s0"), core::NodeId("n0"), core::NodeId("n1"), true},
-        core::Street{core::StreetId("s1"), core::NodeId("n1"), core::NodeId("n2"), true},
-        core::Street{core::StreetId("s2"), core::NodeId("n2"), core::NodeId("n3"), true},
-    };
+    const infra::Config cfg = makeOneWayLine();
     auto network = core::StreetNetwork::build(cfg.nodes, cfg.streets);
-
     concurrency::ShutdownToken stop;
-    sim::SimClock clock(2000.0);
-    sim::Courier courier(core::CourierId("c0"), network, clock, stop, 30.0,
+    concurrency::ChangeSignal freed;
+    sim::SimClock clock(5000.0);
+    sim::Courier courier(core::CourierId("c0"), network, clock, stop, freed, 30.0,
                          core::NodeId("n0"));
     std::thread worker([&courier] { courier.run(); });
 
-    REQUIRE(courier.setTarget(core::NodeId("n2")));
-    waitUntilIdle(courier);
-    REQUIRE(courier.currentNode() == core::NodeId("n2"));
+    const std::uint64_t versionBefore = freed.version();
+    core::Order order = makeOrder("o1", "n1", "n3", 0);
+    REQUIRE(courier.tryAssign(order));
+    REQUIRE(courier.activeDeliveryNode() == core::NodeId("n3"));
 
-    const std::int64_t secondTripStart = clock.nowMs();
-    REQUIRE(courier.setTarget(core::NodeId("n3")));
-    waitUntilIdle(courier);
-    const std::int64_t secondTripMs = courier.lastIdleMs() - secondTripStart;
+    core::Order another = makeOrder("o2", "n1", "n2", 0);
+    REQUIRE_FALSE(courier.tryAssign(another));
 
-    const double segmentMeters = *network->edgeLength(core::NodeId("n2"), core::NodeId("n3"));
-    const double segmentMs = segmentMeters / (30.0 / 3600.0);
-
+    waitUntilFree(courier);
+    REQUIRE(courier.deliveredCount() == 1);
     REQUIRE(courier.currentNode() == core::NodeId("n3"));
-    REQUIRE(secondTripMs < 2.0 * segmentMs);
+    REQUIRE_FALSE(courier.activeDeliveryNode().has_value());
+    REQUIRE(freed.version() > versionBefore);
 
     const auto end = courier.position();
     REQUIRE_THAT(end.lat, WithinAbs(cfg.nodes[3].lat, 1e-9));
     REQUIRE_THAT(end.lon, WithinAbs(cfg.nodes[3].lon, 1e-9));
 
-    stop.requestStop();
-    clock.wakeAll();
-    courier.wake();
-    worker.join();
+    stopCourier(stop, clock, courier, worker);
+}
+
+TEST_CASE("Courier: espera en el restaurante hasta que la comida esta lista",
+          "[courier]") {
+    const infra::Config cfg = makeOneWayLine();
+    auto network = core::StreetNetwork::build(cfg.nodes, cfg.streets);
+    concurrency::ShutdownToken stop;
+    concurrency::ChangeSignal freed;
+    sim::SimClock clock(5000.0);
+    sim::Courier courier(core::CourierId("c0"), network, clock, stop, freed, 30.0,
+                         core::NodeId("n1"));
+    std::thread worker([&courier] { courier.run(); });
+
+    const std::int64_t readyAt = clock.nowMs() + 600'000;
+    core::Order order = makeOrder("o1", "n1", "n2", readyAt);
+    REQUIRE(courier.tryAssign(order));
+    waitUntilFree(courier);
+
+    REQUIRE(courier.lastIdleMs() >= readyAt);
+    stopCourier(stop, clock, courier, worker);
+}
+
+TEST_CASE("Courier: el segundo pedido parte desde donde termino el primero",
+          "[courier]") {
+    const infra::Config cfg = makeOneWayLine();
+    auto network = core::StreetNetwork::build(cfg.nodes, cfg.streets);
+    concurrency::ShutdownToken stop;
+    concurrency::ChangeSignal freed;
+    sim::SimClock clock(2000.0);
+    sim::Courier courier(core::CourierId("c0"), network, clock, stop, freed, 30.0,
+                         core::NodeId("n0"));
+    std::thread worker([&courier] { courier.run(); });
+
+    core::Order first = makeOrder("o1", "n1", "n2", 0);
+    REQUIRE(courier.tryAssign(first));
+    waitUntilFree(courier);
+    REQUIRE(courier.currentNode() == core::NodeId("n2"));
+
+    const std::int64_t secondStart = clock.nowMs();
+    core::Order second = makeOrder("o2", "n2", "n3", 0);
+    REQUIRE(courier.tryAssign(second));
+    waitUntilFree(courier);
+    const std::int64_t secondMs = courier.lastIdleMs() - secondStart;
+
+    const double segmentMeters = *network->edgeLength(core::NodeId("n2"), core::NodeId("n3"));
+    const double segmentMs = segmentMeters / (30.0 / 3600.0);
+    REQUIRE(secondMs < 2.0 * segmentMs);
+    REQUIRE(courier.deliveredCount() == 2);
+
+    stopCourier(stop, clock, courier, worker);
+}
+
+TEST_CASE("Courier: un pedido sin ruta posible cuenta como fallido y libera al repartidor",
+          "[courier]") {
+    const infra::Config cfg = makeOneWayLine();
+    auto network = core::StreetNetwork::build(cfg.nodes, cfg.streets);
+    concurrency::ShutdownToken stop;
+    concurrency::ChangeSignal freed;
+    sim::SimClock clock(5000.0);
+    sim::Courier courier(core::CourierId("c0"), network, clock, stop, freed, 30.0,
+                         core::NodeId("n3"));
+    std::thread worker([&courier] { courier.run(); });
+
+    core::Order order = makeOrder("o1", "n0", "n1", 0);
+    REQUIRE(courier.tryAssign(order));
+    waitUntilFree(courier);
+
+    REQUIRE(courier.failedCount() == 1);
+    REQUIRE(courier.deliveredCount() == 0);
+    stopCourier(stop, clock, courier, worker);
+}
+
+TEST_CASE("ChangeSignal: notify despierta a quien espera un cambio",
+          "[change_signal][concurrent]") {
+    concurrency::ChangeSignal signal;
+    concurrency::ShutdownToken stop;
+    const std::uint64_t seen = signal.version();
+
+    std::thread notifier([&signal] {
+        std::this_thread::sleep_for(20ms);
+        signal.notify();
+    });
+    const bool changed = signal.waitForChange(
+        seen, std::chrono::steady_clock::now() + 5s, stop);
+    notifier.join();
+
+    REQUIRE(changed);
+    REQUIRE(signal.version() == seen + 1);
 }

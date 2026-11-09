@@ -53,8 +53,10 @@ inline const char* toString(RejectReason r) noexcept {
 struct Order {
     OrderId id;
     RestaurantId restaurant;
+    NodeId restaurantNode;
     NodeId deliveryNode;
     std::int64_t createdAtMs = 0;
+    std::int64_t readyAtMs = 0;
     OrderState state = OrderState::Created;
     RejectReason rejectReason = RejectReason::None;
     CourierId assignedCourier;

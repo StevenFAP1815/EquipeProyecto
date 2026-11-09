@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <delivery/concurrency/ChangeSignal.hpp>
 #include <delivery/concurrency/OrderBook.hpp>
 #include <delivery/concurrency/ShutdownToken.hpp>
 #include <delivery/core/StreetNetwork.hpp>
@@ -84,7 +85,8 @@ TEST_CASE("Fleet: los repartidores inactivos terminan al pedir el apagado",
     auto network = core::StreetNetwork::build(cfg.nodes, cfg.streets);
     concurrency::ShutdownToken stop;
     sim::SimClock clock(1.0);
-    sim::Fleet fleet(cfg, network, clock, stop);
+    concurrency::ChangeSignal freed;
+    sim::Fleet fleet(cfg, network, clock, stop, freed);
     fleet.start();
 
     std::this_thread::sleep_for(20ms);
@@ -101,10 +103,15 @@ TEST_CASE("Fleet: un repartidor en movimiento termina al pedir el apagado",
     auto network = core::StreetNetwork::build(cfg.nodes, cfg.streets);
     concurrency::ShutdownToken stop;
     sim::SimClock clock(1.0);
-    sim::Fleet fleet(cfg, network, clock, stop);
+    concurrency::ChangeSignal freed;
+    sim::Fleet fleet(cfg, network, clock, stop, freed);
     fleet.start();
 
-    REQUIRE(fleet.couriers().front()->setTarget(core::NodeId("n2")));
+    core::Order order;
+    order.id = core::OrderId("o0");
+    order.restaurantNode = core::NodeId("n2");
+    order.deliveryNode = core::NodeId("n0");
+    REQUIRE(fleet.couriers().front()->tryAssign(order));
     std::this_thread::sleep_for(50ms);
     stop.requestStop();
     clock.wakeAll();
