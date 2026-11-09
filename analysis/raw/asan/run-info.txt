@@ -1,0 +1,4 @@
+comando: /home/hdsuarez/eq-asan/delivery_sim equipetrol.json --log /home/hdsuarez/an/asan/events.log
+SIGINT enviado a los 45 s de la linea de inicio
+codigo de salida: 0
+segundos desde la senal hasta la salida: .269927840

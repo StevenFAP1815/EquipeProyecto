@@ -4,7 +4,7 @@ Simulación concurrente de despacho de pedidos de comida sobre la Zona Equipetro
 
 Varios hilos trabajan al mismo tiempo: un generador de pedidos, un hilo por cada motociclista repartidor y, en próximas etapas, un despachador y una ventana que dibuja el mapa en vivo.
 
-> **Estado:** Etapa 9 (señales y apagado) terminada. Qué está hecho, qué falta y los problemas conocidos están en [`docs/progress.md`](docs/progress.md).
+> **Estado:** Etapa 10 (análisis con herramientas) terminada. Qué está hecho, qué falta y los problemas conocidos están en [`docs/progress.md`](docs/progress.md).
 
 ## Documentación
 
@@ -38,7 +38,7 @@ mkdir build-tsan && cd build-tsan
 cmake -DENABLE_TSAN=ON .. && make
 ```
 
-ThreadSanitizer no existe para el compilador de MSYS2, por eso se ejecuta en **Ubuntu (WSL2)** (ver DD-006). La opción instrumenta el programa y los tests.
+ThreadSanitizer no existe para el compilador de MSYS2, por eso se ejecuta en **Ubuntu (WSL2)** (ver DD-006). La opción instrumenta el programa y los tests, e incluye supresiones solo para avisos internos de Qt/dbus (ver `docs/tools-analysis.md`). Para memoria: `cmake -DENABLE_ASAN=ON ..` (AddressSanitizer + LeakSanitizer).
 
 ## Ejecución
 
@@ -91,4 +91,4 @@ Revisé y aprobé cada cambio antes de integrarlo. Cada Pull Request tiene notas
 
 - Diagrama de hilos y canales: versión actual en tablas en [`docs/architecture.md`](docs/architecture.md); el diagrama completo llega en la Etapa 12.
 - Experimentos (DP.10): Etapa 11.
-- Resultados del análisis con herramientas (DP.11): Etapa 10.
+- Resultados del análisis con herramientas (DP.11): [`docs/tools-analysis.md`](docs/tools-analysis.md); salidas completas en `analysis/raw/`.

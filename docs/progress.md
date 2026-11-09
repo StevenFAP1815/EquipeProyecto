@@ -1,7 +1,7 @@
 # Estado del proyecto
 
 > Qué está hecho, qué falta y qué problemas hay. Se actualiza al cerrar cada etapa.
-> Última actualización: 09/11/2026, Etapa 9 (señales).
+> Última actualización: 09/11/2026, Etapa 10 (análisis con herramientas).
 
 ## Etapas del plan y criterios de la rúbrica
 
@@ -19,7 +19,7 @@ El brief del curso define los criterios **DP.0 a DP.12**. Las **etapas** son el 
 | 7 | Averías y transferencia todo-o-nada de pedidos | DP.6 | 8 | ✅ Hecho |
 | 8 | Registro de eventos JSON y resumen final exacto | DP.7 | 8 | ✅ Hecho (verificado con `tools/check_event_log.py`) |
 | 9 | Señales SIGINT/SIGTERM y apagado en menos de 5 s | DP.9 | 6 | ✅ Hecho (0,1 s tras la señal, código 0) |
-| 10 | Análisis con herramientas (ThreadSanitizer, Valgrind) | DP.11 + "Sin condiciones de carrera" | 6 + 8 | 🔶 En curso: TSan ya se usa en cada PR |
+| 10 | Análisis con herramientas (ThreadSanitizer, AddressSanitizer/LeakSanitizer) | DP.11 + "Sin condiciones de carrera" | 6 + 8 | ✅ Hecho: ver `docs/tools-analysis.md` |
 | 11 | Experimentos y tabla comparativa | DP.10 | 6 | ⏳ Pendiente |
 | 12 | Informe final, diagrama de hilos y canales, mapa de conceptos | DP.12 | 6 | 🔶 En curso |
 
@@ -40,9 +40,7 @@ El brief del curso define los criterios **DP.0 a DP.12**. Las **etapas** son el 
 | El mapa solo modela avenidas (troncales, primarias y secundarias): los clientes se ubican sobre ellas, no en calles interiores. | Decisión deliberada para mantener un mapa moderado y legible (138 nodos, 181 calles). | — |
 | El resultado final (entregados, rechazados) varía entre ejecuciones con la misma semilla. Ejemplo con el mapa nuevo: 57 / 18 / 24 en Windows y 74 / 3 / 22 en Ubuntu. Los **pedidos generados** sí son idénticos. | Normal en un sistema concurrente: el orden en que el sistema operativo da turno a los hilos cambia los tiempos. El brief exige reproducibilidad en la **generación** (DP.2), y se cumple (test de reproducibilidad). | Explicarlo en el informe; en la Etapa 11 repetir cada experimento varias veces. |
 | Una estimación que llega tarde se ignora, pero el `future` de `std::async` espera a que su hilo termine cuando se destruye, al final de `chooseCourier`. | El despachador puede quedar retenido lo que tarde la estimación más lenta (con el estimador real, microsegundos). El resto del sistema no se detiene. | Documentado en DD-024. Si hiciera falta, reemplazar `std::async` por un grupo fijo de hilos con `promise`. |
-| Con la ventana abierta en Ubuntu (WSL), ThreadSanitizer reporta 5 avisos **dentro de Qt y dbus**, bibliotecas del sistema que OpenCV usa para la ventana. En los dos accesos de cada aviso, la memoria es de Qt y uno de los hilos lo crea Qt (`QDBusConnection`); ningún dato del proyecto está involucrado. Sin ventana (tests), 0 avisos. | La rúbrica pide 0 reportes de TSan. | Etapa 10: analizarlo a fondo; opciones: archivo de supresiones de TSan limitado a Qt/dbus (documentado y justificado, como pide DP.11) o usar OpenCV con otro backend de ventanas. |
 | En Windows, SIGTERM no lo envía el sistema operativo. | En Windows se detiene con Ctrl+C (SIGINT), ESC o cerrando la ventana. | SIGINT y SIGTERM probados en Ubuntu (WSL): salida 0 en 0,1 s, también justo al empezar y durante averías. |
-| ThreadSanitizer y Valgrind no existen para el compilador de Windows (MSYS2). | El análisis se hace en Ubuntu (WSL). | Documentado en DD-006. Valgrind se instalará en la Etapa 10. |
 
 ## Demoras y sus causas
 
