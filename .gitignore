@@ -1,5 +1,6 @@
 # Entornos y binarios
 env/
+__pycache__/
 bin/
 build*/
 *.exe
