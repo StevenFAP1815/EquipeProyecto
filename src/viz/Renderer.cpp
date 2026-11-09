@@ -43,12 +43,14 @@ void drawLabel(cv::Mat& frame, const std::string& text, cv::Point origin) {
 Renderer::Renderer(const infra::Config& config,
                    const std::filesystem::path& imagePath,
                    const sim::Fleet& fleet,
+                   const sim::Dispatcher& dispatcher,
                    const concurrency::OrderBook& book,
                    const std::atomic<std::uint64_t>& createdOrders,
                    sim::SimClock& clock,
                    concurrency::ShutdownToken& stop)
     : config_(config),
       fleet_(fleet),
+      dispatcher_(dispatcher),
       book_(book),
       createdOrders_(createdOrders),
       clock_(clock),
@@ -117,7 +119,7 @@ void Renderer::drawCouriers(cv::Mat& frame) const {
 }
 
 void Renderer::drawPanel(cv::Mat& frame) const {
-    cv::rectangle(frame, cv::Point(0, 0), cv::Point(250, 250), kPanelColor, cv::FILLED);
+    cv::rectangle(frame, cv::Point(0, 0), cv::Point(250, 316), kPanelColor, cv::FILLED);
 
     const std::int64_t simSeconds = clock_.nowMs() / 1000;
     drawLabel(frame, "Tiempo simulado: " + std::to_string(simSeconds) + " s", {10, 22});
@@ -125,13 +127,16 @@ void Renderer::drawPanel(cv::Mat& frame) const {
     drawLabel(frame, "Entregados: " + std::to_string(fleet_.deliveredCount()), {10, 66});
     drawLabel(frame, "En camino: " + std::to_string(fleet_.ordersInProgress()), {10, 88});
     drawLabel(frame, "En el libro: " + std::to_string(book_.size()), {10, 110});
-    drawLabel(frame, "Rechazados (queueFull): " + std::to_string(book_.rejectedCount()), {10, 132});
+    drawLabel(frame, "Rechazados:", {10, 132});
+    drawLabel(frame, "  queueFull: " + std::to_string(book_.rejectedCount()), {10, 154});
+    drawLabel(frame, "  unreachable: " + std::to_string(dispatcher_.unreachableCount()), {10, 176});
+    drawLabel(frame, "  noCourier: " + std::to_string(dispatcher_.noCourierCount()), {10, 198});
 
     const sim::CourierState states[] = {
         sim::CourierState::Idle, sim::CourierState::MovingToRestaurant,
         sim::CourierState::PickingUp, sim::CourierState::Delivering,
         sim::CourierState::BrokenDown};
-    int y = 158;
+    int y = 224;
     for (sim::CourierState state : states) {
         cv::circle(frame, {18, y - 5}, 6, colorFor(state), cv::FILLED, cv::LINE_AA);
         drawLabel(frame, sim::toString(state), {32, y});

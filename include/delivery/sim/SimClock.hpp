@@ -17,6 +17,8 @@ public:
 
     std::int64_t nowMs() const noexcept;
 
+    std::chrono::steady_clock::time_point realTimeAt(std::int64_t simMs) const;
+
     bool waitUntilMs(std::int64_t targetMs, concurrency::ShutdownToken& stop);
 
     void wakeAll();

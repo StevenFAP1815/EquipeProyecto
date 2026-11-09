@@ -56,10 +56,10 @@ EquipeProyecto/
 |---|---|---|---|---|
 | `main` | `main()` | — | `SimClock::waitUntilMs(duración)` | — |
 | `tProducer` | `OrderGenerator::run` | Un pedido (o una ráfaga) por intervalo aleatorio | `SimClock::waitUntilMs(próximo pedido)` | `main` / `main` |
-| `tDispatcher` | `provisionalDispatchLoop` (provisional: asigna cada pedido al primer repartidor libre; será el despachador real en la Etapa 5) | Cada pedido del libro | `OrderBook::waitAndPop` (CV) y, si no hay repartidor libre, `freedSignal.waitForChange` | `main` / `main` |
+| `tDispatcher` | `Dispatcher::run` | Cada pedido del libro: comprueba que sea alcanzable, pide estimaciones y asigna | `OrderBook::waitAndPop` (CV), `future::wait_until(quoteTimeoutMs)` y, si no hay repartidor, `freedSignal.waitForChange` hasta `acceptTimeoutMs` | `main` / `main` |
+| estimación (temporal, hasta `max(2, hardware_concurrency)` por pedido) | `Dispatcher::estimateDeliveryMs` vía `std::async(std::launch::async, …)` | Una sola estimación: Dijkstra repartidor→restaurante y restaurante→cliente | No espera: calcula y termina | `std::async` / el destructor del `future` en `chooseCourier` |
 | `courier[i]` (uno por repartidor) | `Courier::run` | Cada pedido asignado: ir al restaurante, esperar la comida, ir al cliente; dentro, cada tramo y cada paso | `cv_.wait` (sin pedido) y `SimClock::waitUntilMs` (en movimiento) | `Fleet::start` / `Fleet::join` |
 | `tRenderer` | `Renderer::run` | Un cuadro cada ~33 ms: copia el fondo, lee posición y estado de cada repartidor (bajo su candado) y dibuja | `cv::waitKey(33)`: pausa para fijar los FPS, permitida por el brief | `main` / `main` |
-| `dispatcher` | Etapa 5 | Cada pedido nuevo | `future::wait_for(quoteTimeoutMs)` | — |
 
 ## 5. Canales de comunicación y espera
 
@@ -67,6 +67,7 @@ EquipeProyecto/
 |---|---|---|
 | `OrderBook` | generador → despachador | Monitor: `deque` + `mutex` + `condition_variable` |
 | `ChangeSignal freedSignal` | repartidor → despachador | Contador de versión + `mutex` + `condition_variable`: el repartidor hace `notify()` al quedar libre; el despachador espera con `waitForChange` |
+| `std::future<std::int64_t>` | hilo de estimación → despachador | Canal de un solo uso con el resultado o la excepción |
 | `Courier::tryAssign` | despachador → repartidor | Monitor del repartidor: `stateMutex_` + `cv_` |
 | `SimClock` | cualquier hilo ↔ reloj | `cv_.wait_until` hasta la hora real equivalente; `wakeAll()` al apagar |
 | `ShutdownToken` | `main` → todos | `std::atomic<bool>`; `waitForStop()` con `mutex` + `condition_variable` |
@@ -90,6 +91,7 @@ Si el usuario pulsa ESC o cierra la ventana, `Renderer::run` llama a `stop.reque
 | `SimClock` | Después del constructor solo se leen `timeScale_` y `startReal_`, que son `const`. El `mutex_` existe solo para la condition variable. |
 | `Courier` | `state_`, `position_`, `currentNode_`, `job_` (el pedido que lleva), `delivered_`, `failed_` y `lastIdleMs_` solo se acceden con `stateMutex_`. Las consultas devuelven copias. |
 | `ChangeSignal` | `version_` solo se lee y se escribe con `mutex_`. |
+| `Dispatcher` | Sus contadores son `std::atomic`. Los hilos de estimación solo leen datos inmutables (`StreetNetwork`, `Config`), su propia copia de `QuoteRequest` y el repartidor a través de métodos con candado (`currentNode()`, `speedKmh()` es `const`). El resultado vuelve por el `future`, no por memoria compartida. |
 | `StreetNetwork` | Inmutable después de construirse; se comparte como `shared_ptr<const StreetNetwork>`. Solo hay lecturas. |
 | `Config` | Se construye antes de crear los hilos y después solo se lee (`const`). |
 | `Renderer` | Su imagen de fondo solo la usa el hilo `tRenderer`. Lee a los demás únicamente por métodos que toman su candado (`Courier::position/state`, `OrderBook::size/rejectedCount`) o por atómicos (`orderIdCounter`). |

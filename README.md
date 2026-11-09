@@ -4,7 +4,7 @@ Simulación concurrente de despacho de pedidos de comida sobre la Zona Equipetro
 
 Varios hilos trabajan al mismo tiempo: un generador de pedidos, un hilo por cada motociclista repartidor y, en próximas etapas, un despachador y una ventana que dibuja el mapa en vivo.
 
-> **Estado:** Etapa 4 (ventana) terminada. Qué está hecho, qué falta y los problemas conocidos están en [`docs/progress.md`](docs/progress.md).
+> **Estado:** Etapa 5 (despachador) terminada. Qué está hecho, qué falta y los problemas conocidos están en [`docs/progress.md`](docs/progress.md).
 
 ## Documentación
 
