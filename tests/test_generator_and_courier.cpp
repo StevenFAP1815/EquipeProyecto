@@ -95,7 +95,7 @@ TEST_CASE("Courier: el segundo viaje parte desde donde termino el primero",
         core::Street{core::StreetId("s1"), core::NodeId("n1"), core::NodeId("n2"), true},
         core::Street{core::StreetId("s2"), core::NodeId("n2"), core::NodeId("n3"), true},
     };
-    auto network = core::StreetNetwork::build(cfg);
+    auto network = core::StreetNetwork::build(cfg.nodes, cfg.streets);
 
     concurrency::ShutdownToken stop;
     sim::SimClock clock(2000.0);

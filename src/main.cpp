@@ -38,7 +38,7 @@ int main(int argc, char** argv) {
 
     try {
         const infra::Config cfg = infra::loadConfigFromFile(argv[1]);
-        const auto network = core::StreetNetwork::build(cfg);
+        const auto network = core::StreetNetwork::build(cfg.nodes, cfg.streets);
 
         concurrency::ShutdownToken stop;
         concurrency::OrderBook book(static_cast<std::size_t>(cfg.orders.maxPending));

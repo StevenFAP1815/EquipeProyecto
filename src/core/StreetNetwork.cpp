@@ -5,21 +5,22 @@
 #include <utility>
 
 namespace delivery::core {
-std::shared_ptr<const StreetNetwork> StreetNetwork::build(const infra::Config& cfg) {
+std::shared_ptr<const StreetNetwork> StreetNetwork::build(const std::vector<Node>& nodes,
+                                                          const std::vector<Street>& streets) {
     auto net = std::shared_ptr<StreetNetwork>(new StreetNetwork());
 
-    net->nodeIds_.reserve(cfg.nodes.size());
-    net->nodeCoords_.reserve(cfg.nodes.size());
-    net->adjacency_.resize(cfg.nodes.size());
+    net->nodeIds_.reserve(nodes.size());
+    net->nodeCoords_.reserve(nodes.size());
+    net->adjacency_.resize(nodes.size());
 
-    for (std::size_t i = 0; i < cfg.nodes.size(); ++i) {
-        const Node& n = cfg.nodes[i];
+    for (std::size_t i = 0; i < nodes.size(); ++i) {
+        const Node& n = nodes[i];
         net->nodeIndex_.emplace(n.id, i);
         net->nodeIds_.push_back(n.id);
         net->nodeCoords_.push_back(LatLon{n.lat, n.lon});
     }
 
-    for (const Street& s : cfg.streets) {
+    for (const Street& s : streets) {
         const auto fromIt = net->nodeIndex_.find(s.from);
         const auto toIt = net->nodeIndex_.find(s.to);
         if (fromIt == net->nodeIndex_.end() || toIt == net->nodeIndex_.end()) {

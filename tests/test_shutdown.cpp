@@ -81,7 +81,7 @@ TEST_CASE("OrderBook: el apagado nunca se pierde aunque llegue al mismo tiempo q
 TEST_CASE("Fleet: los repartidores inactivos terminan al pedir el apagado",
           "[fleet][shutdown][concurrent]") {
     const infra::Config cfg = makeLineConfig(4);
-    auto network = core::StreetNetwork::build(cfg);
+    auto network = core::StreetNetwork::build(cfg.nodes, cfg.streets);
     concurrency::ShutdownToken stop;
     sim::SimClock clock(1.0);
     sim::Fleet fleet(cfg, network, clock, stop);
@@ -98,7 +98,7 @@ TEST_CASE("Fleet: los repartidores inactivos terminan al pedir el apagado",
 TEST_CASE("Fleet: un repartidor en movimiento termina al pedir el apagado",
           "[fleet][shutdown][concurrent]") {
     const infra::Config cfg = makeLineConfig(1);
-    auto network = core::StreetNetwork::build(cfg);
+    auto network = core::StreetNetwork::build(cfg.nodes, cfg.streets);
     concurrency::ShutdownToken stop;
     sim::SimClock clock(1.0);
     sim::Fleet fleet(cfg, network, clock, stop);

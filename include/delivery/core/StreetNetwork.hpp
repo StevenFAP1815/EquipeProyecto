@@ -3,7 +3,6 @@
 #include <delivery/core/CityModel.hpp>
 #include <delivery/core/GeoBounds.hpp>
 #include <delivery/core/Types.hpp>
-#include <delivery/infra/Config.hpp>
 
 #include <cstddef>
 #include <memory>
@@ -20,7 +19,8 @@ struct Edge {
 
 class StreetNetwork {
 public:
-    static std::shared_ptr<const StreetNetwork> build(const infra::Config& cfg);
+    static std::shared_ptr<const StreetNetwork> build(const std::vector<Node>& nodes,
+                                                      const std::vector<Street>& streets);
 
     StreetNetwork(const StreetNetwork&) = delete;
     StreetNetwork& operator=(const StreetNetwork&) = delete;
