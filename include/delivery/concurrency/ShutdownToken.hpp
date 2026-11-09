@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <condition_variable>
 #include <mutex>
 
@@ -18,8 +19,8 @@ public:
     void waitForStop();
 
 private:
-    mutable std::mutex mutex_;
+    std::mutex mutex_;
     std::condition_variable cv_;
-    bool stop_ = false;
+    std::atomic<bool> stop_{false};
 };
 }

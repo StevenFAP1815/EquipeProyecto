@@ -28,7 +28,7 @@ public:
 
     std::uint64_t rejectedCount() const;
 
-    void wakeAll() noexcept;
+    void wakeAll();
 
 private:
     mutable std::mutex mutex_;

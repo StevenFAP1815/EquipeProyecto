@@ -41,6 +41,13 @@ bool Courier::setTarget(const core::NodeId& target) {
     return true;
 }
 
+void Courier::wake() {
+    {
+        std::lock_guard<std::mutex> lock(stateMutex_);
+    }
+    cv_.notify_all();
+}
+
 CourierState Courier::state() const {
     std::lock_guard<std::mutex> lock(stateMutex_);
     return state_;

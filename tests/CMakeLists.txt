@@ -14,6 +14,7 @@ add_executable(delivery_tests
     test_geobounds.cpp
     test_config_loader.cpp
     test_order_book.cpp
+    test_shutdown.cpp
 )
 
 target_include_directories(delivery_tests PRIVATE
@@ -45,7 +46,7 @@ target_sources(delivery_tests PRIVATE
 list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
 include(CTest)
 include(Catch)
-catch_discover_tests(delivery_tests)
+catch_discover_tests(delivery_tests PROPERTIES TIMEOUT 30)
 
 if(MSVC)
     target_compile_options(delivery_tests PRIVATE /W4 /permissive-)

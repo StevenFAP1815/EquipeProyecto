@@ -23,11 +23,7 @@ Fleet::Fleet(const infra::Config& cfg,
 }
 
 Fleet::~Fleet() {
-    for (auto& t : threads_) {
-        if (t.joinable()) {
-            t.join();
-        }
-    }
+    join();
 }
 
 void Fleet::start() {
@@ -41,6 +37,9 @@ void Fleet::start() {
 }
 
 void Fleet::join() {
+    for (auto& c : couriers_) {
+        c->wake();
+    }
     for (auto& t : threads_) {
         if (t.joinable()) {
             t.join();
