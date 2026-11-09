@@ -6,6 +6,8 @@
 
 #include <algorithm>
 #include <map>
+#include <mutex>
+#include <shared_mutex>
 #include <stdexcept>
 #include <string>
 
@@ -101,6 +103,7 @@ void Renderer::drawBackground() {
 }
 
 void Renderer::drawCouriers(cv::Mat& frame) const {
+    std::shared_lock<std::shared_mutex> snapshot(fleet_.transferMutex());
     for (const auto& courier : fleet_.couriers()) {
         for (const core::NodeId& delivery : courier->deliveryNodesInBag()) {
             const core::Node& node = config_.nodes[config_.nodeIndex.at(delivery)];
@@ -118,7 +121,7 @@ void Renderer::drawCouriers(cv::Mat& frame) const {
 }
 
 void Renderer::drawPanel(cv::Mat& frame) const {
-    cv::rectangle(frame, cv::Point(0, 0), cv::Point(250, 316), kPanelColor, cv::FILLED);
+    cv::rectangle(frame, cv::Point(0, 0), cv::Point(250, 338), kPanelColor, cv::FILLED);
 
     const std::int64_t simSeconds = clock_.nowMs() / 1000;
     drawLabel(frame, "Tiempo simulado: " + std::to_string(simSeconds) + " s", {10, 22});
@@ -130,12 +133,14 @@ void Renderer::drawPanel(cv::Mat& frame) const {
     drawLabel(frame, "  queueFull: " + std::to_string(book_.rejectedCount()), {10, 154});
     drawLabel(frame, "  unreachable: " + std::to_string(dispatcher_.unreachableCount()), {10, 176});
     drawLabel(frame, "  noCourier: " + std::to_string(dispatcher_.noCourierCount()), {10, 198});
+    drawLabel(frame, "Averias: " + std::to_string(fleet_.breakdownCount()) +
+                     "   Reasignados: " + std::to_string(fleet_.reassignedCount()), {10, 220});
 
     const sim::CourierState states[] = {
         sim::CourierState::Idle, sim::CourierState::MovingToRestaurant,
         sim::CourierState::PickingUp, sim::CourierState::Delivering,
         sim::CourierState::BrokenDown};
-    int y = 224;
+    int y = 246;
     for (sim::CourierState state : states) {
         cv::circle(frame, {18, y - 5}, 6, colorFor(state), cv::FILLED, cv::LINE_AA);
         drawLabel(frame, sim::toString(state), {32, y});

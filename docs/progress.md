@@ -1,7 +1,7 @@
 # Estado del proyecto
 
 > Qué está hecho, qué falta y qué problemas hay. Se actualiza al cerrar cada etapa.
-> Última actualización: 09/11/2026, Etapa 6 (cupos y bolsa).
+> Última actualización: 09/11/2026, Etapa 7 (averías).
 
 ## Etapas del plan y criterios de la rúbrica
 
@@ -16,7 +16,7 @@ El brief del curso define los criterios **DP.0 a DP.12**. Las **etapas** son el 
 | 4 | Ventana con el mapa y los puntos en movimiento (OpenCV) | DP.8 | 6 | ✅ Hecho (faltan las ubicaciones de entrega y los contadores finales, que dependen de las etapas 5 y 8) |
 | 5 | Despachador: estimaciones simultáneas con `future` y límite de tiempo; recogida y entrega reales; rechazos `unreachable` y `noCourier` | DP.4 (+ DP.2 `unreachable`) | 8 | ✅ Hecho |
 | 6 | Cupos de recogida en restaurantes (orden de llegada), capacidad de la bolsa | DP.5 | 8 | ✅ Hecho |
-| 7 | Averías y transferencia todo-o-nada de pedidos | DP.6 | 8 | ⏳ Pendiente |
+| 7 | Averías y transferencia todo-o-nada de pedidos | DP.6 | 8 | ✅ Hecho |
 | 8 | Registro de eventos JSON y resumen final exacto | DP.7 | 8 | ⏳ Pendiente (ya existe la línea de inicio) |
 | 9 | Señales SIGINT/SIGTERM y apagado en menos de 5 s | DP.9 | 6 | ⏳ Pendiente |
 | 10 | Análisis con herramientas (ThreadSanitizer, Valgrind) | DP.11 + "Sin condiciones de carrera" | 6 + 8 | 🔶 En curso: TSan ya se usa en cada PR |

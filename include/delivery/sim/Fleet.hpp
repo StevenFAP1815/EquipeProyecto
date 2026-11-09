@@ -9,7 +9,10 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <future>
 #include <memory>
+#include <optional>
+#include <shared_mutex>
 #include <thread>
 #include <vector>
 
@@ -42,12 +45,19 @@ public:
     std::uint64_t deliveredCount() const;
     std::uint64_t failedCount() const;
     std::uint64_t ordersInProgress() const;
+    std::uint64_t breakdownCount() const;
+    std::uint64_t reassignedCount() const;
+
+    std::shared_mutex& transferMutex() const noexcept { return transferMutex_; }
 
     const concurrency::PickupDesk& desk(const core::RestaurantId& id) const {
         return *desks_.at(id);
     }
 
 private:
+    std::optional<std::future<bool>> findRescuer(Courier& broken);
+
+    mutable std::shared_mutex transferMutex_;
     PickupDeskMap desks_;
     std::vector<std::unique_ptr<Courier>> couriers_;
     std::vector<std::thread> threads_;

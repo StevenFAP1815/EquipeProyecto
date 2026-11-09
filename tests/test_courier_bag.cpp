@@ -9,6 +9,9 @@
 
 #include <algorithm>
 #include <chrono>
+#include <future>
+#include <optional>
+#include <shared_mutex>
 #include <memory>
 #include <thread>
 #include <vector>
@@ -22,6 +25,7 @@ struct BagHarness {
     concurrency::ShutdownToken stop;
     concurrency::ChangeSignal freed;
     sim::PickupDeskMap desks;
+    std::shared_mutex transferMutex;
     sim::SimClock clock{500.0};
     std::unique_ptr<sim::Courier> courier;
     std::thread worker;
@@ -41,8 +45,10 @@ struct BagHarness {
         network = core::StreetNetwork::build(nodes, streets);
         desks.emplace(core::RestaurantId("r0"), std::make_unique<concurrency::PickupDesk>(1));
         desks.emplace(core::RestaurantId("r1"), std::make_unique<concurrency::PickupDesk>(1));
-        courier = std::make_unique<sim::Courier>(core::CourierId("c0"), network, clock, stop,
-                                                 freed, desks, bagCapacity, 30.0,
+        sim::CourierEnvironment environment{network, clock, stop, freed, desks, transferMutex,
+            [](sim::Courier&) { return std::optional<std::future<bool>>{}; }};
+        courier = std::make_unique<sim::Courier>(core::CourierId("c0"), environment,
+                                                 sim::CourierSettings{bagCapacity, 30.0, 0.0, 0},
                                                  core::NodeId("n0"));
         worker = std::thread([this] { courier->run(); });
     }

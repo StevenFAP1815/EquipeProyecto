@@ -69,6 +69,8 @@ EquipeProyecto/
 | `ChangeSignal freedSignal` | repartidor → despachador | Contador de versión + `mutex` + `condition_variable`: el repartidor hace `notify()` al quedar libre; el despachador espera con `waitForChange` |
 | `std::future<std::int64_t>` | hilo de estimación → despachador | Canal de un solo uso con el resultado o la excepción |
 | `PickupDesk` (uno por restaurante, creado por `Fleet`) | repartidor ↔ repartidores del mismo restaurante | Monitor con tickets: `enter()` da un número de llegada y espera turno y cupo; `leave()` libera el cupo. FIFO y nunca más de `pickupSlots` |
+| `std::promise<bool>` / `std::future<bool>` de rescate | rescatista → repartidor averiado | Canal de un solo uso: "ya tengo tus pedidos" (o `false` si se apaga) |
+| `Fleet::transferMutex` (`std::shared_mutex`) | transferencias ↔ observadores | Exclusivo al transferir una bolsa; compartido al contar o dibujar |
 | `Courier::tryAssign` | despachador → repartidor | Monitor del repartidor: `stateMutex_` + `cv_` |
 | `SimClock` | cualquier hilo ↔ reloj | `cv_.wait_until` hasta la hora real equivalente; `wakeAll()` al apagar |
 | `ShutdownToken` | `main` → todos | `std::atomic<bool>`; `waitForStop()` con `mutex` + `condition_variable` |
@@ -92,6 +94,7 @@ Si el usuario pulsa ESC o cierra la ventana, `Renderer::run` llama a `stop.reque
 | `SimClock` | Después del constructor solo se leen `timeScale_` y `startReal_`, que son `const`. El `mutex_` existe solo para la condition variable. |
 | `Courier` | `state_`, `position_`, `currentNode_`, `bag_` (los pedidos que lleva), `bagRestaurant_`, `collecting_`, `delivered_`, `failed_` y `lastIdleMs_` solo se acceden con `stateMutex_`. Las consultas devuelven copias. `tryAssign` comprueba el cupo de la bolsa y agrega el pedido en la misma sección crítica: nunca se supera `bagCapacity`. |
 | `ChangeSignal` | `version_` solo se lee y se escribe con `mutex_`. |
+| Transferencia de una bolsa | Se hace con `unique_lock(transferMutex)` y `scoped_lock` sobre los dos repartidores: los pedidos pasan de una bolsa a la otra en una sola operación indivisible. Todo lector que cuenta pedidos de varios repartidores toma `shared_lock(transferMutex)`, así nunca ve un pedido en dos bolsas ni en ninguna. Orden de candados fijo: primero `transferMutex`, después los de los repartidores. |
 | `PickupDesk` | `busy_`, `nextTicket_` y `nowServing_` solo con `mutex_`. El mapa de mostradores de `Fleet` se llena antes de crear los hilos y después solo se lee. |
 | `Dispatcher` | Sus contadores son `std::atomic`. Los hilos de estimación solo leen datos inmutables (`StreetNetwork`, `Config`), su propia copia de `QuoteRequest` y el repartidor a través de métodos con candado (`currentNode()`, `speedKmh()` es `const`). El resultado vuelve por el `future`, no por memoria compartida. |
 | `StreetNetwork` | Inmutable después de construirse; se comparte como `shared_ptr<const StreetNetwork>`. Solo hay lecturas. |

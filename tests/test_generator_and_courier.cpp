@@ -11,6 +11,9 @@
 #include <delivery/sim/SimClock.hpp>
 
 #include <atomic>
+#include <future>
+#include <optional>
+#include <shared_mutex>
 #include <chrono>
 #include <string>
 #include <thread>
@@ -78,6 +81,20 @@ core::Order makeOrder(const char* id, const char* restaurantNode,
     return o;
 }
 
+std::shared_mutex& testTransferMutex() {
+    static std::shared_mutex mutex;
+    return mutex;
+}
+
+sim::CourierEnvironment makeEnvironment(std::shared_ptr<const core::StreetNetwork> network,
+                                        sim::SimClock& clock,
+                                        concurrency::ShutdownToken& stop,
+                                        concurrency::ChangeSignal& freed,
+                                        const sim::PickupDeskMap& desks) {
+    return {std::move(network), clock, stop, freed, desks, testTransferMutex(),
+            [](sim::Courier&) { return std::optional<std::future<bool>>{}; }};
+}
+
 sim::PickupDeskMap makeDesks() {
     sim::PickupDeskMap desks;
     desks.emplace(core::RestaurantId("r0"), std::make_unique<concurrency::PickupDesk>(1));
@@ -131,7 +148,7 @@ TEST_CASE("Courier: recoge en el restaurante y entrega en el destino",
     concurrency::ChangeSignal freed;
     sim::SimClock clock(5000.0);
     const sim::PickupDeskMap desks = makeDesks();
-    sim::Courier courier(core::CourierId("c0"), network, clock, stop, freed, desks, 1, 30.0,
+    sim::Courier courier(core::CourierId("c0"), makeEnvironment(network, clock, stop, freed, desks), sim::CourierSettings{1, 30.0, 0.0, 0},
                          core::NodeId("n0"));
     std::thread worker([&courier] { courier.run(); });
 
@@ -164,7 +181,7 @@ TEST_CASE("Courier: espera en el restaurante hasta que la comida esta lista",
     concurrency::ChangeSignal freed;
     sim::SimClock clock(5000.0);
     const sim::PickupDeskMap desks = makeDesks();
-    sim::Courier courier(core::CourierId("c0"), network, clock, stop, freed, desks, 1, 30.0,
+    sim::Courier courier(core::CourierId("c0"), makeEnvironment(network, clock, stop, freed, desks), sim::CourierSettings{1, 30.0, 0.0, 0},
                          core::NodeId("n1"));
     std::thread worker([&courier] { courier.run(); });
 
@@ -185,7 +202,7 @@ TEST_CASE("Courier: el segundo pedido parte desde donde termino el primero",
     concurrency::ChangeSignal freed;
     sim::SimClock clock(500.0);
     const sim::PickupDeskMap desks = makeDesks();
-    sim::Courier courier(core::CourierId("c0"), network, clock, stop, freed, desks, 1, 30.0,
+    sim::Courier courier(core::CourierId("c0"), makeEnvironment(network, clock, stop, freed, desks), sim::CourierSettings{1, 30.0, 0.0, 0},
                          core::NodeId("n0"));
     std::thread worker([&courier] { courier.run(); });
 
@@ -216,7 +233,7 @@ TEST_CASE("Courier: un pedido sin ruta posible cuenta como fallido y libera al r
     concurrency::ChangeSignal freed;
     sim::SimClock clock(5000.0);
     const sim::PickupDeskMap desks = makeDesks();
-    sim::Courier courier(core::CourierId("c0"), network, clock, stop, freed, desks, 1, 30.0,
+    sim::Courier courier(core::CourierId("c0"), makeEnvironment(network, clock, stop, freed, desks), sim::CourierSettings{1, 30.0, 0.0, 0},
                          core::NodeId("n3"));
     std::thread worker([&courier] { courier.run(); });
 
