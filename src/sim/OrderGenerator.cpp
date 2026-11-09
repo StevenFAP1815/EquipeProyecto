@@ -2,10 +2,7 @@
 
 #include <delivery/core/Rng.hpp>
 
-#include <algorithm>
-#include <chrono>
 #include <string>
-#include <thread>
 #include <utility>
 
 namespace delivery::sim {
@@ -16,10 +13,12 @@ constexpr double kBurstProbability = 0.05;
 OrderGenerator::OrderGenerator(const infra::Config& config,
                                concurrency::OrderBook& book,
                                concurrency::ShutdownToken& stop,
+                               SimClock& clock,
                                std::atomic<std::uint64_t>& orderIdCounter)
     : config_(config),
       book_(book),
       stop_(stop),
+      clock_(clock),
       orderIdCounter_(orderIdCounter),
       rng_(core::deriveSeed(config.orders.seed, 0)),
       intervalDist_(
@@ -53,36 +52,16 @@ std::optional<core::Order> OrderGenerator::generateOne(std::int64_t nowMs) {
     return o;
 }
 
-bool OrderGenerator::sleepUntilNextTick(std::int64_t& simulatedNowMs) {
-    const double simulatedSleepMs = intervalDist_(rng_);
-
-    const double realSleepUs =
-        simulatedSleepMs * 1000.0 / config_.simulation.timeScale;
-
-    constexpr double kMaxSliceUs = 50'000.0;
-    double remainingUs = realSleepUs;
-
-    while (remainingUs > 0.0) {
-        if (stop_.stopRequested()) {
-            return false;
-        }
-        const double sliceUs = std::min(remainingUs, kMaxSliceUs);
-        std::this_thread::sleep_for(
-            std::chrono::microseconds(static_cast<std::int64_t>(sliceUs)));
-        remainingUs -= sliceUs;
-    }
-
-    simulatedNowMs += static_cast<std::int64_t>(simulatedSleepMs);
-    return !stop_.stopRequested();
-}
-
 void OrderGenerator::run() {
-    std::int64_t simulatedNowMs = 0;
     const std::int64_t durationMs =
         static_cast<std::int64_t>(config_.simulation.durationS) * 1000;
+    std::int64_t nextOrderMs = 0;
 
     while (!stop_.stopRequested()) {
-        if (durationMs > 0 && simulatedNowMs >= durationMs) {
+        if (durationMs > 0 && nextOrderMs >= durationMs) {
+            break;
+        }
+        if (!clock_.waitUntilMs(nextOrderMs, stop_)) {
             break;
         }
 
@@ -91,17 +70,15 @@ void OrderGenerator::run() {
             count = burstSizeDist_(rng_);
         }
 
-        for (int i = 0; i < count && !stop_.stopRequested(); ++i) {
-            auto maybeOrder = generateOne(simulatedNowMs);
+        for (int i = 0; i < count; ++i) {
+            auto maybeOrder = generateOne(nextOrderMs);
             if (!maybeOrder) {
                 break;
             }
-            (void)book_.tryPush(std::move(*maybeOrder));
+            book_.tryPush(std::move(*maybeOrder));
         }
 
-        if (!sleepUntilNextTick(simulatedNowMs)) {
-            break;
-        }
+        nextOrderMs += static_cast<std::int64_t>(intervalDist_(rng_));
     }
 }
 }
