@@ -1,13 +1,13 @@
 find_package(Catch2 3 QUIET)
 
 if(NOT Catch2_FOUND)
-    include(FetchContent)
     FetchContent_Declare(
         Catch2
-        GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-        GIT_TAG v3.5.2
+        URL https://github.com/catchorg/Catch2/archive/refs/tags/v3.5.2.tar.gz
+        URL_HASH SHA256=269543a49eb76f40b3f93ff231d4c24c27a7e16c90e47d2e45bcc564de470c6e
     )
     FetchContent_MakeAvailable(Catch2)
+    list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
 endif()
 
 add_executable(delivery_tests
@@ -18,43 +18,14 @@ add_executable(delivery_tests
     test_generator_and_courier.cpp
 )
 
-target_include_directories(delivery_tests PRIVATE
-    ${CMAKE_SOURCE_DIR}/include
-    ${CMAKE_SOURCE_DIR}/src
-)
-
 target_link_libraries(delivery_tests PRIVATE
+    delivery_core
     Catch2::Catch2WithMain
-    nlohmann_json::nlohmann_json
 )
-
-find_package(Threads REQUIRED)
-target_link_libraries(delivery_tests PRIVATE Threads::Threads)
-
-target_sources(delivery_tests PRIVATE
-    ${CMAKE_SOURCE_DIR}/src/core/GeoBounds.cpp
-    ${CMAKE_SOURCE_DIR}/src/infra/ConfigLoader.cpp
-    ${CMAKE_SOURCE_DIR}/src/concurrency/ShutdownToken.cpp
-    ${CMAKE_SOURCE_DIR}/src/concurrency/OrderBook.cpp
-    ${CMAKE_SOURCE_DIR}/src/sim/OrderGenerator.cpp
-    ${CMAKE_SOURCE_DIR}/src/core/StreetNetwork.cpp
-    ${CMAKE_SOURCE_DIR}/src/core/PathFinder.cpp
-    ${CMAKE_SOURCE_DIR}/src/sim/SimClock.cpp
-    ${CMAKE_SOURCE_DIR}/src/sim/Courier.cpp
-    ${CMAKE_SOURCE_DIR}/src/sim/Fleet.cpp
-)
-
-list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
-include(CTest)
-include(Catch)
-catch_discover_tests(delivery_tests PROPERTIES TIMEOUT 30)
-
-if(MSVC)
-    target_compile_options(delivery_tests PRIVATE /W4 /permissive-)
-else()
-    target_compile_options(delivery_tests PRIVATE -Wall -Wextra -Wpedantic)
-endif()
 
 target_compile_definitions(delivery_tests PRIVATE
     TESTS_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data"
 )
+
+include(Catch)
+catch_discover_tests(delivery_tests PROPERTIES TIMEOUT 30)
