@@ -307,23 +307,35 @@ bool Courier::breakDownAndWaitForRescue() {
         ++breakdowns_;
     }
 
-    while (true) {
+    const std::int64_t repairedAtMs = env_.clock.nowMs() + kRepairMs;
+    bool rescued = false;
+    while (!rescued) {
         const std::uint64_t seenVersion = env_.freedSignal.version();
         std::optional<std::future<bool>> answer = env_.requestRescue(*this);
         if (answer) {
             if (!answer->get()) {
                 return false;
             }
+            rescued = true;
+        } else if (env_.clock.nowMs() >= repairedAtMs) {
             break;
-        }
-        env_.freedSignal.waitForChange(
-            seenVersion, std::chrono::steady_clock::now() + std::chrono::hours(24), env_.stop);
-        if (env_.stop.stopRequested()) {
-            return false;
+        } else {
+            env_.freedSignal.waitForChange(seenVersion, env_.clock.realTimeAt(repairedAtMs),
+                                           env_.stop);
+            if (env_.stop.stopRequested()) {
+                return false;
+            }
         }
     }
 
-    return env_.clock.waitUntilMs(env_.clock.nowMs() + kRepairMs, env_.stop);
+    if (!env_.clock.waitUntilMs(repairedAtMs, env_.stop)) {
+        return false;
+    }
+    if (rescued) {
+        return true;
+    }
+    setState(CourierState::Delivering);
+    return deliverBag(false);
 }
 
 void Courier::performRescue(RescueRequest request) {

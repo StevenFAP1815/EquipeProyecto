@@ -320,6 +320,29 @@ Formato: contexto, alternativas, decisión, justificación, consecuencias.
   repartidor ya lleva antes del pedido nuevo. Con la bolsa de 3, los
   rechazos de la configuracion por defecto bajan de 18 a 0.
 
+## DD-027: Averias con rescate por promise/future y transferencia con scoped_lock
+- Etapa: 7
+- Contexto: DP.6 exige transferir los pedidos de un repartidor averiado a
+  otro de forma todo-o-nada, sin que nadie vea un pedido en dos bolsas o en
+  ninguna, y sin bloqueos cuando hay averias simultaneas.
+- Decision:
+  - Cada viaje normal se averia con probabilidad breakdownProbability (un
+    sorteo por viaje, generador propio por repartidor con semilla derivada),
+    a mitad de camino hacia el primer cliente. Los viajes de rescate no se
+    averian, asi con probabilidad 1 el sistema sigue avanzando.
+  - El averiado busca un compañero libre (Fleet::findRescuer ->
+    Courier::acceptRescue) y espera su respuesta en un std::future<bool>.
+  - El rescatista transfiere con unique_lock(transferMutex) +
+    scoped_lock(dos repartidores), contesta set_value(true) y va a buscar los
+    pedidos al punto de la averia.
+  - La reparacion dura 5 min simulados y ocurre siempre: si nadie rescato al
+    repartidor antes, el mismo repartidor reparado entrega sus pedidos.
+- Justificacion: scoped_lock evita el interbloqueo al tomar dos mutex; el
+  shared_mutex permite que muchos lectores cuenten a la vez y que las
+  transferencias sean invisibles a medias. La reparacion con limite evita
+  que, si todos se averian a la vez, nadie pueda rescatar a nadie.
+- Consecuencias: el resumen incluye reassigned y breakdowns.
+
 ## DD-023: Codigo sin comentarios
 - Etapa: 3
 - Contexto: el docente pidio que los modulos no tengan comentarios, porque
