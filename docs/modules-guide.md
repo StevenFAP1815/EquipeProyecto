@@ -71,6 +71,7 @@ El código está organizado en **capas**. Cada capa solo usa las capas de más a
 |---|---|
 | `OrderBook` | El **libro de pedidos**: una fila de pedidos en espera, con capacidad máxima. Un hilo deja pedidos y otro los saca; si no hay pedidos, el que saca **espera dormido** sin gastar procesador. |
 | `ShutdownToken` | La **señal de apagado**: una bandera que todos los hilos consultan para saber cuándo terminar. |
+| `ChangeSignal` | Un **aviso de "algo cambió"**: un hilo puede dormir hasta que otro avise. Lo usan los repartidores para avisar "quedé libre" a quien reparte los pedidos. |
 
 ### `sim/` — los actores
 
@@ -78,7 +79,7 @@ El código está organizado en **capas**. Cada capa solo usa las capas de más a
 |---|---|
 | `SimClock` | El **reloj simulado**: hace que el tiempo pase más rápido (por ejemplo, 1 segundo real = 60 segundos simulados) y permite a los hilos "dormir hasta cierta hora". |
 | `OrderGenerator` | Crea pedidos a intervalos aleatorios, a veces en ráfagas, y los deja en el libro de pedidos. |
-| `Courier` | Un **repartidor**: espera a que le asignen un destino y se mueve por las calles, paso a paso, a su velocidad. |
+| `Courier` | Un **repartidor**: espera a que le asignen un pedido; va al restaurante, espera a que la comida esté lista, la lleva al cliente moviéndose paso a paso por las calles, y avisa que quedó libre. |
 | `Fleet` | La **flota**: crea a todos los repartidores, les da un hilo a cada uno y al final espera a que todos terminen. |
 
 ### `viz/` — la ventana

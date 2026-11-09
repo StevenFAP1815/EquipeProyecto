@@ -1,3 +1,4 @@
+#include <delivery/concurrency/ChangeSignal.hpp>
 #include <delivery/concurrency/OrderBook.hpp>
 #include <delivery/concurrency/ShutdownToken.hpp>
 #include <delivery/core/Order.hpp>
@@ -9,6 +10,7 @@
 #include <delivery/viz/Renderer.hpp>
 
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <iostream>
@@ -17,29 +19,33 @@
 namespace {
 using namespace delivery;
 
-bool sendToIdleCourier(sim::Fleet& fleet, const core::NodeId& target) {
+bool assignToFirstFreeCourier(sim::Fleet& fleet, core::Order& order) {
     for (const auto& courier : fleet.couriers()) {
-        if (courier->setTarget(target)) {
+        if (courier->tryAssign(order)) {
             return true;
         }
     }
     return false;
 }
 
-void provisionalDispatchLoop(const infra::Config& cfg,
-                             concurrency::OrderBook& book,
+void provisionalDispatchLoop(concurrency::OrderBook& book,
                              sim::Fleet& fleet,
+                             concurrency::ChangeSignal& freedSignal,
                              concurrency::ShutdownToken& stop,
-                             std::atomic<std::uint64_t>& consumedCount) {
-    while (true) {
-        auto maybeOrder = book.waitAndPop(stop);
-        if (!maybeOrder) {
-            return;
+                             std::atomic<std::uint64_t>& pendingAtStop) {
+    while (auto order = book.waitAndPop(stop)) {
+        while (true) {
+            if (stop.stopRequested()) {
+                pendingAtStop.fetch_add(1);
+                break;
+            }
+            const std::uint64_t seen = freedSignal.version();
+            if (assignToFirstFreeCourier(fleet, *order)) {
+                break;
+            }
+            freedSignal.waitForChange(
+                seen, std::chrono::steady_clock::now() + std::chrono::hours(24), stop);
         }
-        const auto& restaurant =
-            cfg.restaurants[cfg.restaurantIndex.at(maybeOrder->restaurant)];
-        sendToIdleCourier(fleet, restaurant.node);
-        consumedCount.fetch_add(1, std::memory_order_relaxed);
     }
 }
 }
@@ -61,20 +67,21 @@ int main(int argc, char** argv) {
 
         concurrency::ShutdownToken stop;
         concurrency::OrderBook book(static_cast<std::size_t>(cfg.orders.maxPending));
+        concurrency::ChangeSignal freedSignal;
         std::atomic<std::uint64_t> orderIdCounter{0};
-        std::atomic<std::uint64_t> consumedCount{0};
+        std::atomic<std::uint64_t> pendingAtStop{0};
 
         sim::SimClock clock(cfg.simulation.timeScale);
         sim::OrderGenerator generator(cfg, book, stop, clock, orderIdCounter);
-        sim::Fleet fleet(cfg, network, clock, stop);
+        sim::Fleet fleet(cfg, network, clock, stop, freedSignal);
         viz::Renderer renderer(cfg, imagePath, fleet, book, orderIdCounter, clock, stop);
 
         fleet.start();
         std::thread tProducer([&generator] {
             generator.run();
         });
-        std::thread tDispatcher([&cfg, &book, &fleet, &stop, &consumedCount] {
-            provisionalDispatchLoop(cfg, book, fleet, stop, consumedCount);
+        std::thread tDispatcher([&book, &fleet, &freedSignal, &stop, &pendingAtStop] {
+            provisionalDispatchLoop(book, fleet, freedSignal, stop, pendingAtStop);
         });
         std::thread tRenderer([&renderer] {
             renderer.run();
@@ -93,21 +100,23 @@ int main(int argc, char** argv) {
         stop.requestStop();
         clock.wakeAll();
         book.wakeAll();
+        freedSignal.wakeAll();
 
         tProducer.join();
         tDispatcher.join();
         tRenderer.join();
         fleet.join();
 
-        const std::uint64_t created  = orderIdCounter.load(std::memory_order_relaxed);
-        const std::uint64_t consumed = consumedCount.load(std::memory_order_relaxed);
-        const std::uint64_t rejected = book.rejectedCount();
-        const std::uint64_t pending  = book.size();
+        const std::uint64_t created   = orderIdCounter.load();
+        const std::uint64_t delivered = fleet.deliveredCount();
+        const std::uint64_t rejected  = book.rejectedCount() + fleet.failedCount();
+        const std::uint64_t pending   =
+            book.size() + pendingAtStop.load() + fleet.ordersInProgress();
 
         std::cout << "{"
-                  << "\"created\": "   << created  << ", "
-                  << "\"consumed\": "  << consumed << ", "
-                  << "\"rejected\": "  << rejected << ", "
+                  << "\"created\": "   << created   << ", "
+                  << "\"delivered\": " << delivered << ", "
+                  << "\"rejected\": "  << rejected  << ", "
                   << "\"pending\": "   << pending
                   << "}\n";
 

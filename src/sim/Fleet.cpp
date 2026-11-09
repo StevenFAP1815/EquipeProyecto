@@ -6,7 +6,8 @@ namespace delivery::sim {
 Fleet::Fleet(const infra::Config& cfg,
              std::shared_ptr<const core::StreetNetwork> network,
              SimClock& clock,
-             concurrency::ShutdownToken& stop) {
+             concurrency::ShutdownToken& stop,
+             concurrency::ChangeSignal& freedSignal) {
     const int n = cfg.fleet.couriers;
     couriers_.reserve(static_cast<std::size_t>(n));
 
@@ -17,6 +18,7 @@ Fleet::Fleet(const infra::Config& cfg,
             network,
             clock,
             stop,
+            freedSignal,
             cfg.fleet.speedKmh,
             cfg.fleet.startNode));
     }
@@ -46,6 +48,32 @@ void Fleet::join() {
         }
     }
     threads_.clear();
+}
+
+std::uint64_t Fleet::deliveredCount() const {
+    std::uint64_t total = 0;
+    for (const auto& c : couriers_) {
+        total += c->deliveredCount();
+    }
+    return total;
+}
+
+std::uint64_t Fleet::failedCount() const {
+    std::uint64_t total = 0;
+    for (const auto& c : couriers_) {
+        total += c->failedCount();
+    }
+    return total;
+}
+
+std::uint64_t Fleet::ordersInProgress() const {
+    std::uint64_t total = 0;
+    for (const auto& c : couriers_) {
+        if (c->hasOrder()) {
+            ++total;
+        }
+    }
+    return total;
 }
 
 Courier* Fleet::findCourier(const core::CourierId& id) noexcept {

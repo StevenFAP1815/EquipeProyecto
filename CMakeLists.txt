@@ -60,6 +60,7 @@ add_library(delivery_core STATIC
     src/core/StreetNetwork.cpp
     src/infra/ConfigLoader.cpp
     src/concurrency/ShutdownToken.cpp
+    src/concurrency/ChangeSignal.cpp
     src/concurrency/OrderBook.cpp
     src/sim/SimClock.cpp
     src/sim/OrderGenerator.cpp

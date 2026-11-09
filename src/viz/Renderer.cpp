@@ -21,6 +21,7 @@ const cv::Scalar kStreetColor(200, 120, 40);
 const cv::Scalar kRestaurantColor(40, 40, 200);
 const cv::Scalar kTextColor(20, 20, 20);
 const cv::Scalar kPanelColor(255, 255, 255);
+const cv::Scalar kDeliveryColor(0, 140, 0);
 
 cv::Scalar colorFor(sim::CourierState state) {
     switch (state) {
@@ -99,6 +100,15 @@ void Renderer::drawBackground() {
 
 void Renderer::drawCouriers(cv::Mat& frame) const {
     for (const auto& courier : fleet_.couriers()) {
+        const auto delivery = courier->activeDeliveryNode();
+        if (delivery) {
+            const core::Node& node = config_.nodes[config_.nodeIndex.at(*delivery)];
+            const cv::Point d = toScreen(node.lat, node.lon);
+            cv::drawMarker(frame, d, kDeliveryColor, cv::MARKER_TILTED_CROSS, 14, 3);
+        }
+    }
+
+    for (const auto& courier : fleet_.couriers()) {
         const core::LatLon pos = courier->position();
         const cv::Point p = toScreen(pos.lat, pos.lon);
         cv::circle(frame, p, 7, colorFor(courier->state()), cv::FILLED, cv::LINE_AA);
@@ -107,19 +117,21 @@ void Renderer::drawCouriers(cv::Mat& frame) const {
 }
 
 void Renderer::drawPanel(cv::Mat& frame) const {
-    cv::rectangle(frame, cv::Point(0, 0), cv::Point(250, 205), kPanelColor, cv::FILLED);
+    cv::rectangle(frame, cv::Point(0, 0), cv::Point(250, 250), kPanelColor, cv::FILLED);
 
     const std::int64_t simSeconds = clock_.nowMs() / 1000;
     drawLabel(frame, "Tiempo simulado: " + std::to_string(simSeconds) + " s", {10, 22});
     drawLabel(frame, "Pedidos creados: " + std::to_string(createdOrders_.load()), {10, 44});
-    drawLabel(frame, "En el libro: " + std::to_string(book_.size()), {10, 66});
-    drawLabel(frame, "Rechazados (queueFull): " + std::to_string(book_.rejectedCount()), {10, 88});
+    drawLabel(frame, "Entregados: " + std::to_string(fleet_.deliveredCount()), {10, 66});
+    drawLabel(frame, "En camino: " + std::to_string(fleet_.ordersInProgress()), {10, 88});
+    drawLabel(frame, "En el libro: " + std::to_string(book_.size()), {10, 110});
+    drawLabel(frame, "Rechazados (queueFull): " + std::to_string(book_.rejectedCount()), {10, 132});
 
     const sim::CourierState states[] = {
         sim::CourierState::Idle, sim::CourierState::MovingToRestaurant,
         sim::CourierState::PickingUp, sim::CourierState::Delivering,
         sim::CourierState::BrokenDown};
-    int y = 112;
+    int y = 158;
     for (sim::CourierState state : states) {
         cv::circle(frame, {18, y - 5}, 6, colorFor(state), cv::FILLED, cv::LINE_AA);
         drawLabel(frame, sim::toString(state), {32, y});

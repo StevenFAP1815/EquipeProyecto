@@ -1,6 +1,8 @@
 #pragma once
 
+#include <delivery/concurrency/ChangeSignal.hpp>
 #include <delivery/concurrency/ShutdownToken.hpp>
+#include <delivery/core/Order.hpp>
 #include <delivery/core/PathFinder.hpp>
 #include <delivery/core/StreetNetwork.hpp>
 #include <delivery/core/Types.hpp>
@@ -39,6 +41,7 @@ public:
             std::shared_ptr<const core::StreetNetwork> network,
             SimClock& clock,
             concurrency::ShutdownToken& stop,
+            concurrency::ChangeSignal& freedSignal,
             double speedKmh,
             core::NodeId startNode);
 
@@ -47,26 +50,34 @@ public:
 
     void run();
 
-    bool setTarget(const core::NodeId& target);
+    bool tryAssign(core::Order& order);
 
     void wake();
 
     CourierId id() const noexcept { return id_; }
+    double speedKmh() const noexcept { return speedKmh_; }
     CourierState state() const;
+    bool isAvailable() const;
     core::LatLon position() const;
     core::NodeId currentNode() const;
-
+    std::optional<core::NodeId> activeDeliveryNode() const;
+    bool hasOrder() const;
+    std::uint64_t deliveredCount() const;
+    std::uint64_t failedCount() const;
     std::int64_t lastIdleMs() const;
 
 private:
-    void doMovement(const core::RouteResult& route);
-
+    bool travel(const core::NodeId& from, const core::NodeId& to);
+    bool doMovement(const core::RouteResult& route);
     void setPosition(const core::LatLon& pos);
+    void setState(CourierState state);
+    void finishJob(bool delivered);
 
     const CourierId id_;
     std::shared_ptr<const core::StreetNetwork> network_;
     SimClock& clock_;
     concurrency::ShutdownToken& stop_;
+    concurrency::ChangeSignal& freedSignal_;
     const double speedKmh_;
 
     mutable std::mutex stateMutex_;
@@ -74,7 +85,9 @@ private:
     CourierState state_ = CourierState::Idle;
     core::LatLon position_;
     core::NodeId currentNode_;
-    std::optional<core::NodeId> pendingTarget_;
+    std::optional<core::Order> job_;
+    std::uint64_t delivered_ = 0;
+    std::uint64_t failed_ = 0;
     std::int64_t lastIdleMs_ = 0;
 };
 }

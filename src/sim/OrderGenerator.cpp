@@ -43,12 +43,17 @@ std::optional<core::Order> OrderGenerator::generateOne(std::int64_t nowMs) {
     const auto& rest = config_.restaurants[pickRestaurantDist_(rng_)];
     const auto& node = config_.nodes[pickNodeDist_(rng_)];
 
+    std::uniform_int_distribution<int> prepTimeDist(rest.prepTimeMs.minMs,
+                                                    rest.prepTimeMs.maxMs);
+
     core::Order o;
-    o.id           = nextOrderId();
-    o.restaurant   = rest.id;
-    o.deliveryNode = node.id;
-    o.createdAtMs  = nowMs;
-    o.state        = core::OrderState::Created;
+    o.id             = nextOrderId();
+    o.restaurant     = rest.id;
+    o.restaurantNode = rest.node;
+    o.deliveryNode   = node.id;
+    o.createdAtMs    = nowMs;
+    o.readyAtMs      = nowMs + prepTimeDist(rng_);
+    o.state          = core::OrderState::Created;
     return o;
 }
 

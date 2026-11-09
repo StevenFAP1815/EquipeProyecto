@@ -1,5 +1,6 @@
 #pragma once
 
+#include <delivery/concurrency/ChangeSignal.hpp>
 #include <delivery/concurrency/ShutdownToken.hpp>
 #include <delivery/core/StreetNetwork.hpp>
 #include <delivery/infra/Config.hpp>
@@ -7,6 +8,7 @@
 #include <delivery/sim/SimClock.hpp>
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <thread>
 #include <vector>
@@ -17,7 +19,8 @@ public:
     Fleet(const infra::Config& cfg,
           std::shared_ptr<const core::StreetNetwork> network,
           SimClock& clock,
-          concurrency::ShutdownToken& stop);
+          concurrency::ShutdownToken& stop,
+          concurrency::ChangeSignal& freedSignal);
 
     ~Fleet();
 
@@ -35,6 +38,10 @@ public:
     std::size_t size() const noexcept { return couriers_.size(); }
 
     Courier* findCourier(const core::CourierId& id) noexcept;
+
+    std::uint64_t deliveredCount() const;
+    std::uint64_t failedCount() const;
+    std::uint64_t ordersInProgress() const;
 
 private:
     std::vector<std::unique_ptr<Courier>> couriers_;
