@@ -1,4 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
+
+#include <delivery/infra/EventLog.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include <delivery/concurrency/ChangeSignal.hpp>
@@ -51,7 +53,8 @@ std::vector<std::string> generateOrders(std::uint64_t seed) {
     sim::SimClock clock(cfg.simulation.timeScale);
     std::atomic<std::uint64_t> counter{0};
 
-    sim::OrderGenerator generator(cfg, book, stop, clock, counter);
+    infra::EventLog log;
+    sim::OrderGenerator generator(cfg, book, stop, clock, counter, log);
     generator.run();
 
     std::vector<std::string> orders;
@@ -81,6 +84,11 @@ core::Order makeOrder(const char* id, const char* restaurantNode,
     return o;
 }
 
+infra::EventLog& testLog() {
+    static infra::EventLog log;
+    return log;
+}
+
 std::shared_mutex& testTransferMutex() {
     static std::shared_mutex mutex;
     return mutex;
@@ -91,7 +99,7 @@ sim::CourierEnvironment makeEnvironment(std::shared_ptr<const core::StreetNetwor
                                         concurrency::ShutdownToken& stop,
                                         concurrency::ChangeSignal& freed,
                                         const sim::PickupDeskMap& desks) {
-    return {std::move(network), clock, stop, freed, desks, testTransferMutex(),
+    return {std::move(network), clock, stop, freed, desks, testTransferMutex(), testLog(),
             [](sim::Courier&) { return std::optional<std::future<bool>>{}; }};
 }
 

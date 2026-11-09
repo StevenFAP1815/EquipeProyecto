@@ -7,6 +7,7 @@
 #include <delivery/core/PathFinder.hpp>
 #include <delivery/core/StreetNetwork.hpp>
 #include <delivery/core/Types.hpp>
+#include <delivery/infra/EventLog.hpp>
 #include <delivery/sim/SimClock.hpp>
 
 #include <condition_variable>
@@ -59,6 +60,7 @@ struct CourierEnvironment {
     concurrency::ChangeSignal& freedSignal;
     const PickupDeskMap& desks;
     std::shared_mutex& transferMutex;
+    infra::EventLog& log;
     RescueRequester requestRescue;
 };
 
@@ -142,6 +144,7 @@ private:
     std::vector<core::Order> bag_;
     core::RestaurantId bagRestaurant_;
     bool collecting_ = false;
+    bool atDesk_ = false;
     std::optional<RescueRequest> rescueRequest_;
     std::uint64_t delivered_ = 0;
     std::uint64_t failed_ = 0;

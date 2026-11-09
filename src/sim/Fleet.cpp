@@ -10,14 +10,15 @@ Fleet::Fleet(const infra::Config& cfg,
              std::shared_ptr<const core::StreetNetwork> network,
              SimClock& clock,
              concurrency::ShutdownToken& stop,
-             concurrency::ChangeSignal& freedSignal) {
+             concurrency::ChangeSignal& freedSignal,
+             infra::EventLog& log) {
     for (const core::Restaurant& restaurant : cfg.restaurants) {
         desks_.emplace(restaurant.id,
                        std::make_unique<concurrency::PickupDesk>(restaurant.pickupSlots));
     }
 
     const CourierEnvironment environment{
-        network, clock, stop, freedSignal, desks_, transferMutex_,
+        network, clock, stop, freedSignal, desks_, transferMutex_, log,
         [this](Courier& broken) { return findRescuer(broken); }};
 
     const int n = cfg.fleet.couriers;
@@ -33,6 +34,12 @@ Fleet::Fleet(const infra::Config& cfg,
             core::CourierId("c" + std::to_string(i)), environment, settings,
             cfg.fleet.startNode));
     }
+
+    std::vector<core::CourierId> ids;
+    for (const auto& c : couriers_) {
+        ids.push_back(c->id());
+    }
+    log.registerCouriers(ids);
 }
 
 Fleet::~Fleet() {

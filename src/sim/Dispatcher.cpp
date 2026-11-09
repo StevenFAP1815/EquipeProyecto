@@ -26,6 +26,7 @@ Dispatcher::Dispatcher(const infra::Config& config,
                        SimClock& clock,
                        concurrency::ChangeSignal& freedSignal,
                        concurrency::ShutdownToken& stop,
+                       infra::EventLog& log,
                        Estimator estimator)
     : config_(config),
       network_(std::move(network)),
@@ -34,6 +35,7 @@ Dispatcher::Dispatcher(const infra::Config& config,
       clock_(clock),
       freedSignal_(freedSignal),
       stop_(stop),
+      log_(log),
       estimator_(std::move(estimator)),
       maxCandidates_(chooseMaxCandidates()) {
     if (!estimator_) {
@@ -51,6 +53,7 @@ void Dispatcher::run() {
         }
         if (!isReachable(*order)) {
             ++unreachable_;
+            log_.orderRejected(clock_.nowMs(), order->id, core::RejectReason::Unreachable);
             continue;
         }
         dispatch(*order);
@@ -83,6 +86,7 @@ void Dispatcher::dispatch(core::Order& order) {
 
         if (clock_.nowMs() >= acceptDeadlineMs) {
             ++noCourier_;
+            log_.orderRejected(clock_.nowMs(), order.id, core::RejectReason::NoCourier);
             return;
         }
         freedSignal_.waitForChange(seenVersion, clock_.realTimeAt(acceptDeadlineMs), stop_);

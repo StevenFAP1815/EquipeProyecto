@@ -14,12 +14,14 @@ OrderGenerator::OrderGenerator(const infra::Config& config,
                                concurrency::OrderBook& book,
                                concurrency::ShutdownToken& stop,
                                SimClock& clock,
-                               std::atomic<std::uint64_t>& orderIdCounter)
+                               std::atomic<std::uint64_t>& orderIdCounter,
+                               infra::EventLog& log)
     : config_(config),
       book_(book),
       stop_(stop),
       clock_(clock),
       orderIdCounter_(orderIdCounter),
+      log_(log),
       rng_(core::deriveSeed(config.orders.seed, 0)),
       intervalDist_(
           1.0 / static_cast<double>(config.orders.meanIntervalMs)),
@@ -80,7 +82,11 @@ void OrderGenerator::run() {
             if (!maybeOrder) {
                 break;
             }
-            book_.tryPush(std::move(*maybeOrder));
+            const core::OrderId id = maybeOrder->id;
+            log_.orderCreated(nextOrderMs, *maybeOrder);
+            if (!book_.tryPush(std::move(*maybeOrder))) {
+                log_.orderRejected(nextOrderMs, id, core::RejectReason::QueueFull);
+            }
         }
 
         nextOrderMs += static_cast<std::int64_t>(intervalDist_(rng_));

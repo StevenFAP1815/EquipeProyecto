@@ -1,5 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <delivery/infra/EventLog.hpp>
+
 #include <delivery/concurrency/ChangeSignal.hpp>
 #include <delivery/concurrency/ShutdownToken.hpp>
 #include <delivery/core/StreetNetwork.hpp>
@@ -49,13 +51,14 @@ struct FleetHarness {
     std::shared_ptr<const core::StreetNetwork> network;
     concurrency::ShutdownToken stop;
     concurrency::ChangeSignal freed;
+    infra::EventLog log;
     sim::SimClock clock{500.0};
     std::unique_ptr<sim::Fleet> fleet;
 
     explicit FleetHarness(infra::Config config)
         : cfg(std::move(config)),
           network(core::StreetNetwork::build(cfg.nodes, cfg.streets)) {
-        fleet = std::make_unique<sim::Fleet>(cfg, network, clock, stop, freed);
+        fleet = std::make_unique<sim::Fleet>(cfg, network, clock, stop, freed, log);
         fleet->start();
     }
 

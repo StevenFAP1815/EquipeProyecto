@@ -45,16 +45,14 @@ void drawLabel(cv::Mat& frame, const std::string& text, cv::Point origin) {
 Renderer::Renderer(const infra::Config& config,
                    const std::filesystem::path& imagePath,
                    const sim::Fleet& fleet,
-                   const sim::Dispatcher& dispatcher,
                    const concurrency::OrderBook& book,
-                   const std::atomic<std::uint64_t>& createdOrders,
+                   const infra::EventLog& log,
                    sim::SimClock& clock,
                    concurrency::ShutdownToken& stop)
     : config_(config),
       fleet_(fleet),
-      dispatcher_(dispatcher),
       book_(book),
-      createdOrders_(createdOrders),
+      log_(log),
       clock_(clock),
       stop_(stop) {
     const cv::Mat original = cv::imread(imagePath.string());
@@ -123,18 +121,20 @@ void Renderer::drawCouriers(cv::Mat& frame) const {
 void Renderer::drawPanel(cv::Mat& frame) const {
     cv::rectangle(frame, cv::Point(0, 0), cv::Point(250, 338), kPanelColor, cv::FILLED);
 
+    const infra::Summary s = log_.summary();
     const std::int64_t simSeconds = clock_.nowMs() / 1000;
     drawLabel(frame, "Tiempo simulado: " + std::to_string(simSeconds) + " s", {10, 22});
-    drawLabel(frame, "Pedidos creados: " + std::to_string(createdOrders_.load()), {10, 44});
-    drawLabel(frame, "Entregados: " + std::to_string(fleet_.deliveredCount()), {10, 66});
-    drawLabel(frame, "En camino: " + std::to_string(fleet_.ordersInProgress()), {10, 88});
+    drawLabel(frame, "Creados: " + std::to_string(s.created) +
+                     "   Pendientes: " + std::to_string(s.pending), {10, 44});
+    drawLabel(frame, "Entregados: " + std::to_string(s.delivered), {10, 66});
+    drawLabel(frame, "Prom. entrega: " + std::to_string(s.avgDeliveryMs / 1000) + " s", {10, 88});
     drawLabel(frame, "En el libro: " + std::to_string(book_.size()), {10, 110});
-    drawLabel(frame, "Rechazados:", {10, 132});
-    drawLabel(frame, "  queueFull: " + std::to_string(book_.rejectedCount()), {10, 154});
-    drawLabel(frame, "  unreachable: " + std::to_string(dispatcher_.unreachableCount()), {10, 176});
-    drawLabel(frame, "  noCourier: " + std::to_string(dispatcher_.noCourierCount()), {10, 198});
-    drawLabel(frame, "Averias: " + std::to_string(fleet_.breakdownCount()) +
-                     "   Reasignados: " + std::to_string(fleet_.reassignedCount()), {10, 220});
+    drawLabel(frame, "Rechazados: " + std::to_string(s.rejected), {10, 132});
+    drawLabel(frame, "  queueFull: " + std::to_string(s.queueFull), {10, 154});
+    drawLabel(frame, "  unreachable: " + std::to_string(s.unreachable), {10, 176});
+    drawLabel(frame, "  noCourier: " + std::to_string(s.noCourier), {10, 198});
+    drawLabel(frame, "Averias: " + std::to_string(s.breakdowns) +
+                     "   Reasignados: " + std::to_string(s.reassigned), {10, 220});
 
     const sim::CourierState states[] = {
         sim::CourierState::Idle, sim::CourierState::MovingToRestaurant,

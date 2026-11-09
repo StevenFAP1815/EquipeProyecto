@@ -4,6 +4,7 @@
 #include <delivery/concurrency/ShutdownToken.hpp>
 #include <delivery/core/StreetNetwork.hpp>
 #include <delivery/infra/Config.hpp>
+#include <delivery/infra/EventLog.hpp>
 #include <delivery/sim/Courier.hpp>
 #include <delivery/sim/SimClock.hpp>
 
@@ -23,7 +24,8 @@ public:
           std::shared_ptr<const core::StreetNetwork> network,
           SimClock& clock,
           concurrency::ShutdownToken& stop,
-          concurrency::ChangeSignal& freedSignal);
+          concurrency::ChangeSignal& freedSignal,
+          infra::EventLog& log);
 
     ~Fleet();
 

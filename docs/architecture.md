@@ -32,7 +32,7 @@ EquipeProyecto/
 ## 2. Capas y reglas de dependencia
 
 - `core/` no depende de nada del proyecto. No usa hilos, OpenCV ni JSON.
-- `infra/` depende de `core/`. `ConfigLoader.cpp` es el único archivo que incluye la librería JSON.
+- `infra/` depende de `core/`. Solo `ConfigLoader.cpp` y `EventLog.cpp` incluyen la librería JSON.
 - `concurrency/` depende de `core/`.
 - `sim/` depende de `core/`, `infra/` y `concurrency/`.
 - `viz/` depende de `core/`, `concurrency/`, `sim/` (solo lectura) y OpenCV. Se compila dentro de `delivery_sim`, no en `delivery_core`, para que los tests no necesiten OpenCV.
@@ -71,7 +71,7 @@ EquipeProyecto/
 | `PickupDesk` (uno por restaurante, creado por `Fleet`) | repartidor ↔ repartidores del mismo restaurante | Monitor con tickets: `enter()` da un número de llegada y espera turno y cupo; `leave()` libera el cupo. FIFO y nunca más de `pickupSlots` |
 | `std::promise<bool>` / `std::future<bool>` de rescate | rescatista → repartidor averiado | Canal de un solo uso: "ya tengo tus pedidos" (o `false` si se apaga) |
 | `Fleet::transferMutex` (`std::shared_mutex`) | transferencias ↔ observadores | Exclusivo al transferir una bolsa; compartido al contar o dibujar |
-| `Courier::tryAssign` | despachador → repartidor | Monitor del repartidor: `stateMutex_` + `cv_` |
+| `EventLog` | todos los hilos → archivo de eventos | Monitor: cada método arma la línea, toma `mutex_`, la escribe completa y actualiza las cuentas | Monitor del repartidor: `stateMutex_` + `cv_` |
 | `SimClock` | cualquier hilo ↔ reloj | `cv_.wait_until` hasta la hora real equivalente; `wakeAll()` al apagar |
 | `ShutdownToken` | `main` → todos | `std::atomic<bool>`; `waitForStop()` con `mutex` + `condition_variable` |
 | Lecturas de estado (`position()`, `state()`, `currentNode()`) | repartidor → render/despachador | Copias tomadas bajo `stateMutex_` |
