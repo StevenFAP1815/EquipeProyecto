@@ -19,6 +19,7 @@ add_executable(delivery_tests
     test_street_network.cpp
     test_dispatcher.cpp
     test_pickup_desk.cpp
+    test_courier_bag.cpp
 )
 
 target_link_libraries(delivery_tests PRIVATE

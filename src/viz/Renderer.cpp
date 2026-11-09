@@ -102,9 +102,8 @@ void Renderer::drawBackground() {
 
 void Renderer::drawCouriers(cv::Mat& frame) const {
     for (const auto& courier : fleet_.couriers()) {
-        const auto delivery = courier->activeDeliveryNode();
-        if (delivery) {
-            const core::Node& node = config_.nodes[config_.nodeIndex.at(*delivery)];
+        for (const core::NodeId& delivery : courier->deliveryNodesInBag()) {
+            const core::Node& node = config_.nodes[config_.nodeIndex.at(delivery)];
             const cv::Point d = toScreen(node.lat, node.lon);
             cv::drawMarker(frame, d, kDeliveryColor, cv::MARKER_TILTED_CROSS, 14, 3);
         }

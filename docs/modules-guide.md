@@ -80,7 +80,7 @@ El código está organizado en **capas**. Cada capa solo usa las capas de más a
 |---|---|
 | `SimClock` | El **reloj simulado**: hace que el tiempo pase más rápido (por ejemplo, 1 segundo real = 60 segundos simulados) y permite a los hilos "dormir hasta cierta hora". |
 | `OrderGenerator` | Crea pedidos a intervalos aleatorios, a veces en ráfagas, y los deja en el libro de pedidos. |
-| `Courier` | Un **repartidor**: espera a que le asignen un pedido; va al restaurante, espera a que la comida esté lista, la lleva al cliente moviéndose paso a paso por las calles, y avisa que quedó libre. |
+| `Courier` | Un **repartidor** con una **bolsa** de capacidad limitada: espera a que le asignen un pedido y va al restaurante; mientras va o espera, puede sumar más pedidos **del mismo restaurante** hasta llenar la bolsa. Hace fila en el mostrador, espera la comida, y entrega los pedidos uno por uno moviéndose paso a paso por las calles. Al terminar avisa que quedó libre. |
 | `Dispatcher` | El **despachador**: toma cada pedido del libro. Si no se puede entregar por las calles, lo rechaza (`unreachable`). Si se puede, pide **al mismo tiempo** una estimación de cuánto tardaría a los repartidores libres más cercanos, espera las respuestas un tiempo limitado y elige al más rápido. Si nadie puede tomarlo a tiempo, lo rechaza (`noCourier`). |
 | `Fleet` | La **flota**: crea a todos los repartidores, les da un hilo a cada uno y al final espera a que todos terminen. |
 

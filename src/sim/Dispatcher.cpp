@@ -65,7 +65,8 @@ bool Dispatcher::isReachable(const core::Order& order) const {
 }
 
 void Dispatcher::dispatch(core::Order& order) {
-    const QuoteRequest request{order.restaurantNode, order.deliveryNode, order.readyAtMs};
+    const QuoteRequest request{order.restaurant, order.restaurantNode, order.deliveryNode,
+                               order.readyAtMs};
     const std::int64_t acceptDeadlineMs =
         order.createdAtMs + config_.dispatch.acceptTimeoutMs;
 
@@ -90,7 +91,7 @@ void Dispatcher::dispatch(core::Order& order) {
 }
 
 Courier* Dispatcher::chooseCourier(const QuoteRequest& request) {
-    const std::vector<Courier*> candidates = nearestFreeCouriers(request.restaurantNode);
+    const std::vector<Courier*> candidates = nearestCandidates(request);
 
     std::vector<std::future<std::int64_t>> quotes;
     for (Courier* courier : candidates) {
@@ -122,12 +123,12 @@ Courier* Dispatcher::chooseCourier(const QuoteRequest& request) {
     return best;
 }
 
-std::vector<Courier*> Dispatcher::nearestFreeCouriers(const core::NodeId& restaurantNode) const {
-    const core::LatLon restaurant = *network_->nodeLatLon(restaurantNode);
+std::vector<Courier*> Dispatcher::nearestCandidates(const QuoteRequest& request) const {
+    const core::LatLon restaurant = *network_->nodeLatLon(request.restaurantNode);
 
     std::vector<std::pair<double, Courier*>> free;
     for (const auto& courier : fleet_.couriers()) {
-        if (courier->isAvailable()) {
+        if (courier->canAccept(request.restaurant)) {
             const double meters =
                 core::GeoBounds::distanceMeters(courier->position(), restaurant);
             free.emplace_back(meters, courier.get());
@@ -155,19 +156,27 @@ std::int64_t Dispatcher::estimateDeliveryMs(const Courier& courier, QuoteRequest
                                  " cannot reach restaurant node " +
                                  request.restaurantNode.str());
     }
-    const auto toCustomer =
-        core::findShortestPath(*network_, request.restaurantNode, request.deliveryNode);
-    if (!toCustomer) {
-        throw std::runtime_error("no route from restaurant to customer");
+    double metersAfterPickup = 0.0;
+    core::NodeId at = request.restaurantNode;
+    std::vector<core::NodeId> stops = courier.deliveryNodesInBag();
+    stops.push_back(request.deliveryNode);
+    for (const core::NodeId& stop : stops) {
+        const auto leg = core::findShortestPath(*network_, at, stop);
+        if (!leg) {
+            throw std::runtime_error("no route between deliveries");
+        }
+        metersAfterPickup += leg->totalMeters;
+        at = stop;
     }
 
     const double metersPerMs = courier.speedKmh() / 3600.0;
     const std::int64_t now = clock_.nowMs();
     const std::int64_t arrival =
         now + static_cast<std::int64_t>(toRestaurant->totalMeters / metersPerMs);
-    const std::int64_t pickup = std::max(arrival, request.readyAtMs);
+    const std::int64_t pickup =
+        std::max({arrival, request.readyAtMs, courier.latestReadyAtMs()});
     const std::int64_t delivered =
-        pickup + static_cast<std::int64_t>(toCustomer->totalMeters / metersPerMs);
+        pickup + static_cast<std::int64_t>(metersAfterPickup / metersPerMs);
     return delivered - now;
 }
 }

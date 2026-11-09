@@ -1,5 +1,6 @@
 #include <delivery/sim/Courier.hpp>
 
+#include <algorithm>
 #include <utility>
 
 namespace delivery::sim {
@@ -14,6 +15,7 @@ Courier::Courier(core::CourierId id,
                  concurrency::ShutdownToken& stop,
                  concurrency::ChangeSignal& freedSignal,
                  const PickupDeskMap& desks,
+                 int bagCapacity,
                  double speedKmh,
                  core::NodeId startNode)
     : id_(std::move(id)),
@@ -22,6 +24,7 @@ Courier::Courier(core::CourierId id,
       stop_(stop),
       freedSignal_(freedSignal),
       desks_(desks),
+      bagCapacity_(static_cast<std::size_t>(bagCapacity)),
       speedKmh_(speedKmh),
       currentNode_(std::move(startNode)) {
     const auto coords = network_->nodeLatLon(currentNode_);
@@ -31,18 +34,33 @@ Courier::Courier(core::CourierId id,
     lastIdleMs_ = clock_.nowMs();
 }
 
+bool Courier::canAcceptLocked(const core::RestaurantId& restaurant) const {
+    if (bag_.empty()) {
+        return state_ == CourierState::Idle;
+    }
+    return collecting_ && restaurant == bagRestaurant_ && bag_.size() < bagCapacity_;
+}
+
 bool Courier::tryAssign(core::Order& order) {
+    bool startsTrip = false;
     {
         std::lock_guard<std::mutex> lock(stateMutex_);
-        if (state_ != CourierState::Idle || job_.has_value()) {
+        if (!canAcceptLocked(order.restaurant)) {
             return false;
+        }
+        startsTrip = bag_.empty();
+        if (startsTrip) {
+            bagRestaurant_ = order.restaurant;
+            collecting_ = true;
+            state_ = CourierState::MovingToRestaurant;
         }
         order.state = core::OrderState::Assigned;
         order.assignedCourier = id_;
-        job_ = std::move(order);
-        state_ = CourierState::MovingToRestaurant;
+        bag_.push_back(std::move(order));
     }
-    cv_.notify_one();
+    if (startsTrip) {
+        cv_.notify_one();
+    }
     return true;
 }
 
@@ -60,7 +78,12 @@ CourierState Courier::state() const {
 
 bool Courier::isAvailable() const {
     std::lock_guard<std::mutex> lock(stateMutex_);
-    return state_ == CourierState::Idle && !job_.has_value();
+    return state_ == CourierState::Idle && bag_.empty();
+}
+
+bool Courier::canAccept(const core::RestaurantId& restaurant) const {
+    std::lock_guard<std::mutex> lock(stateMutex_);
+    return canAcceptLocked(restaurant);
 }
 
 core::LatLon Courier::position() const {
@@ -73,17 +96,31 @@ core::NodeId Courier::currentNode() const {
     return currentNode_;
 }
 
-std::optional<core::NodeId> Courier::activeDeliveryNode() const {
+std::vector<core::NodeId> Courier::deliveryNodesInBag() const {
     std::lock_guard<std::mutex> lock(stateMutex_);
-    if (!job_) {
-        return std::nullopt;
+    std::vector<core::NodeId> nodes;
+    for (const core::Order& order : bag_) {
+        nodes.push_back(order.deliveryNode);
     }
-    return job_->deliveryNode;
+    return nodes;
 }
 
-bool Courier::hasOrder() const {
+std::int64_t Courier::latestReadyAtLocked() const {
+    std::int64_t latest = 0;
+    for (const core::Order& order : bag_) {
+        latest = std::max(latest, order.readyAtMs);
+    }
+    return latest;
+}
+
+std::int64_t Courier::latestReadyAtMs() const {
     std::lock_guard<std::mutex> lock(stateMutex_);
-    return job_.has_value();
+    return latestReadyAtLocked();
+}
+
+std::size_t Courier::ordersInBag() const {
+    std::lock_guard<std::mutex> lock(stateMutex_);
+    return bag_.size();
 }
 
 std::uint64_t Courier::deliveredCount() const {
@@ -111,86 +148,131 @@ void Courier::setState(CourierState state) {
     state_ = state;
 }
 
-void Courier::finishJob(bool delivered) {
-    {
-        std::lock_guard<std::mutex> lock(stateMutex_);
-        job_.reset();
-        if (delivered) {
-            ++delivered_;
-        } else {
-            ++failed_;
-        }
-        state_ = CourierState::Idle;
-        lastIdleMs_ = clock_.nowMs();
-    }
-    freedSignal_.notify();
-}
-
 void Courier::run() {
     while (true) {
         core::NodeId from;
         core::RestaurantId restaurant;
         core::NodeId restaurantNode;
-        core::NodeId deliveryNode;
-        std::int64_t readyAtMs = 0;
         {
             std::unique_lock<std::mutex> lock(stateMutex_);
             cv_.wait(lock, [&] {
-                return job_.has_value() || stop_.stopRequested();
+                return !bag_.empty() || stop_.stopRequested();
             });
             if (stop_.stopRequested()) {
                 return;
             }
             from = currentNode_;
-            restaurant = job_->restaurant;
-            restaurantNode = job_->restaurantNode;
-            deliveryNode = job_->deliveryNode;
-            readyAtMs = job_->readyAtMs;
+            restaurant = bagRestaurant_;
+            restaurantNode = bag_.front().restaurantNode;
         }
 
         if (!travel(from, restaurantNode)) {
             if (stop_.stopRequested()) {
                 return;
             }
-            finishJob(false);
+            failWholeBag();
             continue;
         }
 
         setState(CourierState::PickingUp);
-        if (!pickUpAtDesk(restaurant, readyAtMs)) {
+        if (!pickUpAtDesk(restaurant)) {
             return;
         }
+        markBagPickedUp();
 
-        {
-            std::lock_guard<std::mutex> lock(stateMutex_);
-            job_->state = core::OrderState::PickedUp;
-            state_ = CourierState::Delivering;
+        if (!deliverBag()) {
+            return;
         }
-
-        if (!travel(restaurantNode, deliveryNode)) {
-            if (stop_.stopRequested()) {
-                return;
-            }
-            finishJob(false);
-            continue;
-        }
-
-        finishJob(true);
+        becomeIdle();
     }
 }
 
-bool Courier::pickUpAtDesk(const core::RestaurantId& restaurant, std::int64_t readyAtMs) {
+bool Courier::pickUpAtDesk(const core::RestaurantId& restaurant) {
     concurrency::PickupDesk& desk = *desks_.at(restaurant);
     if (!desk.enter(stop_)) {
         return false;
     }
 
     const bool pickedUp =
-        clock_.waitUntilMs(readyAtMs, stop_) &&
+        waitUntilBagIsReady() &&
         clock_.waitUntilMs(clock_.nowMs() + kPickupHandlingMs, stop_);
 
     desk.leave();
     return pickedUp;
+}
+
+bool Courier::waitUntilBagIsReady() {
+    while (true) {
+        std::int64_t readyAt = 0;
+        {
+            std::lock_guard<std::mutex> lock(stateMutex_);
+            readyAt = latestReadyAtLocked();
+        }
+        if (!clock_.waitUntilMs(readyAt, stop_)) {
+            return false;
+        }
+        std::lock_guard<std::mutex> lock(stateMutex_);
+        if (latestReadyAtLocked() <= clock_.nowMs()) {
+            collecting_ = false;
+            return true;
+        }
+    }
+}
+
+void Courier::markBagPickedUp() {
+    std::lock_guard<std::mutex> lock(stateMutex_);
+    for (core::Order& order : bag_) {
+        order.state = core::OrderState::PickedUp;
+    }
+    state_ = CourierState::Delivering;
+}
+
+bool Courier::deliverBag() {
+    while (true) {
+        core::NodeId target;
+        {
+            std::lock_guard<std::mutex> lock(stateMutex_);
+            if (bag_.empty()) {
+                return true;
+            }
+            target = bag_.front().deliveryNode;
+        }
+
+        const bool arrived = travel(currentNode(), target);
+        if (!arrived && stop_.stopRequested()) {
+            return false;
+        }
+
+        std::lock_guard<std::mutex> lock(stateMutex_);
+        bag_.erase(bag_.begin());
+        if (arrived) {
+            ++delivered_;
+        } else {
+            ++failed_;
+        }
+    }
+}
+
+void Courier::failWholeBag() {
+    {
+        std::lock_guard<std::mutex> lock(stateMutex_);
+        failed_ += bag_.size();
+        bag_.clear();
+        collecting_ = false;
+        state_ = CourierState::Idle;
+        lastIdleMs_ = clock_.nowMs();
+    }
+    freedSignal_.notify();
+}
+
+void Courier::becomeIdle() {
+    {
+        std::lock_guard<std::mutex> lock(stateMutex_);
+        collecting_ = false;
+        state_ = CourierState::Idle;
+        lastIdleMs_ = clock_.nowMs();
+    }
+    freedSignal_.notify();
 }
 
 bool Courier::travel(const core::NodeId& from, const core::NodeId& to) {

@@ -150,6 +150,20 @@ TEST_CASE("Dispatcher: ignora las estimaciones que llegan despues de quoteTimeou
     REQUIRE(h.fleet->findCourier(core::CourierId("c0"))->deliveredCount() == 0);
 }
 
+TEST_CASE("Dispatcher: agrupa en la bolsa de un repartidor pedidos del mismo restaurante",
+          "[dispatcher][bag]") {
+    infra::Config cfg = makeConfig(1, 200, 600'000);
+    cfg.fleet.bagCapacity = 2;
+    Harness h(cfg);
+    h.pushOrder("o1", "n1", "n3");
+    h.pushOrder("o2", "n1", "n2");
+
+    sim::Courier* c0 = h.fleet->findCourier(core::CourierId("c0"));
+    REQUIRE(eventually([&] { return c0->ordersInBag() == 2; }));
+    REQUIRE(eventually([&] { return h.fleet->deliveredCount() == 2; }));
+    REQUIRE(h.dispatcher->noCourierCount() == 0);
+}
+
 TEST_CASE("Dispatcher: el numero de candidatos depende del hardware y es al menos 2",
           "[dispatcher]") {
     Harness h(makeConfig(1, 200, 600'000));

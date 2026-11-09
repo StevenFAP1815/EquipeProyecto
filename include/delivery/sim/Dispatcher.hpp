@@ -19,6 +19,7 @@
 
 namespace delivery::sim {
 struct QuoteRequest {
+    core::RestaurantId restaurant;
     core::NodeId restaurantNode;
     core::NodeId deliveryNode;
     std::int64_t readyAtMs = 0;
@@ -53,7 +54,7 @@ private:
     bool isReachable(const core::Order& order) const;
     void dispatch(core::Order& order);
     Courier* chooseCourier(const QuoteRequest& request);
-    std::vector<Courier*> nearestFreeCouriers(const core::NodeId& restaurantNode) const;
+    std::vector<Courier*> nearestCandidates(const QuoteRequest& request) const;
     std::int64_t estimateDeliveryMs(const Courier& courier, QuoteRequest request) const;
 
     const infra::Config& config_;

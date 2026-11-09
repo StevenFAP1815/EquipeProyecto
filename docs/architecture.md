@@ -58,7 +58,7 @@ EquipeProyecto/
 | `tProducer` | `OrderGenerator::run` | Un pedido (o una ráfaga) por intervalo aleatorio | `SimClock::waitUntilMs(próximo pedido)` | `main` / `main` |
 | `tDispatcher` | `Dispatcher::run` | Cada pedido del libro: comprueba que sea alcanzable, pide estimaciones y asigna | `OrderBook::waitAndPop` (CV), `future::wait_until(quoteTimeoutMs)` y, si no hay repartidor, `freedSignal.waitForChange` hasta `acceptTimeoutMs` | `main` / `main` |
 | estimación (temporal, hasta `max(2, hardware_concurrency)` por pedido) | `Dispatcher::estimateDeliveryMs` vía `std::async(std::launch::async, …)` | Una sola estimación: Dijkstra repartidor→restaurante y restaurante→cliente | No espera: calcula y termina | `std::async` / el destructor del `future` en `chooseCourier` |
-| `courier[i]` (uno por repartidor) | `Courier::run` | Cada pedido asignado: ir al restaurante, esperar la comida, ir al cliente; dentro, cada tramo y cada paso | `cv_.wait` (sin pedido) y `SimClock::waitUntilMs` (en movimiento) | `Fleet::start` / `Fleet::join` |
+| `courier[i]` (uno por repartidor) | `Courier::run` | Cada viaje: ir al restaurante, hacer fila en el mostrador, esperar la comida de toda la bolsa, entregar cada pedido; dentro, cada tramo y cada paso | `cv_.wait` (sin pedido) y `SimClock::waitUntilMs` (en movimiento) | `Fleet::start` / `Fleet::join` |
 | `tRenderer` | `Renderer::run` | Un cuadro cada ~33 ms: copia el fondo, lee posición y estado de cada repartidor (bajo su candado) y dibuja | `cv::waitKey(33)`: pausa para fijar los FPS, permitida por el brief | `main` / `main` |
 
 ## 5. Canales de comunicación y espera
@@ -90,7 +90,7 @@ Si el usuario pulsa ESC o cierra la ventana, `Renderer::run` llama a `stop.reque
 | `OrderBook` | `queue_` y `rejectedCount_` solo se leen y escriben con `mutex_` tomado; no se devuelven referencias al interior. |
 | `ShutdownToken` | `stop_` es `std::atomic<bool>`: lecturas y escrituras son indivisibles. |
 | `SimClock` | Después del constructor solo se leen `timeScale_` y `startReal_`, que son `const`. El `mutex_` existe solo para la condition variable. |
-| `Courier` | `state_`, `position_`, `currentNode_`, `job_` (el pedido que lleva), `delivered_`, `failed_` y `lastIdleMs_` solo se acceden con `stateMutex_`. Las consultas devuelven copias. |
+| `Courier` | `state_`, `position_`, `currentNode_`, `bag_` (los pedidos que lleva), `bagRestaurant_`, `collecting_`, `delivered_`, `failed_` y `lastIdleMs_` solo se acceden con `stateMutex_`. Las consultas devuelven copias. `tryAssign` comprueba el cupo de la bolsa y agrega el pedido en la misma sección crítica: nunca se supera `bagCapacity`. |
 | `ChangeSignal` | `version_` solo se lee y se escribe con `mutex_`. |
 | `PickupDesk` | `busy_`, `nextTicket_` y `nowServing_` solo con `mutex_`. El mapa de mostradores de `Fleet` se llena antes de crear los hilos y después solo se lee. |
 | `Dispatcher` | Sus contadores son `std::atomic`. Los hilos de estimación solo leen datos inmutables (`StreetNetwork`, `Config`), su propia copia de `QuoteRequest` y el repartidor a través de métodos con candado (`currentNode()`, `speedKmh()` es `const`). El resultado vuelve por el `future`, no por memoria compartida. |
