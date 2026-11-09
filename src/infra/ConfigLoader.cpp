@@ -313,6 +313,11 @@ void validateReferences(const Config& cfg) {
                 r.node.str() + "'");
         }
     }
+    if (cfg.nodeIndex.find(cfg.fleet.startNode) == cfg.nodeIndex.end()) {
+        throw ConfigReferenceError(
+            "fleet.startNode references unknown node '" +
+            cfg.fleet.startNode.str() + "'");
+    }
 }
 }
 

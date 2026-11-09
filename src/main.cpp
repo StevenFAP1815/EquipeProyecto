@@ -1,7 +1,9 @@
 #include <delivery/concurrency/OrderBook.hpp>
 #include <delivery/concurrency/ShutdownToken.hpp>
 #include <delivery/core/Order.hpp>
+#include <delivery/core/StreetNetwork.hpp>
 #include <delivery/infra/ConfigLoader.hpp>
+#include <delivery/sim/Fleet.hpp>
 #include <delivery/sim/OrderGenerator.hpp>
 #include <delivery/sim/SimClock.hpp>
 
@@ -36,6 +38,7 @@ int main(int argc, char** argv) {
 
     try {
         const infra::Config cfg = infra::loadConfigFromFile(argv[1]);
+        const auto network = core::StreetNetwork::build(cfg);
 
         concurrency::ShutdownToken stop;
         concurrency::OrderBook book(static_cast<std::size_t>(cfg.orders.maxPending));
@@ -44,13 +47,17 @@ int main(int argc, char** argv) {
 
         sim::SimClock clock(cfg.simulation.timeScale);
         sim::OrderGenerator generator(cfg, book, stop, clock, orderIdCounter);
+        sim::Fleet fleet(cfg, network, clock, stop);
 
+        fleet.start();
         std::thread tProducer([&generator] {
             generator.run();
         });
         std::thread tConsumer([&book, &stop, &consumedCount] {
             consumerLoop(book, stop, consumedCount);
         });
+
+        std::cout << "Simulation has started..." << std::endl;
 
         if (cfg.simulation.durationS > 0) {
             const std::int64_t durationMs =
@@ -66,6 +73,7 @@ int main(int argc, char** argv) {
 
         tProducer.join();
         tConsumer.join();
+        fleet.join();
 
         const std::uint64_t created  = orderIdCounter.load(std::memory_order_relaxed);
         const std::uint64_t consumed = consumedCount.load(std::memory_order_relaxed);
