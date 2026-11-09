@@ -101,7 +101,7 @@ Programas que ejecutan cada módulo con casos conocidos y comprueban el resultad
 
 | Script | Para qué sirve |
 |---|---|
-| `osm_to_config.py` | Descarga calles y restaurantes reales de OpenStreetMap y genera `config/equipetrol.json` y la imagen del mapa. |
+| `osm_to_config.py` | Descarga las avenidas y restaurantes reales de OpenStreetMap dentro de `data/area.geojson` (del 2.º al 4.º Anillo), se queda solo con la parte del mapa donde se puede ir y volver entre cualquier par de puntos respetando los sentidos, añade puntos en las curvas para que las motos sigan la calle, y genera `config/equipetrol.json` y la imagen del mapa. |
 | `verify_alignment.py` | Dibuja las calles del JSON sobre la imagen para comprobar visualmente que coinciden. |
 
 ## Qué falta
