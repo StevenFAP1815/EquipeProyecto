@@ -1,138 +1,100 @@
 # Arquitectura del proyecto
 
-> Documento vivo. Se actualiza al cierre de cada etapa.
+> Documento vivo. Se actualiza al cierre de cada etapa. Última actualización: Etapa 3.
+> Para una explicación sin tecnicismos, ver [`modules-guide.md`](modules-guide.md).
 
 ## 1. Estructura de carpetas
 
-equipetrol-delivery/
-├── CMakeLists.txt          → targets delivery_sim y delivery_tests
-├── README.md               → informe final (DP.12)
-├── config/                 → configuraciones JSON de simulacion
-│   └── equipetrol.json
-├── data/                   → imagen OSM del mapa (Etapa 3)
-├── docs/                   → documentacion
-│   ├── architecture.md     → este archivo
-│   ├── design-decisions.md → ADRs (DD-001..)
-│   ├── concept-map.md      → mapa de conceptos (seccion 10)
-│   ├── experiments.md      → DP.10 (Etapa 11)
-│   └── tools-analysis.md   → DP.11 (Etapa 10)
+```
+EquipeProyecto/
+├── CMakeLists.txt            → librería delivery_core, ejecutable delivery_sim, opción ENABLE_TSAN
+├── README.md                 → informe final (DP.12)
+├── config/equipetrol.json    → configuración de la simulación (mapa real)
+├── data/                     → imagen OSM del mapa y polígono del área
+├── docs/
+│   ├── architecture.md       → este archivo
+│   ├── modules-guide.md      → guía de módulos para cualquier lector
+│   ├── progress.md           → estado por etapa, problemas conocidos y demoras
+│   ├── design-decisions.md   → decisiones de diseño (DD-001 …)
+│   └── concept-map.md        → mapa de conceptos (sección 10 del brief)
 ├── include/delivery/
-│   ├── core/               → dominio puro
-│   │   ├── Types.hpp       → strong typedefs de IDs
-│   │   ├── GeoBounds.hpp   → conversion lat/lon <-> pixel
-│   │   └── CityModel.hpp   → Node, Street, Restaurant
-│   ├── infra/              → I/O
-│   │   ├── Config.hpp      → struct Config con sub-secciones
-│   │   └── ConfigLoader.hpp→ carga + validacion + jerarquia de errores
-│   ├── concurrency/        → (vacio, Etapa 2+)
-│   ├── sim/                → (vacio, Etapa 2+)
-│   ├── viz/                → (vacio, Etapa 4)
-│   └── app/                → (vacio, Etapa 9)
-├── src/
-│   ├── main.cpp            → orquesta carga de config
-│   ├── core/GeoBounds.cpp
-│   └── infra/ConfigLoader.cpp
-├── tests/
-│   ├── CMakeLists.txt
-│   ├── test_geobounds.cpp
-│   ├── test_config_loader.cpp
-│   └── data/               → fixtures JSON
-├── tools/                  → scripts de desarrollo (Etapa 3)
-└── experiments/            → DP.10 (Etapa 11)
+│   ├── core/                 → Types, Order, CityModel, GeoBounds, StreetNetwork, PathFinder, Rng
+│   ├── infra/                → Config, ConfigLoader
+│   ├── concurrency/          → OrderBook, ShutdownToken
+│   ├── sim/                  → SimClock, OrderGenerator, Courier, Fleet
+│   ├── viz/                  → (vacío, Etapa 4)
+│   └── app/                  → (vacío, Etapa 9)
+├── src/                      → un .cpp por cada .hpp, más main.cpp
+├── tests/                    → tests Catch2 y datos de prueba en tests/data/
+└── tools/                    → scripts Python para generar y verificar el mapa
+```
 
 ## 2. Capas y reglas de dependencia
 
-- `core/` no depende de nada del proyecto. Cero `<thread>`, cero `<mutex>`,
-  cero OpenCV, cero `<nlohmann/json>`.
-- `infra/` depende de `core/`. ConfigLoader es la **unica** TU que incluye
-  `<nlohmann/json>` (DD-009).
-- `concurrency/` (Etapa 2+) dependera de `core/`.
-- `sim/` (Etapa 2+) dependera de `core/`, `infra/`, `concurrency/`.
-- `viz/` (Etapa 4) dependera de `core/` y OpenCV.
-- `app/` (Etapa 9) dependera de todo.
-- `main.cpp` solo llama a `app/` o `infra/ConfigLoader` directamente.
+- `core/` no depende de nada del proyecto. No usa hilos, OpenCV ni JSON.
+- `infra/` depende de `core/`. `ConfigLoader.cpp` es el único archivo que incluye la librería JSON.
+- `concurrency/` depende de `core/`.
+- `sim/` depende de `core/`, `infra/` y `concurrency/`.
+- `viz/` (Etapa 4) dependerá de `core/` y OpenCV.
+- `main.cpp` crea y conecta todo.
 
-## 3. Toolchain
+## 3. Compilación
 
-- Windows: MSYS2 UCRT64, Ninja como generador, g++ con C++17.
-- Linux (para DP.11): WSL2 + Ubuntu.
-- JSON: nlohmann/json v3.11.3 (FetchContent).
-- Tests: Catch2 v3.5.2 (FetchContent, fallback a find_package).
-- OpenCV: encontrado por find_package, componentes core/highgui/imgproc/imgcodecs.
+| Target | Contenido |
+|---|---|
+| `delivery_core` | Librería estática con todo el código salvo `main.cpp`. |
+| `delivery_sim` | `main.cpp` + `delivery_core` + OpenCV. |
+| `delivery_tests` | Tests + `delivery_core` + Catch2. |
 
-### ThreadSanitizer
+- Dependencias por `FetchContent` como archivos comprimidos verificados con SHA256: nlohmann/json 3.11.3 y Catch2 3.5.2.
+- `ENABLE_TSAN=ON` añade `-fsanitize=thread` a **todos** los targets. Solo funciona en Linux/WSL: MSYS2 no incluye libtsan (DD-006).
+- En Windows, la variable de entorno `CMAKE_GENERATOR=MinGW Makefiles` hace que `cmake ..` genere archivos para `make` (DD-022).
 
-El toolchain MSYS2/MinGW UCRT64 no provee `libtsan`. La opcion
-`-DENABLE_TSAN=ON` detecta esta situacion y falla con un mensaje explicativo.
-El analisis con ThreadSanitizer (DP.11) se ejecuta en WSL2 con Ubuntu,
-donde el codigo compila sin cambios.
+## 4. Hilos (estado actual)
 
-## 4. Diseño de hilos (a implementar)
+| Hilo | Qué ejecuta | Sobre qué itera | Cómo espera | Quién lo crea / lo une |
+|---|---|---|---|---|
+| `main` | `main()` | — | `SimClock::waitUntilMs(duración)` | — |
+| `tProducer` | `OrderGenerator::run` | Un pedido (o una ráfaga) por intervalo aleatorio | `SimClock::waitUntilMs(próximo pedido)` | `main` / `main` |
+| `tConsumer` | `consumerLoop` (provisional, será el despachador en la Etapa 5) | Cada pedido del libro | `OrderBook::waitAndPop` (CV) | `main` / `main` |
+| `courier[i]` (uno por repartidor) | `Courier::run` | Cada destino asignado; dentro, cada tramo y cada paso | `cv_.wait` (sin destino) y `SimClock::waitUntilMs` (en movimiento) | `Fleet::start` / `Fleet::join` |
+| `renderer` | Etapa 4 | Un cuadro por intervalo | Pausa para fijar los FPS | — |
+| `dispatcher` | Etapa 5 | Cada pedido nuevo | `future::wait_for(quoteTimeoutMs)` | — |
 
-| Hilo | Rol | Etapa |
-|------|-----|-------|
-| main | bootstrap, senales, join | 9 |
-| order-gen | genera pedidos | 2 |
-| dispatcher | asigna pedidos | 5 |
-| courier[i] | actor por moto | 3 |
-| renderer | dibuja a FPS fijo | 4 |
+## 5. Canales de comunicación y espera
 
-## 5. Canales de comunicacion (a implementar)
+| Canal | Entre | Mecanismo |
+|---|---|---|
+| `OrderBook` | generador → consumidor | Monitor: `deque` + `mutex` + `condition_variable` |
+| `Courier::setTarget` | despachador (Etapa 5) → repartidor | Monitor del repartidor: `stateMutex_` + `cv_` |
+| `SimClock` | cualquier hilo ↔ reloj | `cv_.wait_until` hasta la hora real equivalente; `wakeAll()` al apagar |
+| `ShutdownToken` | `main` → todos | `std::atomic<bool>`; `waitForStop()` con `mutex` + `condition_variable` |
+| Lecturas de estado (`position()`, `state()`, `currentNode()`) | repartidor → render/despachador | Copias tomadas bajo `stateMutex_` |
 
-- OrderBook: monitor con mutex + CV (Etapa 2).
-- RestaurantQueue: slots + FIFO con mutex + CV (Etapa 6).
-- CourierBag: capacidad con mutex (Etapa 6).
-- Dispatcher: futures + timeout (Etapa 5).
-- Shutdown: atomic + CV con predicado (Etapa 9).
+### Orden de apagado
 
-## 6. Estado por etapa
+```
+stop.requestStop() → clock.wakeAll() → book.wakeAll() → join(tProducer) → join(tConsumer) → fleet.join()
+```
+`fleet.join()` despierta a cada repartidor (`Courier::wake`) antes del `join`. Cada `wake`/`wakeAll` toma el mutex correspondiente antes de notificar, para evitar el despertar perdido (DD-017).
 
-- Etapa 0: bootstrap, toolchain verificado, primer commit.
-- Etapa 1: dominio (core/), config (infra/), tests automatizados con Catch2,
-  20 tests passing, cero warnings.
+## 6. Argumento contra condiciones de carrera, por objeto compartido (fila 10)
 
-## 7. Estado de Etapa 2
+| Objeto | Por qué no hay condición de carrera |
+|---|---|
+| `OrderBook` | `queue_` y `rejectedCount_` solo se leen y escriben con `mutex_` tomado; no se devuelven referencias al interior. |
+| `ShutdownToken` | `stop_` es `std::atomic<bool>`: lecturas y escrituras son indivisibles. |
+| `SimClock` | Después del constructor solo se leen `timeScale_` y `startReal_`, que son `const`. El `mutex_` existe solo para la condition variable. |
+| `Courier` | `state_`, `position_`, `currentNode_`, `pendingTarget_` y `lastIdleMs_` solo se acceden con `stateMutex_`. Las consultas devuelven copias. |
+| `StreetNetwork` | Inmutable después de construirse; se comparte como `shared_ptr<const StreetNetwork>`. Solo hay lecturas. |
+| `Config` | Se construye antes de crear los hilos y después solo se lee (`const`). |
+| `orderIdCounter`, `consumedCount` | `std::atomic<std::uint64_t>` con `fetch_add`. |
 
-### Hilos activos
+Verificado con ThreadSanitizer en cada PR (tests y simulación completa en WSL).
 
-| Hilo | Rol | Creado en | Joineado en |
-|------|-----|-----------|-------------|
-| main | orquesta, espera duracion | - | - |
-| tProducer | OrderGenerator::run | main | main |
-| tConsumer | consumerLoop (placeholder del despachador) | main | main |
+## 7. Historial por etapa
 
-### Recursos compartidos
-
-- `OrderBook book`: monitor con deque + mutex + CV. Acceso solo via
-  tryPush / waitAndPop / size / rejectedCount / capacity / wakeAll.
-- `ShutdownToken stop`: bool + mutex + CV. Acceso via requestStop /
-  stopRequested / waitForStop.
-- `std::atomic<uint64_t> orderIdCounter`: contador de ids unicos.
-- `std::atomic<uint64_t> consumedCount`: contador de consumo del
-  consumidor de prueba.
-
-### Argumento anti-race por objeto compartido (Fila 10)
-
-**OrderBook:** todos los miembros mutables (queue_, rejectedCount_) son
-accesibles solo bajo `mutex_`. La CV se usa con predicados que consultan
-queue_ y stop bajo lock. La notificacion se hace DESPUES de liberar el
-lock. No hay data races posibles.
-
-**ShutdownToken:** stop_ es bool protegido por mutex_. Toda lectura y
-escritura pasa por el lock. La CV se usa con predicado explicito.
-
-**orderIdCounter:** std::atomic<uint64_t> con fetch_add. Los ids son
-unicos incluso bajo contencion.
-
-**consumedCount:** std::atomic<uint64_t> con fetch_add. Solo se lee al
-final, tras join de todos los hilos.
-
-### Canales de comunicacion
-
-- Productor -> OrderBook: tryPush(Order&&) bajo lock.
-- OrderBook -> Consumidor: waitAndPop(stop) bajo lock, con CV.
-- Shutdown -> OrdenBook CV: wakeAll() (DD-017).
-
-### Filas del mapa de conceptos cubiertas en Etapa 2
-
-1, 3, 4, 10, 11, 12, 14, 15.
+- **Etapa 0:** estructura, herramientas, primer commit.
+- **Etapa 1:** `core/`, `infra/`, tests con Catch2.
+- **Etapa 2:** `OrderBook`, `ShutdownToken`, `OrderGenerator`; productor-consumidor en `main`.
+- **Etapa 3:** `StreetNetwork`, Dijkstra, `SimClock`, `Courier`, `Fleet`. Corrección posterior (PR #6 a #13): despertares perdidos, apagado de la flota, teletransporte, reloj único, CMake y tests.
