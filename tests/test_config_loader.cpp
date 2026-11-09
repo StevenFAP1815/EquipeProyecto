@@ -69,6 +69,17 @@ TEST_CASE("ConfigLoader: calle huerfana lanza ConfigReferenceError",
         ConfigReferenceError);
 }
 
+TEST_CASE("ConfigLoader: startNode inexistente lanza ConfigReferenceError",
+          "[config_loader][invalid]") {
+    try {
+        loadConfigFromFile(dataPath("invalid_unknown_start_node.json"));
+        FAIL("Se esperaba ConfigReferenceError");
+    } catch (const ConfigReferenceError& e) {
+        const std::string msg = e.what();
+        REQUIRE(msg.find("n77") != std::string::npos);
+    }
+}
+
 TEST_CASE("ConfigLoader: nodo duplicado lanza ConfigReferenceError",
           "[config_loader][invalid]") {
     REQUIRE_THROWS_AS(
