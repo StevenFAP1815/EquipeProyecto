@@ -227,3 +227,41 @@ Formato: contexto, alternativas, decisión, justificación, consecuencias.
   deliberado.
 - Consecuencias: en Etapa 9 se sustituye el sleep por espera de senales.
   Los hilos siempre se joinean, nunca se abandonan.
+- Revision (Etapa 3): main ya no usa sleep_for; espera la duracion con
+  SimClock::waitUntilMs, el mismo reloj que el resto de hilos.
+
+## DD-021: SimClock espera con wait_until, sin hilo propio
+- Etapa: 3 (revision)
+- Contexto: la primera version tenia un hilo "ticker" que despertaba a
+  todos los que esperaban cada 10 ms para que revisaran la hora.
+- Alternativas: ticker periodico; cada hilo calcula su hora real de
+  despertar y espera con condition_variable::wait_until.
+- Decision: wait_until con predicado (stop pedido) y hora limite
+  startReal + targetMs / timeScale. wakeAll() solo se usa para el apagado.
+- Justificacion: sin trabajo no se consume CPU (DP.3); un hilo menos que
+  crear, unir y razonar; desaparece el riesgo de destruir el ticker sin join.
+- Consecuencias: OrderGenerator, Courier y main usan el mismo reloj; los
+  tiempos de pedidos y repartidores son comparables.
+
+## DD-022: Compilacion con los comandos exactos del brief
+- Etapa: 3 (revision)
+- Contexto: el brief exige `mkdir build && cd build && cmake .. && make`.
+  En MSYS2 el generador por defecto es Ninja, y FetchContent clonaba
+  repositorios completos (configuracion de mas de 15 minutos).
+- Decision: variable de entorno de usuario CMAKE_GENERATOR=MinGW Makefiles
+  en la maquina de evaluacion; dependencias por URL de archivo comprimido
+  con URL_HASH SHA256; libreria delivery_core compartida por programa y
+  tests; ENABLE_TSAN aplicado a todos los targets.
+- Justificacion: DP.0 es eliminatoria; el hash garantiza que la dependencia
+  descargada es exactamente la esperada.
+- Consecuencias: el README documenta la variable de entorno.
+
+## DD-023: Codigo sin comentarios
+- Etapa: 3
+- Contexto: el docente pidio que los modulos no tengan comentarios, porque
+  el codigo se explica oralmente en la evaluacion.
+- Decision: se quitaron todos los comentarios del codigo y no se agregan
+  nuevos. La explicacion vive en docs/ (modules-guide.md, architecture.md,
+  concept-map.md) y en este registro.
+- Consecuencias: los nombres de funciones y variables deben ser
+  descriptivos; la documentacion se actualiza en cada etapa.
