@@ -63,7 +63,7 @@ El código está organizado en **capas**. Cada capa solo usa las capas de más a
 | Módulo | Para qué sirve |
 |---|---|
 | `Config` | Guarda todos los parámetros de la simulación (cuántos repartidores, velocidad, duración…). |
-| `ConfigLoader` | Lee el archivo JSON, lo revisa y, si algo está mal, muestra un mensaje claro y el programa no arranca. |
+| `EventLog` | El **registro de eventos**: escribe cada cosa que pasa (pedido creado, asignado, entregado, avería…) como una línea en un archivo, y lleva las cuentas para el resumen final. Tiene su propio candado, así dos hilos nunca mezclan sus líneas. | Lee el archivo JSON, lo revisa y, si algo está mal, muestra un mensaje claro y el programa no arranca. |
 
 ### `concurrency/` — coordinar hilos
 
@@ -103,7 +103,7 @@ Programas que ejecutan cada módulo con casos conocidos y comprueban el resultad
 | Script | Para qué sirve |
 |---|---|
 | `osm_to_config.py` | Descarga las avenidas y restaurantes reales de OpenStreetMap dentro de `data/area.geojson` (del 2.º al 4.º Anillo), se queda solo con la parte del mapa donde se puede ir y volver entre cualquier par de puntos respetando los sentidos, añade puntos en las curvas para que las motos sigan la calle, y genera `config/equipetrol.json` y la imagen del mapa. |
-| `verify_alignment.py` | Dibuja las calles del JSON sobre la imagen para comprobar visualmente que coinciden. |
+| `check_event_log.py` | Revisa un registro de eventos y el resumen: cada línea es JSON válido, cada pedido sigue el orden de estados y termina en un solo estado final, ningún pedido está en manos de dos repartidores y las cuentas coinciden. | Dibuja las calles del JSON sobre la imagen para comprobar visualmente que coinciden. |
 
 ## Qué falta
 

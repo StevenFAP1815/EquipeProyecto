@@ -1,5 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <delivery/infra/EventLog.hpp>
+
 #include <delivery/concurrency/ChangeSignal.hpp>
 #include <delivery/concurrency/OrderBook.hpp>
 #include <delivery/concurrency/ShutdownToken.hpp>
@@ -52,6 +54,7 @@ struct Harness {
     concurrency::ShutdownToken stop;
     concurrency::OrderBook book{100};
     concurrency::ChangeSignal freed;
+    infra::EventLog log;
     sim::SimClock clock{5000.0};
     std::unique_ptr<sim::Fleet> fleet;
     std::unique_ptr<sim::Dispatcher> dispatcher;
@@ -60,9 +63,9 @@ struct Harness {
     Harness(infra::Config config, sim::Dispatcher::Estimator estimator = nullptr)
         : cfg(std::move(config)),
           network(core::StreetNetwork::build(cfg.nodes, cfg.streets)) {
-        fleet = std::make_unique<sim::Fleet>(cfg, network, clock, stop, freed);
+        fleet = std::make_unique<sim::Fleet>(cfg, network, clock, stop, freed, log);
         dispatcher = std::make_unique<sim::Dispatcher>(
-            cfg, network, book, *fleet, clock, freed, stop, std::move(estimator));
+            cfg, network, book, *fleet, clock, freed, stop, log, std::move(estimator));
         fleet->start();
         dispatcherThread = std::thread([this] { dispatcher->run(); });
     }

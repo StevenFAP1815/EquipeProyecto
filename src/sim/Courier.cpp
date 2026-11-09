@@ -49,6 +49,11 @@ bool Courier::tryAssign(core::Order& order) {
             collecting_ = true;
             state_ = CourierState::MovingToRestaurant;
         }
+        const std::int64_t now = env_.clock.nowMs();
+        env_.log.orderAssigned(now, order.id, id_);
+        if (atDesk_) {
+            env_.log.pickupStarted(now, order.id, id_, order.restaurant);
+        }
         order.state = core::OrderState::Assigned;
         order.assignedCourier = id_;
         bag_.push_back(std::move(order));
@@ -230,11 +235,22 @@ bool Courier::pickUpAtDesk(const core::RestaurantId& restaurant) {
     if (!desk.enter(env_.stop)) {
         return false;
     }
+    {
+        std::lock_guard<std::mutex> lock(stateMutex_);
+        atDesk_ = true;
+        for (const core::Order& order : bag_) {
+            env_.log.pickupStarted(env_.clock.nowMs(), order.id, id_, order.restaurant);
+        }
+    }
 
     const bool pickedUp =
         waitUntilBagIsReady() &&
         env_.clock.waitUntilMs(env_.clock.nowMs() + kPickupHandlingMs, env_.stop);
 
+    {
+        std::lock_guard<std::mutex> lock(stateMutex_);
+        atDesk_ = false;
+    }
     desk.leave();
     return pickedUp;
 }
@@ -261,6 +277,7 @@ void Courier::markBagPickedUp() {
     std::lock_guard<std::mutex> lock(stateMutex_);
     for (core::Order& order : bag_) {
         order.state = core::OrderState::PickedUp;
+        env_.log.orderPickedUp(env_.clock.nowMs(), order.id, id_, order.restaurant);
     }
     state_ = CourierState::Delivering;
 }
@@ -291,12 +308,15 @@ bool Courier::deliverBag(bool mayBreakDown) {
         }
 
         std::lock_guard<std::mutex> lock(stateMutex_);
-        bag_.erase(bag_.begin());
         if (arrived) {
+            env_.log.orderDelivered(env_.clock.nowMs(), bag_.front().id, id_);
             ++delivered_;
         } else {
+            env_.log.orderRejected(env_.clock.nowMs(), bag_.front().id,
+                                   core::RejectReason::Unreachable);
             ++failed_;
         }
+        bag_.erase(bag_.begin());
     }
 }
 
@@ -305,6 +325,7 @@ bool Courier::breakDownAndWaitForRescue() {
         std::lock_guard<std::mutex> lock(stateMutex_);
         state_ = CourierState::BrokenDown;
         ++breakdowns_;
+        env_.log.courierBreakdown(env_.clock.nowMs(), id_);
     }
 
     const std::int64_t repairedAtMs = env_.clock.nowMs() + kRepairMs;
@@ -346,6 +367,7 @@ void Courier::performRescue(RescueRequest request) {
         std::scoped_lock bothBags(stateMutex_, broken.stateMutex_);
         const std::size_t moved = broken.bag_.size();
         for (core::Order& order : broken.bag_) {
+            env_.log.orderReassigned(env_.clock.nowMs(), order.id, broken.id_, id_);
             order.assignedCourier = id_;
             bag_.push_back(std::move(order));
         }
@@ -373,6 +395,9 @@ void Courier::performRescue(RescueRequest request) {
 void Courier::failWholeBag() {
     {
         std::lock_guard<std::mutex> lock(stateMutex_);
+        for (const core::Order& order : bag_) {
+            env_.log.orderRejected(env_.clock.nowMs(), order.id, core::RejectReason::Unreachable);
+        }
         failed_ += bag_.size();
         bag_.clear();
         collecting_ = false;

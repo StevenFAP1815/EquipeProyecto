@@ -21,6 +21,7 @@ add_executable(delivery_tests
     test_pickup_desk.cpp
     test_courier_bag.cpp
     test_breakdowns.cpp
+    test_event_log.cpp
 )
 
 target_link_libraries(delivery_tests PRIVATE

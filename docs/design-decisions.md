@@ -343,6 +343,25 @@ Formato: contexto, alternativas, decisión, justificación, consecuencias.
   que, si todos se averian a la vez, nadie pueda rescatar a nadie.
 - Consecuencias: el resumen incluye reassigned y breakdowns.
 
+## DD-028: Registro de eventos como unica fuente del resumen
+- Etapa: 8
+- Contexto: DP.7 exige un objeto JSON por linea, sin lineas mezcladas, y un
+  resumen cuyos numeros coincidan exactamente con el registro.
+- Decision: un monitor infra::EventLog con un metodo por evento. Cada metodo
+  arma la linea con nlohmann::ordered_json, toma el mutex, escribe la linea
+  completa y actualiza las cuentas. El resumen (Summary) se calcula con esas
+  mismas cuentas; pending = created - delivered - rejected.
+- Donde se registra: el generador (orderCreated, queueFull), el despachador
+  (unreachable, noCourier), el repartidor dentro de su seccion critica
+  (orderAssigned, pickupStarted, orderPickedUp, orderDelivered,
+  courierBreakdown, orderReassigned) y main (simulationStopping).
+- Justificacion: si el resumen se calculara con contadores distintos a los
+  del archivo, podrian diferir; con una sola fuente coinciden por
+  construccion. main compara ademas los pendientes del registro con los que
+  quedan en el sistema y avisa por stderr si difieren.
+- Consecuencias: tools/check_event_log.py verifica cada ejecucion con las
+  reglas de las secciones 4 y 6.
+
 ## DD-023: Codigo sin comentarios
 - Etapa: 3
 - Contexto: el docente pidio que los modulos no tengan comentarios, porque

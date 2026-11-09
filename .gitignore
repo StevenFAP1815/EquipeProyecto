@@ -19,3 +19,6 @@ compile_commands.json
 
 # Imagen generada por tools/verify_alignment.py
 data/equipetrol_verify.png
+
+# Registros de eventos de ejecuciones locales
+events.log

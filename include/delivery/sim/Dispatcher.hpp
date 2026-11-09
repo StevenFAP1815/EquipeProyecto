@@ -6,6 +6,7 @@
 #include <delivery/core/Order.hpp>
 #include <delivery/core/StreetNetwork.hpp>
 #include <delivery/infra/Config.hpp>
+#include <delivery/infra/EventLog.hpp>
 #include <delivery/sim/Courier.hpp>
 #include <delivery/sim/Fleet.hpp>
 #include <delivery/sim/SimClock.hpp>
@@ -36,6 +37,7 @@ public:
                SimClock& clock,
                concurrency::ChangeSignal& freedSignal,
                concurrency::ShutdownToken& stop,
+               infra::EventLog& log,
                Estimator estimator = nullptr);
 
     Dispatcher(const Dispatcher&) = delete;
@@ -64,6 +66,7 @@ private:
     SimClock& clock_;
     concurrency::ChangeSignal& freedSignal_;
     concurrency::ShutdownToken& stop_;
+    infra::EventLog& log_;
     Estimator estimator_;
     const std::size_t maxCandidates_;
 

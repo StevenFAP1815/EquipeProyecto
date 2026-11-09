@@ -59,6 +59,7 @@ add_library(delivery_core STATIC
     src/core/PathFinder.cpp
     src/core/StreetNetwork.cpp
     src/infra/ConfigLoader.cpp
+    src/infra/EventLog.cpp
     src/concurrency/ShutdownToken.cpp
     src/concurrency/ChangeSignal.cpp
     src/concurrency/PickupDesk.cpp

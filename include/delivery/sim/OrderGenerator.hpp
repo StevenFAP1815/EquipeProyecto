@@ -4,6 +4,7 @@
 #include <delivery/concurrency/ShutdownToken.hpp>
 #include <delivery/core/Order.hpp>
 #include <delivery/infra/Config.hpp>
+#include <delivery/infra/EventLog.hpp>
 #include <delivery/sim/SimClock.hpp>
 
 #include <atomic>
@@ -18,7 +19,8 @@ public:
                    concurrency::OrderBook& book,
                    concurrency::ShutdownToken& stop,
                    SimClock& clock,
-                   std::atomic<std::uint64_t>& orderIdCounter);
+                   std::atomic<std::uint64_t>& orderIdCounter,
+                   infra::EventLog& log);
 
     OrderGenerator(const OrderGenerator&) = delete;
     OrderGenerator& operator=(const OrderGenerator&) = delete;
@@ -35,6 +37,7 @@ private:
     concurrency::ShutdownToken& stop_;
     SimClock& clock_;
     std::atomic<std::uint64_t>& orderIdCounter_;
+    infra::EventLog& log_;
 
     std::mt19937_64 rng_;
     std::exponential_distribution<double> intervalDist_;

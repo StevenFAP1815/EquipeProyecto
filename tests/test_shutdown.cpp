@@ -1,5 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <delivery/infra/EventLog.hpp>
+
 #include <delivery/concurrency/ChangeSignal.hpp>
 #include <delivery/concurrency/OrderBook.hpp>
 #include <delivery/concurrency/ShutdownToken.hpp>
@@ -89,7 +91,8 @@ TEST_CASE("Fleet: los repartidores inactivos terminan al pedir el apagado",
     concurrency::ShutdownToken stop;
     sim::SimClock clock(1.0);
     concurrency::ChangeSignal freed;
-    sim::Fleet fleet(cfg, network, clock, stop, freed);
+    infra::EventLog log;
+    sim::Fleet fleet(cfg, network, clock, stop, freed, log);
     fleet.start();
 
     std::this_thread::sleep_for(20ms);
@@ -107,7 +110,8 @@ TEST_CASE("Fleet: un repartidor en movimiento termina al pedir el apagado",
     concurrency::ShutdownToken stop;
     sim::SimClock clock(1.0);
     concurrency::ChangeSignal freed;
-    sim::Fleet fleet(cfg, network, clock, stop, freed);
+    infra::EventLog log;
+    sim::Fleet fleet(cfg, network, clock, stop, freed, log);
     fleet.start();
 
     core::Order order;

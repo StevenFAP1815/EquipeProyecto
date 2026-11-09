@@ -1,5 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <delivery/infra/EventLog.hpp>
+
 #include <delivery/concurrency/ChangeSignal.hpp>
 #include <delivery/concurrency/PickupDesk.hpp>
 #include <delivery/concurrency/ShutdownToken.hpp>
@@ -26,6 +28,7 @@ struct BagHarness {
     concurrency::ChangeSignal freed;
     sim::PickupDeskMap desks;
     std::shared_mutex transferMutex;
+    infra::EventLog log;
     sim::SimClock clock{500.0};
     std::unique_ptr<sim::Courier> courier;
     std::thread worker;
@@ -45,7 +48,7 @@ struct BagHarness {
         network = core::StreetNetwork::build(nodes, streets);
         desks.emplace(core::RestaurantId("r0"), std::make_unique<concurrency::PickupDesk>(1));
         desks.emplace(core::RestaurantId("r1"), std::make_unique<concurrency::PickupDesk>(1));
-        sim::CourierEnvironment environment{network, clock, stop, freed, desks, transferMutex,
+        sim::CourierEnvironment environment{network, clock, stop, freed, desks, transferMutex, log,
             [](sim::Courier&) { return std::optional<std::future<bool>>{}; }};
         courier = std::make_unique<sim::Courier>(core::CourierId("c0"), environment,
                                                  sim::CourierSettings{bagCapacity, 30.0, 0.0, 0},
