@@ -1,7 +1,7 @@
 # Estado del proyecto
 
 > Qué está hecho, qué falta y qué problemas hay. Se actualiza al cerrar cada etapa.
-> Última actualización: 09/11/2026, cierre de la Etapa 3.
+> Última actualización: 09/11/2026, Etapa 4 (ventana).
 
 ## Etapas del plan y criterios de la rúbrica
 
@@ -13,8 +13,8 @@ El brief del curso define los criterios **DP.0 a DP.12**. Las **etapas** son el 
 | 1 | Conceptos básicos (`core/`), lectura y validación del JSON, tests | DP.1 (configuración) | 4 | ✅ Hecho |
 | 2 | Libro de pedidos, señal de apagado, generador de pedidos | DP.2 | 6 | ✅ Hecho (falta el rechazo `unreachable`, Etapa 5) |
 | 3 | Mapa de calles, Dijkstra, reloj simulado, repartidores, flota | DP.1 (ciudad), DP.3 | 6 + 14 | ✅ Hecho |
-| 4 | Ventana con el mapa y los puntos en movimiento (OpenCV) | DP.8 | 6 | ⏳ Siguiente |
-| 5 | Despachador: estimaciones simultáneas con `future` y límite de tiempo | DP.4 | 8 | ⏳ Pendiente |
+| 4 | Ventana con el mapa y los puntos en movimiento (OpenCV) | DP.8 | 6 | ✅ Hecho (faltan las ubicaciones de entrega y los contadores finales, que dependen de las etapas 5 y 8) |
+| 5 | Despachador: estimaciones simultáneas con `future` y límite de tiempo | DP.4 | 8 | ⏳ Siguiente |
 | 6 | Cupos de recogida en restaurantes (orden de llegada), capacidad de la bolsa | DP.5 | 8 | ⏳ Pendiente |
 | 7 | Averías y transferencia todo-o-nada de pedidos | DP.6 | 8 | ⏳ Pendiente |
 | 8 | Registro de eventos JSON y resumen final exacto | DP.7 | 8 | ⏳ Pendiente (ya existe la línea de inicio) |
@@ -23,7 +23,7 @@ El brief del curso define los criterios **DP.0 a DP.12**. Las **etapas** son el 
 | 11 | Experimentos y tabla comparativa | DP.10 | 6 | ⏳ Pendiente |
 | 12 | Informe final, diagrama de hilos y canales, mapa de conceptos | DP.12 | 6 | 🔶 En curso |
 
-## Verificaciones al cierre de la Etapa 3
+## Verificaciones (Etapa 3; la Etapa 4 añade el hilo de la ventana)
 
 | Verificación | Resultado |
 |---|---|
@@ -39,7 +39,9 @@ El brief del curso define los criterios **DP.0 a DP.12**. Las **etapas** son el 
 |---|---|---|
 | El mapa no es *fuertemente conexo*: por las calles de un solo sentido, 6 de 34 intersecciones no se alcanzan desde el punto de partida; los restaurantes r1 y r5 son inalcanzables y r3 es un callejón sin salida. | Pedidos imposibles de entregar. | Etapa 5: rechazar esos pedidos con `unreachable`. Más adelante: regenerar el mapa. |
 | La imagen del mapa no muestra el Cuarto Anillo y las intersecciones se concentran entre el Segundo y el Tercer Anillo. | Puede restar puntos en DP.1 ("la ciudad es real"). | Ampliar `data/area.geojson` y regenerar el mapa (después de la Etapa 5). |
-| Todavía no hay despachador: un hilo provisional saca los pedidos del libro y solo los cuenta. Los repartidores existen y se mueven, pero aún no reciben pedidos. | El resumen todavía no tiene el formato de la sección 6.3. | Etapas 5 y 8. |
+| Todavía no hay despachador: un hilo provisional manda un repartidor libre al restaurante de cada pedido, solo para que la ventana muestre movimiento. Los repartidores no recogen ni entregan pedidos. | El resumen todavía no tiene el formato de la sección 6.3. | Etapas 5 y 8. |
+| Varios repartidores quedan atrapados en "Beef And Bunz" (nodo `n18`, callejón sin salida). | Se ve en la ventana: confirma el problema de conectividad del mapa. | Etapa 5 (`unreachable`) y regeneración del mapa. |
+| Con la ventana abierta en Ubuntu (WSL), ThreadSanitizer reporta 5 avisos **dentro de Qt y dbus**, bibliotecas del sistema que OpenCV usa para la ventana. En los dos accesos de cada aviso, la memoria es de Qt y uno de los hilos lo crea Qt (`QDBusConnection`); ningún dato del proyecto está involucrado. Sin ventana (tests), 0 avisos. | La rúbrica pide 0 reportes de TSan. | Etapa 10: analizarlo a fondo; opciones: archivo de supresiones de TSan limitado a Qt/dbus (documentado y justificado, como pide DP.11) o usar OpenCV con otro backend de ventanas. |
 | `--log <ruta>` aparece en el mensaje de uso pero aún no está implementado. | — | Etapa 8, junto con el registro de eventos. |
 | En Windows, SIGTERM no lo envía el sistema operativo. | Solo se puede probar con Ctrl+C (SIGINT). | Etapa 9: probar SIGTERM en Ubuntu (WSL) y documentarlo. |
 | ThreadSanitizer y Valgrind no existen para el compilador de Windows (MSYS2). | El análisis se hace en Ubuntu (WSL). | Documentado en DD-006. Valgrind se instalará en la Etapa 10. |

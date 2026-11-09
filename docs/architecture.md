@@ -22,7 +22,7 @@ EquipeProyecto/
 │   ├── infra/                → Config, ConfigLoader
 │   ├── concurrency/          → OrderBook, ShutdownToken
 │   ├── sim/                  → SimClock, OrderGenerator, Courier, Fleet
-│   ├── viz/                  → (vacío, Etapa 4)
+│   ├── viz/                  → Renderer (ventana OpenCV)
 │   └── app/                  → (vacío, Etapa 9)
 ├── src/                      → un .cpp por cada .hpp, más main.cpp
 ├── tests/                    → tests Catch2 y datos de prueba en tests/data/
@@ -35,7 +35,7 @@ EquipeProyecto/
 - `infra/` depende de `core/`. `ConfigLoader.cpp` es el único archivo que incluye la librería JSON.
 - `concurrency/` depende de `core/`.
 - `sim/` depende de `core/`, `infra/` y `concurrency/`.
-- `viz/` (Etapa 4) dependerá de `core/` y OpenCV.
+- `viz/` depende de `core/`, `concurrency/`, `sim/` (solo lectura) y OpenCV. Se compila dentro de `delivery_sim`, no en `delivery_core`, para que los tests no necesiten OpenCV.
 - `main.cpp` crea y conecta todo.
 
 ## 3. Compilación
@@ -43,7 +43,7 @@ EquipeProyecto/
 | Target | Contenido |
 |---|---|
 | `delivery_core` | Librería estática con todo el código salvo `main.cpp`. |
-| `delivery_sim` | `main.cpp` + `delivery_core` + OpenCV. |
+| `delivery_sim` | `main.cpp` + `viz/Renderer.cpp` + `delivery_core` + OpenCV. |
 | `delivery_tests` | Tests + `delivery_core` + Catch2. |
 
 - Dependencias por `FetchContent` como archivos comprimidos verificados con SHA256: nlohmann/json 3.11.3 y Catch2 3.5.2.
@@ -56,16 +56,16 @@ EquipeProyecto/
 |---|---|---|---|---|
 | `main` | `main()` | — | `SimClock::waitUntilMs(duración)` | — |
 | `tProducer` | `OrderGenerator::run` | Un pedido (o una ráfaga) por intervalo aleatorio | `SimClock::waitUntilMs(próximo pedido)` | `main` / `main` |
-| `tConsumer` | `consumerLoop` (provisional, será el despachador en la Etapa 5) | Cada pedido del libro | `OrderBook::waitAndPop` (CV) | `main` / `main` |
+| `tDispatcher` | `provisionalDispatchLoop` (provisional: manda un repartidor libre al restaurante del pedido; será el despachador real en la Etapa 5) | Cada pedido del libro | `OrderBook::waitAndPop` (CV) | `main` / `main` |
 | `courier[i]` (uno por repartidor) | `Courier::run` | Cada destino asignado; dentro, cada tramo y cada paso | `cv_.wait` (sin destino) y `SimClock::waitUntilMs` (en movimiento) | `Fleet::start` / `Fleet::join` |
-| `renderer` | Etapa 4 | Un cuadro por intervalo | Pausa para fijar los FPS | — |
+| `tRenderer` | `Renderer::run` | Un cuadro cada ~33 ms: copia el fondo, lee posición y estado de cada repartidor (bajo su candado) y dibuja | `cv::waitKey(33)`: pausa para fijar los FPS, permitida por el brief | `main` / `main` |
 | `dispatcher` | Etapa 5 | Cada pedido nuevo | `future::wait_for(quoteTimeoutMs)` | — |
 
 ## 5. Canales de comunicación y espera
 
 | Canal | Entre | Mecanismo |
 |---|---|---|
-| `OrderBook` | generador → consumidor | Monitor: `deque` + `mutex` + `condition_variable` |
+| `OrderBook` | generador → despachador | Monitor: `deque` + `mutex` + `condition_variable` |
 | `Courier::setTarget` | despachador (Etapa 5) → repartidor | Monitor del repartidor: `stateMutex_` + `cv_` |
 | `SimClock` | cualquier hilo ↔ reloj | `cv_.wait_until` hasta la hora real equivalente; `wakeAll()` al apagar |
 | `ShutdownToken` | `main` → todos | `std::atomic<bool>`; `waitForStop()` con `mutex` + `condition_variable` |
@@ -74,8 +74,10 @@ EquipeProyecto/
 ### Orden de apagado
 
 ```
-stop.requestStop() → clock.wakeAll() → book.wakeAll() → join(tProducer) → join(tConsumer) → fleet.join()
+stop.requestStop() → clock.wakeAll() → book.wakeAll() → join(tProducer) → join(tDispatcher) → join(tRenderer) → fleet.join()
 ```
+Si el usuario pulsa ESC o cierra la ventana, `Renderer::run` llama a `stop.requestStop()` y `clock.wakeAll()`: `main` despierta de su espera y sigue exactamente el mismo orden de apagado.
+
 `fleet.join()` despierta a cada repartidor (`Courier::wake`) antes del `join`. Cada `wake`/`wakeAll` toma el mutex correspondiente antes de notificar, para evitar el despertar perdido (DD-017).
 
 ## 6. Argumento contra condiciones de carrera, por objeto compartido (fila 10)
@@ -88,9 +90,10 @@ stop.requestStop() → clock.wakeAll() → book.wakeAll() → join(tProducer) �
 | `Courier` | `state_`, `position_`, `currentNode_`, `pendingTarget_` y `lastIdleMs_` solo se acceden con `stateMutex_`. Las consultas devuelven copias. |
 | `StreetNetwork` | Inmutable después de construirse; se comparte como `shared_ptr<const StreetNetwork>`. Solo hay lecturas. |
 | `Config` | Se construye antes de crear los hilos y después solo se lee (`const`). |
+| `Renderer` | Su imagen de fondo solo la usa el hilo `tRenderer`. Lee a los demás únicamente por métodos que toman su candado (`Courier::position/state`, `OrderBook::size/rejectedCount`) o por atómicos (`orderIdCounter`). |
 | `orderIdCounter`, `consumedCount` | `std::atomic<std::uint64_t>` con `fetch_add`. |
 
-Verificado con ThreadSanitizer en cada PR (tests y simulación completa en WSL).
+Verificado con ThreadSanitizer en cada PR (tests y simulación completa en WSL). Con la ventana abierta, TSan reporta avisos **dentro de Qt y dbus** (bibliotecas del sistema que usa OpenCV en Linux): ver [`progress.md`](progress.md#problemas-conocidos-pendientes).
 
 ## 7. Historial por etapa
 

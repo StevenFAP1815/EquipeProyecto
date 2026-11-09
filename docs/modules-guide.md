@@ -35,6 +35,8 @@ El código está organizado en **capas**. Cada capa solo usa las capas de más a
 ```
    main          (arranca y detiene todo)
      │
+    viz          (la ventana: solo mira, no cambia nada)
+     │
     sim          (los actores de la simulación)
      │
  concurrency     (herramientas para coordinar hilos)
@@ -78,6 +80,12 @@ El código está organizado en **capas**. Cada capa solo usa las capas de más a
 | `OrderGenerator` | Crea pedidos a intervalos aleatorios, a veces en ráfagas, y los deja en el libro de pedidos. |
 | `Courier` | Un **repartidor**: espera a que le asignen un destino y se mueve por las calles, paso a paso, a su velocidad. |
 | `Fleet` | La **flota**: crea a todos los repartidores, les da un hilo a cada uno y al final espera a que todos terminen. |
+
+### `viz/` — la ventana
+
+| Módulo | Para qué sirve |
+|---|---|
+| `Renderer` | Abre la ventana y unas 30 veces por segundo dibuja el mapa, las calles, los restaurantes y a cada repartidor como un punto de color según lo que está haciendo (gris: libre; azul: yendo al restaurante; etc.). Muestra un panel con contadores y la atribución de OpenStreetMap. Si se pulsa ESC o se cierra la ventana, pide el apagado. |
 
 ### `main.cpp` — el director de orquesta
 

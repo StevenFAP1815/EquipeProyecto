@@ -1,6 +1,6 @@
 {
   "map": {
-    "image": "data/equipetrol.png",
+    "image": "../data/equipetrol.png",
     "attribution": "(c) OpenStreetMap contributors",
     "bounds": {
       "north": -17.75743285458704,
