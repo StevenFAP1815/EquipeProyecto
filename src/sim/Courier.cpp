@@ -5,6 +5,7 @@
 namespace delivery::sim {
 namespace {
 constexpr int kStepsPerSegment = 20;
+constexpr std::int64_t kPickupHandlingMs = 30'000;
 }
 
 Courier::Courier(core::CourierId id,
@@ -12,6 +13,7 @@ Courier::Courier(core::CourierId id,
                  SimClock& clock,
                  concurrency::ShutdownToken& stop,
                  concurrency::ChangeSignal& freedSignal,
+                 const PickupDeskMap& desks,
                  double speedKmh,
                  core::NodeId startNode)
     : id_(std::move(id)),
@@ -19,6 +21,7 @@ Courier::Courier(core::CourierId id,
       clock_(clock),
       stop_(stop),
       freedSignal_(freedSignal),
+      desks_(desks),
       speedKmh_(speedKmh),
       currentNode_(std::move(startNode)) {
     const auto coords = network_->nodeLatLon(currentNode_);
@@ -126,6 +129,7 @@ void Courier::finishJob(bool delivered) {
 void Courier::run() {
     while (true) {
         core::NodeId from;
+        core::RestaurantId restaurant;
         core::NodeId restaurantNode;
         core::NodeId deliveryNode;
         std::int64_t readyAtMs = 0;
@@ -138,6 +142,7 @@ void Courier::run() {
                 return;
             }
             from = currentNode_;
+            restaurant = job_->restaurant;
             restaurantNode = job_->restaurantNode;
             deliveryNode = job_->deliveryNode;
             readyAtMs = job_->readyAtMs;
@@ -152,7 +157,7 @@ void Courier::run() {
         }
 
         setState(CourierState::PickingUp);
-        if (!clock_.waitUntilMs(readyAtMs, stop_)) {
+        if (!pickUpAtDesk(restaurant, readyAtMs)) {
             return;
         }
 
@@ -172,6 +177,20 @@ void Courier::run() {
 
         finishJob(true);
     }
+}
+
+bool Courier::pickUpAtDesk(const core::RestaurantId& restaurant, std::int64_t readyAtMs) {
+    concurrency::PickupDesk& desk = *desks_.at(restaurant);
+    if (!desk.enter(stop_)) {
+        return false;
+    }
+
+    const bool pickedUp =
+        clock_.waitUntilMs(readyAtMs, stop_) &&
+        clock_.waitUntilMs(clock_.nowMs() + kPickupHandlingMs, stop_);
+
+    desk.leave();
+    return pickedUp;
 }
 
 bool Courier::travel(const core::NodeId& from, const core::NodeId& to) {

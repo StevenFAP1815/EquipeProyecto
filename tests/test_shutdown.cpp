@@ -28,6 +28,9 @@ infra::Config makeLineConfig(int couriers) {
         core::Street{core::StreetId("s0"), core::NodeId("n0"), core::NodeId("n1"), false},
         core::Street{core::StreetId("s1"), core::NodeId("n1"), core::NodeId("n2"), false},
     };
+    cfg.restaurants = {
+        core::Restaurant{core::RestaurantId("r0"), "R0", core::NodeId("n2"), 1, {0, 0}},
+    };
     cfg.fleet.couriers = couriers;
     cfg.fleet.speedKmh = 1.0;
     cfg.fleet.startNode = core::NodeId("n0");
@@ -109,6 +112,7 @@ TEST_CASE("Fleet: un repartidor en movimiento termina al pedir el apagado",
 
     core::Order order;
     order.id = core::OrderId("o0");
+    order.restaurant = core::RestaurantId("r0");
     order.restaurantNode = core::NodeId("n2");
     order.deliveryNode = core::NodeId("n0");
     REQUIRE(fleet.couriers().front()->tryAssign(order));

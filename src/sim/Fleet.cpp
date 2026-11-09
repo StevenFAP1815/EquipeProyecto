@@ -8,6 +8,11 @@ Fleet::Fleet(const infra::Config& cfg,
              SimClock& clock,
              concurrency::ShutdownToken& stop,
              concurrency::ChangeSignal& freedSignal) {
+    for (const core::Restaurant& restaurant : cfg.restaurants) {
+        desks_.emplace(restaurant.id,
+                       std::make_unique<concurrency::PickupDesk>(restaurant.pickupSlots));
+    }
+
     const int n = cfg.fleet.couriers;
     couriers_.reserve(static_cast<std::size_t>(n));
 
@@ -19,6 +24,7 @@ Fleet::Fleet(const infra::Config& cfg,
             clock,
             stop,
             freedSignal,
+            desks_,
             cfg.fleet.speedKmh,
             cfg.fleet.startNode));
     }
@@ -41,6 +47,9 @@ void Fleet::start() {
 void Fleet::join() {
     for (auto& c : couriers_) {
         c->wake();
+    }
+    for (auto& entry : desks_) {
+        entry.second->wakeAll();
     }
     for (auto& t : threads_) {
         if (t.joinable()) {

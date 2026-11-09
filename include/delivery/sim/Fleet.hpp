@@ -43,7 +43,12 @@ public:
     std::uint64_t failedCount() const;
     std::uint64_t ordersInProgress() const;
 
+    const concurrency::PickupDesk& desk(const core::RestaurantId& id) const {
+        return *desks_.at(id);
+    }
+
 private:
+    PickupDeskMap desks_;
     std::vector<std::unique_ptr<Courier>> couriers_;
     std::vector<std::thread> threads_;
 };

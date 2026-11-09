@@ -1,6 +1,7 @@
 #pragma once
 
 #include <delivery/concurrency/ChangeSignal.hpp>
+#include <delivery/concurrency/PickupDesk.hpp>
 #include <delivery/concurrency/ShutdownToken.hpp>
 #include <delivery/core/Order.hpp>
 #include <delivery/core/PathFinder.hpp>
@@ -13,9 +14,14 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <unordered_map>
 
 namespace delivery::sim {
 using core::CourierId;
+
+using PickupDeskMap = std::unordered_map<core::RestaurantId,
+                                         std::unique_ptr<concurrency::PickupDesk>,
+                                         core::RestaurantIdHash>;
 enum class CourierState {
     Idle,
     MovingToRestaurant,
@@ -42,6 +48,7 @@ public:
             SimClock& clock,
             concurrency::ShutdownToken& stop,
             concurrency::ChangeSignal& freedSignal,
+            const PickupDeskMap& desks,
             double speedKmh,
             core::NodeId startNode);
 
@@ -67,6 +74,7 @@ public:
     std::int64_t lastIdleMs() const;
 
 private:
+    bool pickUpAtDesk(const core::RestaurantId& restaurant, std::int64_t readyAtMs);
     bool travel(const core::NodeId& from, const core::NodeId& to);
     bool doMovement(const core::RouteResult& route);
     void setPosition(const core::LatLon& pos);
@@ -78,6 +86,7 @@ private:
     SimClock& clock_;
     concurrency::ShutdownToken& stop_;
     concurrency::ChangeSignal& freedSignal_;
+    const PickupDeskMap& desks_;
     const double speedKmh_;
 
     mutable std::mutex stateMutex_;
