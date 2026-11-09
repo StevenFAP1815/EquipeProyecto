@@ -301,6 +301,25 @@ Formato: contexto, alternativas, decisión, justificación, consecuencias.
   15 repartidores y un pedido por minuto (experimento 00). El script guarda
   la respuesta de Overpass en tools/.cache/ (ignorada por Git).
 
+## DD-026: Mostrador con tickets y bolsa por restaurante
+- Etapa: 6
+- Contexto: DP.5 exige que nunca haya mas repartidores recogiendo que
+  pickupSlots, atencion en orden de llegada y que la bolsa nunca supere
+  bagCapacity.
+- Decision (mostrador): un PickupDesk por restaurante, monitor con un
+  contador de tickets (nextTicket_) y el ticket que se atiende
+  (nowServing_). Se entra si es tu turno y busy_ < slots_.
+- Decision (bolsa): un viaje sirve a un solo restaurante. Mientras el
+  repartidor va hacia alli o espera la comida, acepta mas pedidos de ese
+  restaurante hasta bagCapacity. Al estar lista toda la comida, cierra la
+  bolsa (collecting_ = false), retira y entrega en orden de asignacion.
+- Justificacion: los tickets son la forma mas simple de FIFO con una
+  condition_variable (que por si sola no garantiza orden). La bolsa por
+  restaurante evita rutas complicadas y aun asi agrupa pedidos.
+- Consecuencias: la estimacion del despachador suma las entregas que el
+  repartidor ya lleva antes del pedido nuevo. Con la bolsa de 3, los
+  rechazos de la configuracion por defecto bajan de 18 a 0.
+
 ## DD-023: Codigo sin comentarios
 - Etapa: 3
 - Contexto: el docente pidio que los modulos no tengan comentarios, porque

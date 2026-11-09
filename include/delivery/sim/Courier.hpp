@@ -10,11 +10,12 @@
 #include <delivery/sim/SimClock.hpp>
 
 #include <condition_variable>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <mutex>
-#include <optional>
 #include <unordered_map>
+#include <vector>
 
 namespace delivery::sim {
 using core::CourierId;
@@ -49,6 +50,7 @@ public:
             concurrency::ShutdownToken& stop,
             concurrency::ChangeSignal& freedSignal,
             const PickupDeskMap& desks,
+            int bagCapacity,
             double speedKmh,
             core::NodeId startNode);
 
@@ -63,23 +65,32 @@ public:
 
     CourierId id() const noexcept { return id_; }
     double speedKmh() const noexcept { return speedKmh_; }
+    std::size_t bagCapacity() const noexcept { return bagCapacity_; }
     CourierState state() const;
     bool isAvailable() const;
+    bool canAccept(const core::RestaurantId& restaurant) const;
     core::LatLon position() const;
     core::NodeId currentNode() const;
-    std::optional<core::NodeId> activeDeliveryNode() const;
-    bool hasOrder() const;
+    std::vector<core::NodeId> deliveryNodesInBag() const;
+    std::int64_t latestReadyAtMs() const;
+    std::size_t ordersInBag() const;
     std::uint64_t deliveredCount() const;
     std::uint64_t failedCount() const;
     std::int64_t lastIdleMs() const;
 
 private:
-    bool pickUpAtDesk(const core::RestaurantId& restaurant, std::int64_t readyAtMs);
+    bool canAcceptLocked(const core::RestaurantId& restaurant) const;
+    std::int64_t latestReadyAtLocked() const;
+    bool pickUpAtDesk(const core::RestaurantId& restaurant);
+    bool waitUntilBagIsReady();
+    void markBagPickedUp();
+    bool deliverBag();
+    void failWholeBag();
+    void becomeIdle();
     bool travel(const core::NodeId& from, const core::NodeId& to);
     bool doMovement(const core::RouteResult& route);
     void setPosition(const core::LatLon& pos);
     void setState(CourierState state);
-    void finishJob(bool delivered);
 
     const CourierId id_;
     std::shared_ptr<const core::StreetNetwork> network_;
@@ -87,6 +98,7 @@ private:
     concurrency::ShutdownToken& stop_;
     concurrency::ChangeSignal& freedSignal_;
     const PickupDeskMap& desks_;
+    const std::size_t bagCapacity_;
     const double speedKmh_;
 
     mutable std::mutex stateMutex_;
@@ -94,7 +106,9 @@ private:
     CourierState state_ = CourierState::Idle;
     core::LatLon position_;
     core::NodeId currentNode_;
-    std::optional<core::Order> job_;
+    std::vector<core::Order> bag_;
+    core::RestaurantId bagRestaurant_;
+    bool collecting_ = false;
     std::uint64_t delivered_ = 0;
     std::uint64_t failed_ = 0;
     std::int64_t lastIdleMs_ = 0;

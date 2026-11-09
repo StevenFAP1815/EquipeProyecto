@@ -25,6 +25,7 @@ Fleet::Fleet(const infra::Config& cfg,
             stop,
             freedSignal,
             desks_,
+            cfg.fleet.bagCapacity,
             cfg.fleet.speedKmh,
             cfg.fleet.startNode));
     }
@@ -78,9 +79,7 @@ std::uint64_t Fleet::failedCount() const {
 std::uint64_t Fleet::ordersInProgress() const {
     std::uint64_t total = 0;
     for (const auto& c : couriers_) {
-        if (c->hasOrder()) {
-            ++total;
-        }
+        total += c->ordersInBag();
     }
     return total;
 }
