@@ -328,7 +328,7 @@ def emit_json(intersections, segments, restaurants, real_bbox, output_path):
 
     config = {
         "map": {
-            "image": "data/equipetrol.png",
+            "image": "../data/equipetrol.png",
             "attribution": "(c) OpenStreetMap contributors",
             "bounds": real_bbox,
         },

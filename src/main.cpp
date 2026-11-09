@@ -6,23 +6,39 @@
 #include <delivery/sim/Fleet.hpp>
 #include <delivery/sim/OrderGenerator.hpp>
 #include <delivery/sim/SimClock.hpp>
+#include <delivery/viz/Renderer.hpp>
 
 #include <atomic>
 #include <cstdint>
+#include <filesystem>
 #include <iostream>
 #include <thread>
 
 namespace {
 using namespace delivery;
 
-void consumerLoop(concurrency::OrderBook& book,
-                  concurrency::ShutdownToken& stop,
-                  std::atomic<std::uint64_t>& consumedCount) {
+bool sendToIdleCourier(sim::Fleet& fleet, const core::NodeId& target) {
+    for (const auto& courier : fleet.couriers()) {
+        if (courier->setTarget(target)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void provisionalDispatchLoop(const infra::Config& cfg,
+                             concurrency::OrderBook& book,
+                             sim::Fleet& fleet,
+                             concurrency::ShutdownToken& stop,
+                             std::atomic<std::uint64_t>& consumedCount) {
     while (true) {
         auto maybeOrder = book.waitAndPop(stop);
         if (!maybeOrder) {
             return;
         }
+        const auto& restaurant =
+            cfg.restaurants[cfg.restaurantIndex.at(maybeOrder->restaurant)];
+        sendToIdleCourier(fleet, restaurant.node);
         consumedCount.fetch_add(1, std::memory_order_relaxed);
     }
 }
@@ -37,7 +53,10 @@ int main(int argc, char** argv) {
     }
 
     try {
-        const infra::Config cfg = infra::loadConfigFromFile(argv[1]);
+        const std::filesystem::path configPath(argv[1]);
+        const infra::Config cfg = infra::loadConfigFromFile(configPath);
+        const std::filesystem::path imagePath =
+            configPath.parent_path() / cfg.map.imagePath;
         const auto network = core::StreetNetwork::build(cfg.nodes, cfg.streets);
 
         concurrency::ShutdownToken stop;
@@ -48,13 +67,17 @@ int main(int argc, char** argv) {
         sim::SimClock clock(cfg.simulation.timeScale);
         sim::OrderGenerator generator(cfg, book, stop, clock, orderIdCounter);
         sim::Fleet fleet(cfg, network, clock, stop);
+        viz::Renderer renderer(cfg, imagePath, fleet, book, orderIdCounter, clock, stop);
 
         fleet.start();
         std::thread tProducer([&generator] {
             generator.run();
         });
-        std::thread tConsumer([&book, &stop, &consumedCount] {
-            consumerLoop(book, stop, consumedCount);
+        std::thread tDispatcher([&cfg, &book, &fleet, &stop, &consumedCount] {
+            provisionalDispatchLoop(cfg, book, fleet, stop, consumedCount);
+        });
+        std::thread tRenderer([&renderer] {
+            renderer.run();
         });
 
         std::cout << "Simulation has started..." << std::endl;
@@ -72,7 +95,8 @@ int main(int argc, char** argv) {
         book.wakeAll();
 
         tProducer.join();
-        tConsumer.join();
+        tDispatcher.join();
+        tRenderer.join();
         fleet.join();
 
         const std::uint64_t created  = orderIdCounter.load(std::memory_order_relaxed);
@@ -92,7 +116,7 @@ int main(int argc, char** argv) {
         std::cerr << "Configuration error: " << e.what() << "\n";
         return 1;
     } catch (const std::exception& e) {
-        std::cerr << "Unexpected error: " << e.what() << "\n";
+        std::cerr << "Error: " << e.what() << "\n";
         return 2;
     }
 }

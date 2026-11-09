@@ -72,7 +72,10 @@ target_link_libraries(delivery_core PUBLIC
     Threads::Threads
 )
 
-add_executable(delivery_sim src/main.cpp)
+add_executable(delivery_sim
+    src/main.cpp
+    src/viz/Renderer.cpp
+)
 target_link_libraries(delivery_sim PRIVATE
     delivery_core
     ${OpenCV_LIBS}
