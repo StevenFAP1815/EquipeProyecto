@@ -16,3 +16,6 @@ build*/
 .cache/
 compile_commands.json
 *.tmp
+
+# Imagen generada por tools/verify_alignment.py
+data/equipetrol_verify.png
