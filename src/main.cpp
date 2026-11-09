@@ -87,7 +87,9 @@ int main(int argc, char** argv) {
                   << "\"created\": "   << created   << ", "
                   << "\"delivered\": " << delivered << ", "
                   << "\"rejected\": "  << rejected  << ", "
-                  << "\"pending\": "   << pending
+                  << "\"pending\": "   << pending   << ", "
+                  << "\"reassigned\": " << fleet.reassignedCount() << ", "
+                  << "\"breakdowns\": " << fleet.breakdownCount()
                   << "}\n";
 
         return 0;
