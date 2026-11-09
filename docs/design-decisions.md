@@ -180,13 +180,18 @@ Formato: contexto, alternativas, decisión, justificación, consecuencias.
   a la CV del book, el consumidor no despierta al solicitar shutdown.
 - Alternativas: ShutdownToken con registro generico de CVs (complejo);
   wakeAll() explicito (simple).
-- Decision: OrderBook::wakeAll() publico, noexcept, no toma lock.
-- Justificacion: solucion minima; el codigo que solicita shutdown conoce
-  que CVs debe despertar. Deuda tecnica: si en Etapa 9 hay > 3 CVs,
-  reconsiderar con un mecanismo de registro.
-- Consecuencias: el contrato de wakeAll es "solo notificar, no cambiar
-  estado". Cualquier cambio de estado debe hacerse bajo lock antes de
-  llamar a wakeAll.
+- Decision: OrderBook::wakeAll() publico. Toma el mutex del libro un
+  instante y luego notifica. El mismo patron se usa en SimClock::wakeAll()
+  y Courier::wake().
+- Justificacion: si se notifica sin tomar el mutex, la notificacion puede
+  llegar justo entre que el hilo evalua su predicado y se duerme
+  (despertar perdido), y el hilo queda dormido para siempre. Tomar el
+  mutex garantiza que el hilo o todavia no evaluo el predicado (y vera el
+  stop) o ya esta dormido (y recibe la notificacion).
+- Consecuencias: el apagado sigue un orden fijo: requestStop(), luego
+  wakeAll() de cada objeto que tenga hilos esperando, luego join().
+- Revision (Etapa 3, PR 3): la version original no tomaba el lock; se
+  corrigio porque provocaba el despertar perdido descrito arriba.
 
 ## DD-018: Intervalos exponenciales para pedidos (modelo de Poisson)
 - Etapa: 2

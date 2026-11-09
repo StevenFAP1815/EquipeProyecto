@@ -55,7 +55,10 @@ std::uint64_t OrderBook::rejectedCount() const {
     return rejectedCount_;
 }
 
-void OrderBook::wakeAll() noexcept {
+void OrderBook::wakeAll() {
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+    }
     cv_.notify_all();
 }
 }

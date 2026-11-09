@@ -10,12 +10,11 @@ void ShutdownToken::requestStop() {
 }
 
 bool ShutdownToken::stopRequested() const noexcept {
-    std::lock_guard<std::mutex> lock(mutex_);
     return stop_;
 }
 
 void ShutdownToken::waitForStop() {
     std::unique_lock<std::mutex> lock(mutex_);
-    cv_.wait(lock, [this] { return stop_; });
+    cv_.wait(lock, [this] { return stop_.load(); });
 }
 }

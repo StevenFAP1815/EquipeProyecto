@@ -49,6 +49,8 @@ public:
 
     bool setTarget(const core::NodeId& target);
 
+    void wake();
+
     CourierId id() const noexcept { return id_; }
     CourierState state() const;
     core::LatLon position() const;
