@@ -8,22 +8,17 @@
 #include <vector>
 
 namespace delivery::core {
-
 namespace {
-
 constexpr double kInfinity = std::numeric_limits<double>::infinity();
 
-// Entrada del heap: par (distancia, indice interno).
-// El heap es un min-heap por distancia.
 using HeapEntry = std::pair<double, std::size_t>;
 
 struct HeapGreater {
     bool operator()(const HeapEntry& a, const HeapEntry& b) const noexcept {
-        return a.first > b.first;  // std::priority_queue es max-heap por defecto
+        return a.first > b.first;
     }
 };
-
-}  // namespace
+}
 
 std::optional<RouteResult> findShortestPath(const StreetNetwork& network,
                                             const NodeId& from,
@@ -37,7 +32,6 @@ std::optional<RouteResult> findShortestPath(const StreetNetwork& network,
     const std::size_t fromIdx = *fromIdxOpt;
     const std::size_t toIdx   = *toIdxOpt;
 
-    // Caso trivial: from == to.
     if (fromIdx == toIdx) {
         return RouteResult{{from}, 0.0};
     }
@@ -56,8 +50,8 @@ std::optional<RouteResult> findShortestPath(const StreetNetwork& network,
         const auto [d, u] = pq.top();
         pq.pop();
 
-        if (d > dist[u]) continue;  // entrada obsoleta
-        if (u == toIdx) break;      // encontramos el destino
+        if (d > dist[u]) continue;
+        if (u == toIdx) break;
 
         const NodeId uId = *network.nodeIdAt(u);
         for (const Edge& e : network.neighbors(uId)) {
@@ -78,7 +72,6 @@ std::optional<RouteResult> findShortestPath(const StreetNetwork& network,
         return std::nullopt;
     }
 
-    // Reconstruir la ruta hacia atras.
     std::vector<NodeId> path;
     std::size_t cur = toIdx;
     while (cur != std::numeric_limits<std::size_t>::max()) {
@@ -90,5 +83,4 @@ std::optional<RouteResult> findShortestPath(const StreetNetwork& network,
 
     return RouteResult{std::move(path), dist[toIdx]};
 }
-
-}  // namespace delivery::core
+}

@@ -8,18 +8,10 @@
 using namespace delivery::infra;
 
 namespace {
-
-// Ruta a tests/data/ relativa al directorio de build.
-// Catch2 se ejecuta desde el directorio build/ por defecto con ctest.
 std::filesystem::path dataPath(const std::string& filename) {
     return std::filesystem::path(TESTS_DATA_DIR) / filename;
 }
-
-}  // namespace
-
-// ---------------------------------------------------------------------------
-// Casos validos
-// ---------------------------------------------------------------------------
+}
 
 TEST_CASE("ConfigLoader: carga equipetrol.json correctamente",
           "[config_loader][valid]") {
@@ -48,10 +40,6 @@ TEST_CASE("ConfigLoader: indices auxiliares apuntan a posiciones correctas",
     REQUIRE(itR != cfg.restaurantIndex.end());
     REQUIRE(cfg.restaurants[itR->second].name == "Example R1");
 }
-
-// ---------------------------------------------------------------------------
-// Casos invalidos
-// ---------------------------------------------------------------------------
 
 TEST_CASE("ConfigLoader: archivo inexistente lanza ConfigFileError",
           "[config_loader][invalid]") {
@@ -87,11 +75,6 @@ TEST_CASE("ConfigLoader: nodo duplicado lanza ConfigReferenceError",
         loadConfigFromFile(dataPath("invalid_duplicate_node.json")),
         ConfigReferenceError);
 }
-
-// ---------------------------------------------------------------------------
-// Verificacion de mensajes (los tests no dependen del texto exacto, pero
-// verifican que los mensajes contienen la informacion clave).
-// ---------------------------------------------------------------------------
 
 TEST_CASE("ConfigLoader: mensaje de huerfano menciona la calle y el nodo",
           "[config_loader][invalid][message]") {

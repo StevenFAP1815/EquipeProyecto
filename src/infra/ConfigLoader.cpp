@@ -14,12 +14,9 @@
 #include <utility>
 
 namespace delivery::infra {
-
 namespace {
-
 using nlohmann::json;
 using namespace delivery::core;
-
 
 [[noreturn]] void schemaError(const std::string& what) {
     throw ConfigSchemaError(what);
@@ -30,7 +27,6 @@ const json& requireMember(const json& obj, std::string_view key,
     if (!obj.is_object()) {
         schemaError("expected JSON object at " + std::string(context));
     }
-    // nlohmann::json::find acepta std::string_view en v3.11.
     const auto it = obj.find(key);
     if (it == obj.end()) {
         schemaError("missing required property '" + std::string(key) +
@@ -51,7 +47,6 @@ return v.get<std::string>();
 long long readIntRaw(const json& v, const std::string& key,
                     const std::string& context,
                     long long minValue, long long maxValue){
-
     if (!v.is_number_integer() && !v.is_number_unsigned()) {
         schemaError("property '" + key + "' at " + context +
                     " must be an integer");
@@ -76,7 +71,6 @@ int readInt(const json& obj, const std::string& key,
     return static_cast<int>(raw);
 }
 
-// Sobrecarga para arrays: index debe ser size_t para no colisionar con string.
 int readIntArrayElement(const json& arr, std::size_t index,
                         const std::string& context,
                         long long minValue = std::numeric_limits<long long>::min(),
@@ -109,8 +103,6 @@ bool readBool(const json& obj, const std::string& key,
     }
     return v.get<bool>();
 }
-
-// ---------------------------------------------------------------------------
 
 MapConfig parseMap(const json& j) {
     MapConfig m;
@@ -270,8 +262,6 @@ SimulationConfig parseSimulation(const json& j) {
     return s;
 }
 
-// ---------------------------------------------------------------------------
-
 void buildNodeIndex(Config& cfg) {
     for (std::size_t i = 0; i < cfg.nodes.size(); ++i) {
         const auto [it, inserted] = cfg.nodeIndex.emplace(cfg.nodes[i].id, i);
@@ -324,8 +314,7 @@ void validateReferences(const Config& cfg) {
         }
     }
 }
-
-}  // namespace
+}
 
 Config parseConfig(const nlohmann::json& j) {
     if (!j.is_object()) {
@@ -379,5 +368,4 @@ Config loadConfigFromFile(const std::filesystem::path& path) {
 
     return parseConfig(j);
 }
-
-}  // namespace delivery::infra
+}

@@ -10,53 +10,39 @@
 #include <vector>
 
 namespace delivery::infra {
-
-// ---------------------------------------------------------------------------
-// Sub-configuraciones, espejo del JSON de la seccion 5 del proyecto.
-// Cada struct agrupa las propiedades de una seccion del JSON.
-// ---------------------------------------------------------------------------
-
 struct MapConfig {
-    std::string imagePath;      // map.image   (ruta relativa al archivo JSON)
-    std::string attribution;    // map.attribution
-    delivery::core::GeoBounds bounds;  // map.bounds
+    std::string imagePath;
+    std::string attribution;
+    delivery::core::GeoBounds bounds;
 };
 
 struct FleetConfig {
-    int couriers = 1;                       // fleet.couriers      (>= 1)
-    int bagCapacity = 1;                    // fleet.bagCapacity   (>= 1)
-    double speedKmh = 0.0;                  // fleet.speedKmh
-    delivery::core::NodeId startNode;       // fleet.startNode
+    int couriers = 1;
+    int bagCapacity = 1;
+    double speedKmh = 0.0;
+    delivery::core::NodeId startNode;
 };
 
 struct OrdersConfig {
-    int meanIntervalMs = 0;   // orders.meanIntervalMs
-    int burstMax = 1;         // orders.burstMax (>= 1)
-    int maxPending = 0;       // orders.maxPending
-    std::uint64_t seed = 0;   // orders.seed (JSON number; puede ser grande)
+    int meanIntervalMs = 0;
+    int burstMax = 1;
+    int maxPending = 0;
+    std::uint64_t seed = 0;
 };
 
 struct DispatchConfig {
-    int quoteTimeoutMs = 0;    // dispatch.quoteTimeoutMs
-    int acceptTimeoutMs = 0;   // dispatch.acceptTimeoutMs
+    int quoteTimeoutMs = 0;
+    int acceptTimeoutMs = 0;
 };
 
 struct IncidentsConfig {
-    double breakdownProbability = 0.0;  // incidents.breakdownProbability (0..1)
+    double breakdownProbability = 0.0;
 };
 
 struct SimulationConfig {
-    int durationS = 0;          // simulation.durationS (0 = hasta senal)
-    double timeScale = 1.0;     // simulation.timeScale
+    int durationS = 0;
+    double timeScale = 1.0;
 };
-
-// ---------------------------------------------------------------------------
-// Config completa del programa.
-//
-// Incluye los datos crudos del JSON mas indices auxiliares construidos por el
-// ConfigLoader tras validar unicidad de IDs. Los indices aceleran las busquedas
-// de id -> posicion en el vector correspondiente durante toda la simulacion.
-// ---------------------------------------------------------------------------
 
 struct Config {
     MapConfig map;
@@ -69,7 +55,6 @@ struct Config {
     IncidentsConfig incidents;
     SimulationConfig simulation;
 
-    // Indices auxiliares (construidos por ConfigLoader).
     std::unordered_map<delivery::core::NodeId,
                        std::size_t,
                        delivery::core::NodeIdHash> nodeIndex;
@@ -80,5 +65,4 @@ struct Config {
                        std::size_t,
                        delivery::core::RestaurantIdHash> restaurantIndex;
 };
-
-}  // namespace delivery::infra
+}

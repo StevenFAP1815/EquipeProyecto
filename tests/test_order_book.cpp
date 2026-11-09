@@ -16,8 +16,6 @@ using namespace delivery;
 using namespace std::chrono_literals;
 
 namespace {
-
-// Helper: crea un pedido con el id dado.
 core::Order makeOrder(const std::string& id) {
     core::Order o;
     o.id = core::OrderId(id);
@@ -27,12 +25,7 @@ core::Order makeOrder(const std::string& id) {
     o.state = core::OrderState::Created;
     return o;
 }
-
-}  // namespace
-
-// ---------------------------------------------------------------------------
-// T1: tryPush respeta maxPending.
-// ---------------------------------------------------------------------------
+}
 
 TEST_CASE("OrderBook: tryPush acepta hasta maxPending y luego rechaza",
           "[orderbook]") {
@@ -51,10 +44,6 @@ TEST_CASE("OrderBook: tryPush acepta hasta maxPending y luego rechaza",
     REQUIRE_FALSE(book.tryPush(makeOrder("o11")));
     REQUIRE(book.rejectedCount() == 2);
 }
-
-// ---------------------------------------------------------------------------
-// T2: waitAndPop devuelve los pedidos en FIFO.
-// ---------------------------------------------------------------------------
 
 TEST_CASE("OrderBook: waitAndPop respeta FIFO", "[orderbook]") {
     concurrency::OrderBook book(10);
@@ -79,10 +68,6 @@ TEST_CASE("OrderBook: waitAndPop respeta FIFO", "[orderbook]") {
     REQUIRE(book.size() == 0);
 }
 
-// ---------------------------------------------------------------------------
-// T3: productor + consumidor, sin perder ni duplicar pedidos.
-// ---------------------------------------------------------------------------
-
 TEST_CASE("OrderBook: productor y consumidor no pierden pedidos",
           "[orderbook][concurrent]") {
     constexpr int kProducers = 4;
@@ -96,7 +81,6 @@ TEST_CASE("OrderBook: productor y consumidor no pierden pedidos",
     std::atomic<std::uint64_t> consumed{0};
     std::atomic<std::uint64_t> nextId{0};
 
-    // Consumidor: saca hasta que se solicite shutdown y la cola este vacia.
     std::thread consumer([&] {
         while (true) {
             auto o = book.waitAndPop(stop);
@@ -105,7 +89,6 @@ TEST_CASE("OrderBook: productor y consumidor no pierden pedidos",
         }
     });
 
-    // Productores.
     std::vector<std::thread> producers;
     producers.reserve(kProducers);
     for (int p = 0; p < kProducers; ++p) {
@@ -124,8 +107,6 @@ TEST_CASE("OrderBook: productor y consumidor no pierden pedidos",
 
     for (auto& t : producers) t.join();
 
-    // Esperar a que el consumidor procese todo lo que pueda.
-    // Le damos tiempo con sleep, pero el shutdown eventual lo hara terminar.
     std::this_thread::sleep_for(100ms);
     stop.requestStop();
     book.wakeAll();
@@ -136,10 +117,6 @@ TEST_CASE("OrderBook: productor y consumidor no pierden pedidos",
     REQUIRE(accepted == consumed + book.size());
     REQUIRE(consumed <= accepted);
 }
-
-// ---------------------------------------------------------------------------
-// T4: shutdown despierta al consumidor bloqueado en waitAndPop.
-// ---------------------------------------------------------------------------
 
 TEST_CASE("OrderBook: wakeAll despierta a waitAndPop tras shutdown",
           "[orderbook][concurrent]") {
@@ -157,7 +134,6 @@ TEST_CASE("OrderBook: wakeAll despierta a waitAndPop tras shutdown",
         }
     });
 
-    // Dar tiempo a que el consumidor entre en waitAndPop.
     std::this_thread::sleep_for(50ms);
 
     stop.requestStop();
@@ -167,10 +143,6 @@ TEST_CASE("OrderBook: wakeAll despierta a waitAndPop tras shutdown",
     REQUIRE(consumerFinished.load(std::memory_order_acquire));
 }
 
-// ---------------------------------------------------------------------------
-// T5: ShutdownToken idempotente.
-// ---------------------------------------------------------------------------
-
 TEST_CASE("ShutdownToken: requestStop es idempotente", "[shutdown]") {
     concurrency::ShutdownToken stop;
     REQUIRE_FALSE(stop.stopRequested());
@@ -178,7 +150,7 @@ TEST_CASE("ShutdownToken: requestStop es idempotente", "[shutdown]") {
     stop.requestStop();
     REQUIRE(stop.stopRequested());
 
-    stop.requestStop();  // No debe romper.
+    stop.requestStop();
     REQUIRE(stop.stopRequested());
 }
 
@@ -200,26 +172,8 @@ TEST_CASE("ShutdownToken: waitForStop retorna tras requestStop",
     REQUIRE(woken.load(std::memory_order_acquire));
 }
 
-// ---------------------------------------------------------------------------
-// T6: reproducibilidad del OrderGenerator.
-// ---------------------------------------------------------------------------
-
 TEST_CASE("OrderGenerator: misma seed produce misma secuencia",
           "[generator][reproducible]") {
-    // Construimos dos libros y dos generadores con la misma seed.
-    // Ejecutamos cada uno brevemente y comparamos los ids generados.
-    // Como los ids vienen del contador atomico, deben coincidir si el
-    // numero de pedidos generados coincide (que depende de la seed).
-
-    // Para evitar dependencia de tiempo, usamos el generador directamente
-    // en modo "un tick": no podemos llamar a run() facilmente en un test
-    // sin hilos. En su lugar, verificamos que dos generadores con la misma
-    // seed produzcan el mismo primer tick.
-
-    // Nota: run() es bloqueante y depende del reloj real. No lo usamos aqui.
-    // Verificamos la reproducibilidad de deriveSeed y de los valores que
-    // produce un mt19937_64 con la misma seed.
-
     const std::uint64_t seed = 42;
     const std::uint64_t s0a = core::deriveSeed(seed, 0);
     const std::uint64_t s0b = core::deriveSeed(seed, 0);
@@ -231,10 +185,6 @@ TEST_CASE("OrderGenerator: misma seed produce misma secuencia",
     const std::uint64_t s2 = core::deriveSeed(seed + 1, 0);
     REQUIRE(s0a != s2);
 }
-
-// ---------------------------------------------------------------------------
-// T7: Order es copiable y movible (Fila 11 del mapa de conceptos).
-// ---------------------------------------------------------------------------
 
 TEST_CASE("Order: tipo seguro de copiar y mover", "[order][type]") {
     static_assert(std::is_copy_constructible<core::Order>::value,
@@ -249,16 +199,12 @@ TEST_CASE("Order: tipo seguro de copiar y mover", "[order][type]") {
                   "Order debe ser nothrow movible");
 
     core::Order o1 = makeOrder("o1");
-    core::Order o2 = o1;                    // copia
+    core::Order o2 = o1;
     REQUIRE(o2.id == o1.id);
 
-    core::Order o3 = std::move(o1);         // movimiento
+    core::Order o3 = std::move(o1);
     REQUIRE(o3.id == core::OrderId("o1"));
 }
-
-// ---------------------------------------------------------------------------
-// T8: estres ligero con muchos productores y consumidores.
-// ---------------------------------------------------------------------------
 
 TEST_CASE("OrderBook: estres con muchos productores y consumidores",
           "[orderbook][concurrent][stress]") {
@@ -302,7 +248,6 @@ TEST_CASE("OrderBook: estres con muchos productores y consumidores",
 
     for (auto& t : producers) t.join();
 
-    // Damos tiempo a los consumidores a vaciar, luego paramos.
     std::this_thread::sleep_for(200ms);
     stop.requestStop();
     book.wakeAll();

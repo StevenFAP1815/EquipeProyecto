@@ -6,7 +6,6 @@
 #include <string>
 
 namespace delivery::core {
-
 namespace {
 constexpr double kPi = 3.14159265358979323846;
 constexpr double kEarthRadiusM = 6371000.0;
@@ -14,7 +13,7 @@ constexpr double kEarthRadiusM = 6371000.0;
 double toRadians(double deg) {
     return deg * kPi / 180.0;
 }
-}  // namespace
+}
 
 GeoBounds::GeoBounds(double north, double south, double west, double east)
     : north_(north), south_(south), west_(west), east_(east) {}
@@ -33,9 +32,7 @@ void GeoBounds::validate() const {
 }
 
 Pixel GeoBounds::toPixel(const LatLon& geo, int width, int height) const {
-    // Normalizamos a [0, 1].
     const double u = (geo.lon - west_) / (east_ - west_);
-    // La latitud crece hacia el norte, el pixel Y crece hacia abajo.
     const double v = (north_ - geo.lat) / (north_ - south_);
 
     Pixel px;
@@ -69,5 +66,4 @@ double GeoBounds::distanceMeters(const LatLon& a, const LatLon& b) {
 
     return kEarthRadiusM * c;
 }
-
-}  // namespace delivery::core
+}

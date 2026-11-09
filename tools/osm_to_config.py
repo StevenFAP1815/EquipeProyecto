@@ -1,20 +1,3 @@
-#!/usr/bin/env python3
-"""
-Genera config/equipetrol.json y data/equipetrol.png desde OpenStreetMap,
-restringido al area definida en data/area.geojson.
-
-Estrategia:
-  1. Cargar poligono de area.geojson.
-  2. Bbox de consulta = bbox del poligono.
-  3. Consultar Overpass con highways principales + residential.
-  4. Filtrar intersecciones/segmentos DENTRO del poligono.
-  5. Componente conexa mayor.
-  6. Submuestreo si hay demasiados.
-  7. PNG con bbox calculado del poligono.
-
-Datos: (c) OpenStreetMap contributors, licencia ODbL.
-"""
-
 import json
 import math
 import sys
@@ -23,10 +6,6 @@ from pathlib import Path
 
 import requests
 from staticmap import StaticMap
-
-# ---------------------------------------------------------------------------
-# Configuracion.
-# ---------------------------------------------------------------------------
 
 IMAGE_WIDTH  = 2560
 IMAGE_HEIGHT = 1706
@@ -45,11 +24,6 @@ MIN_RESTAURANTS = 6
 
 EARTH_RADIUS_M = 6371000.0
 
-
-# ---------------------------------------------------------------------------
-# Geometria.
-# ---------------------------------------------------------------------------
-
 def haversine(lat1, lon1, lat2, lon2):
     phi1, phi2 = math.radians(lat1), math.radians(lat2)
     dphi = math.radians(lat2 - lat1)
@@ -58,9 +32,7 @@ def haversine(lat1, lon1, lat2, lon2):
          + math.cos(phi1) * math.cos(phi2) * math.sin(dlam / 2) ** 2)
     return EARTH_RADIUS_M * 2 * math.asin(min(1.0, math.sqrt(a)))
 
-
 def point_in_polygon(lat, lon, polygon):
-    """Ray-casting. polygon: lista de (lon, lat)."""
     n = len(polygon)
     inside = False
     j = n - 1
@@ -72,7 +44,6 @@ def point_in_polygon(lat, lon, polygon):
             inside = not inside
         j = i
     return inside
-
 
 def load_polygon(path):
     with open(path, encoding="utf-8") as f:
@@ -87,7 +58,6 @@ def load_polygon(path):
         raise ValueError("No es Polygon ni Feature con Polygon")
     return [(lon, lat) for lon, lat in coords]
 
-
 def polygon_bbox(polygon):
     lons = [p[0] for p in polygon]
     lats = [p[1] for p in polygon]
@@ -96,11 +66,9 @@ def polygon_bbox(polygon):
         "west":  min(lons), "east":  max(lons),
     }
 
-
 def mercator_y(lat_deg):
     lat = math.radians(lat_deg)
     return (1 - math.log(math.tan(lat) + 1 / math.cos(lat)) / math.pi) / 2
-
 
 def calculate_zoom_for_bbox(bbox, width, height):
     x_w = (bbox["west"] + 180) / 360
@@ -115,7 +83,6 @@ def calculate_zoom_for_bbox(bbox, width, height):
     zoom_y = math.log2(height / (dy * 256))
     return max(1, min(19, int(min(zoom_x, zoom_y))))
 
-
 def pixel_to_latlon(px, py, zoom, center_lat, center_lon, width, height):
     scale = 256.0 * (2 ** zoom)
     world_x = (center_lon + 180.0) / 360.0 * scale
@@ -127,16 +94,10 @@ def pixel_to_latlon(px, py, zoom, center_lat, center_lon, width, height):
     lat = math.degrees(math.atan(math.sinh(n)))
     return lat, lon
 
-
 def compute_real_bbox(zoom, center_lat, center_lon, width, height):
     nw_lat, nw_lon = pixel_to_latlon(0, 0, zoom, center_lat, center_lon, width, height)
     se_lat, se_lon = pixel_to_latlon(width, height, zoom, center_lat, center_lon, width, height)
     return {"north": nw_lat, "south": se_lat, "west": nw_lon, "east": se_lon}
-
-
-# ---------------------------------------------------------------------------
-# Overpass.
-# ---------------------------------------------------------------------------
 
 def fetch_osm_data(bbox, highway_filter):
     highway_regex = "|".join(highway_filter)
@@ -158,11 +119,6 @@ def fetch_osm_data(bbox, highway_filter):
     r = requests.post(OVERPASS_URL, data={"data": query}, headers=headers, timeout=180)
     r.raise_for_status()
     return r.json()
-
-
-# ---------------------------------------------------------------------------
-# Parseo.
-# ---------------------------------------------------------------------------
 
 def parse_osm(osm):
     nodes = {}
@@ -189,7 +145,6 @@ def parse_osm(osm):
     print(f"[2/7] {len(nodes)} nodos, {len(ways)} vias, {len(amenities)} POIs.",
           file=sys.stderr)
     return nodes, ways, amenities
-
 
 def build_graph(nodes, ways):
     hw_counts = Counter(w["highway"] for w in ways)
@@ -244,7 +199,6 @@ def build_graph(nodes, ways):
     print(f"[4/7] {len(unique)} segmentos unicos.", file=sys.stderr)
     return intersections, unique
 
-
 def filter_by_polygon(intersections, segments, polygon):
     """
     Incluye:
@@ -256,7 +210,6 @@ def filter_by_polygon(intersections, segments, polygon):
     inside = {nid for nid, (lat, lon) in intersections.items()
               if point_in_polygon(lat, lon, polygon)}
 
-    # Nodos de borde: fuera, pero conectados a uno dentro.
     border = set()
     for s in segments:
         if s["from"] in inside and s["to"] not in inside:
@@ -298,11 +251,6 @@ def largest_component(intersections, segments):
           file=sys.stderr)
     return ni, ns
 
-
-# ---------------------------------------------------------------------------
-# Restaurantes y PNG.
-# ---------------------------------------------------------------------------
-
 def pick_restaurants(amenities, intersections):
     valid = [a for a in amenities if a["amenity"] in AMENITY_FILTER]
     if not valid:
@@ -334,13 +282,10 @@ def pick_restaurants(amenities, intersections):
         sys.exit(1)
     return chosen
 
-
 def generate_png(output_path, bbox, polygon, real_bbox_ref):
-    # Calcular zoom para cubrir el bbox COMPLETO del polígono.
-    # No forzamos +1. El zoom calculado ya es el que cubre el bbox.
+
     zoom = calculate_zoom_for_bbox(bbox, IMAGE_WIDTH, IMAGE_HEIGHT)
 
-    # Centroide del polígono (más preciso que el centro del bbox).
     n = len(polygon)
     clat = sum(p[1] for p in polygon) / n
     clon = sum(p[0] for p in polygon) / n
@@ -356,7 +301,6 @@ def generate_png(output_path, bbox, polygon, real_bbox_ref):
     real_bbox_ref.update(compute_real_bbox(zoom, clat, clon,
                                            IMAGE_WIDTH, IMAGE_HEIGHT))
     print(f"  PNG -> {output_path}", file=sys.stderr)
-
 
 def emit_json(intersections, segments, restaurants, real_bbox, output_path):
     osm_to_nid = {}
@@ -406,11 +350,6 @@ def emit_json(intersections, segments, restaurants, real_bbox, output_path):
     print(f"  Resumen: {len(nodes_out)} nodos, {len(streets_out)} calles, "
           f"{len(restaurants_out)} restaurantes.", file=sys.stderr)
 
-
-# ---------------------------------------------------------------------------
-# Main.
-# ---------------------------------------------------------------------------
-
 def attempt(bbox, highway_filter, polygon):
     osm = fetch_osm_data(bbox, highway_filter)
     nodes, ways, amenities = parse_osm(osm)
@@ -418,7 +357,6 @@ def attempt(bbox, highway_filter, polygon):
     intersections, segments = filter_by_polygon(intersections, segments, polygon)
     intersections, segments = largest_component(intersections, segments)
     return intersections, segments, amenities
-
 
 def main():
     repo_root = Path(__file__).resolve().parent.parent
@@ -454,7 +392,6 @@ def main():
     generate_png(png_path, bbox, polygon, real_bbox)
     emit_json(intersections, segments, restaurants, real_bbox, config_path)
     print("OK", file=sys.stderr)
-
 
 if __name__ == "__main__":
     main()

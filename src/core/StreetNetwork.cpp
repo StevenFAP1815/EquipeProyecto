@@ -5,13 +5,9 @@
 #include <utility>
 
 namespace delivery::core {
-
 std::shared_ptr<const StreetNetwork> StreetNetwork::build(const infra::Config& cfg) {
-    // shared_ptr a un objeto no-const durante construccion, luego se
-    // convierte a shared_ptr<const> al retornar.
     auto net = std::shared_ptr<StreetNetwork>(new StreetNetwork());
 
-    // 1. Indexar nodos.
     net->nodeIds_.reserve(cfg.nodes.size());
     net->nodeCoords_.reserve(cfg.nodes.size());
     net->adjacency_.resize(cfg.nodes.size());
@@ -23,12 +19,10 @@ std::shared_ptr<const StreetNetwork> StreetNetwork::build(const infra::Config& c
         net->nodeCoords_.push_back(LatLon{n.lat, n.lon});
     }
 
-    // 2. Construir adyacencias.
     for (const Street& s : cfg.streets) {
         const auto fromIt = net->nodeIndex_.find(s.from);
         const auto toIt = net->nodeIndex_.find(s.to);
         if (fromIt == net->nodeIndex_.end() || toIt == net->nodeIndex_.end()) {
-            // ConfigLoader ya valida esto; si llega aqui, es un bug del loader.
             throw std::runtime_error(
                 "StreetNetwork::build: street '" + s.id.str() +
                 "' references unknown node");
@@ -41,11 +35,9 @@ std::shared_ptr<const StreetNetwork> StreetNetwork::build(const infra::Config& c
         const LatLon b = net->nodeCoords_[iTo];
         const double len = GeoBounds::distanceMeters(a, b);
 
-        // Arista from -> to (siempre).
         net->adjacency_[iFrom].push_back(Edge{s.id, s.to, len});
         ++net->edgeCount_;
 
-        // Arista to -> from (solo si no es oneWay).
         if (!s.oneWay) {
             net->adjacency_[iTo].push_back(Edge{s.id, s.from, len});
             ++net->edgeCount_;
@@ -108,5 +100,4 @@ std::optional<double> StreetNetwork::edgeLength(const NodeId& from,
     }
     return std::nullopt;
 }
-
-}  // namespace delivery::core
+}
