@@ -1,7 +1,7 @@
 # Estado del proyecto
 
 > Qué está hecho, qué falta y qué problemas hay. Se actualiza al cerrar cada etapa.
-> Última actualización: 09/11/2026, Etapa 11 (experimentos).
+> Última actualización: 09/11/2026, Etapa 12 (informe final). **Todas las etapas están terminadas.**
 
 ## Etapas del plan y criterios de la rúbrica
 
@@ -21,7 +21,7 @@ El brief del curso define los criterios **DP.0 a DP.12**. Las **etapas** son el 
 | 9 | Señales SIGINT/SIGTERM y apagado en menos de 5 s | DP.9 | 6 | ✅ Hecho (0,1 s tras la señal, código 0) |
 | 10 | Análisis con herramientas (ThreadSanitizer, AddressSanitizer/LeakSanitizer) | DP.11 + "Sin condiciones de carrera" | 6 + 8 | ✅ Hecho: ver `docs/tools-analysis.md` |
 | 11 | Experimentos y tabla comparativa | DP.10 | 6 | ✅ Hecho: ver `docs/experiments.md` |
-| 12 | Informe final, diagrama de hilos y canales, mapa de conceptos | DP.12 | 6 | 🔶 En curso |
+| 12 | Informe final, diagrama de hilos y canales, mapa de conceptos | DP.12 | 6 | ✅ Hecho: ver `README.md` |
 
 ## Verificaciones (Etapa 3; la Etapa 4 añade el hilo de la ventana)
 
