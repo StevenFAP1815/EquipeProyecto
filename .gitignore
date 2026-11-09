@@ -1,15 +1,18 @@
 # Entornos y binarios
 env/
+__pycache__/
 bin/
-build/
+build*/
 *.exe
 *.dll
 *.o
 *.obj
+
+# Copias de respaldo
+*.bak
 
 # Editor y cache
 .vscode/
 .cache/
 compile_commands.json
 *.tmp
-EOF
