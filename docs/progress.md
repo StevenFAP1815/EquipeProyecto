@@ -1,7 +1,7 @@
 # Estado del proyecto
 
 > Qué está hecho, qué falta y qué problemas hay. Se actualiza al cerrar cada etapa.
-> Última actualización: 09/11/2026, Etapa 4 (ventana).
+> Última actualización: 09/11/2026, Etapa 5 (despachador).
 
 ## Etapas del plan y criterios de la rúbrica
 
@@ -14,7 +14,7 @@ El brief del curso define los criterios **DP.0 a DP.12**. Las **etapas** son el 
 | 2 | Libro de pedidos, señal de apagado, generador de pedidos | DP.2 | 6 | ✅ Hecho (falta el rechazo `unreachable`, Etapa 5) |
 | 3 | Mapa de calles, Dijkstra, reloj simulado, repartidores, flota | DP.1 (ciudad), DP.3 | 6 + 14 | ✅ Hecho |
 | 4 | Ventana con el mapa y los puntos en movimiento (OpenCV) | DP.8 | 6 | ✅ Hecho (faltan las ubicaciones de entrega y los contadores finales, que dependen de las etapas 5 y 8) |
-| 5 | Despachador: estimaciones simultáneas con `future` y límite de tiempo | DP.4 | 8 | ⏳ Siguiente |
+| 5 | Despachador: estimaciones simultáneas con `future` y límite de tiempo; recogida y entrega reales; rechazos `unreachable` y `noCourier` | DP.4 (+ DP.2 `unreachable`) | 8 | ✅ Hecho |
 | 6 | Cupos de recogida en restaurantes (orden de llegada), capacidad de la bolsa | DP.5 | 8 | ⏳ Pendiente |
 | 7 | Averías y transferencia todo-o-nada de pedidos | DP.6 | 8 | ⏳ Pendiente |
 | 8 | Registro de eventos JSON y resumen final exacto | DP.7 | 8 | ⏳ Pendiente (ya existe la línea de inicio) |
@@ -39,7 +39,8 @@ El brief del curso define los criterios **DP.0 a DP.12**. Las **etapas** son el 
 |---|---|---|
 | El mapa no es *fuertemente conexo*: por las calles de un solo sentido, 6 de 34 intersecciones no se alcanzan desde el punto de partida; los restaurantes r1 y r5 son inalcanzables y r3 es un callejón sin salida. | Pedidos imposibles de entregar. | Etapa 5: rechazar esos pedidos con `unreachable`. Más adelante: regenerar el mapa. |
 | La imagen del mapa no muestra el Cuarto Anillo y las intersecciones se concentran entre el Segundo y el Tercer Anillo. | Puede restar puntos en DP.1 ("la ciudad es real"). | Ampliar `data/area.geojson` y regenerar el mapa (después de la Etapa 5). |
-| Los repartidores ya recogen y entregan pedidos, pero el despachador todavía es provisional: asigna cada pedido al primer repartidor libre, sin estimaciones ni rechazos `unreachable`/`noCourier`. Por eso, en el mapa actual, la mayoría de los pedidos terminan como *fallidos* (el repartidor no encuentra ruta). | Pocas entregas. | Etapa 5, segunda parte: despachador real. |
+| Con el mapa actual, casi dos tercios de los pedidos se rechazan como `unreachable` (ejecución de 3600 s simulados: 239 creados, 78 entregados, 157 rechazados, 4 pendientes). La causa es el mapa, no el despachador: 3 de los 6 restaurantes no se alcanzan o son callejones sin salida, y varios nodos de entrega no permiten volver. | Pocas entregas; el comportamiento del despachador es correcto. | Regenerar el mapa con un grafo fuertemente conexo (próximo paso). |
+| Una estimación que llega tarde se ignora, pero el `future` de `std::async` espera a que su hilo termine cuando se destruye, al final de `chooseCourier`. | El despachador puede quedar retenido lo que tarde la estimación más lenta (con el estimador real, microsegundos). El resto del sistema no se detiene. | Documentado en DD-024. Si hiciera falta, reemplazar `std::async` por un grupo fijo de hilos con `promise`. |
 | Varios repartidores quedan atrapados en "Beef And Bunz" (nodo `n18`, callejón sin salida). | Se ve en la ventana: confirma el problema de conectividad del mapa. | Etapa 5 (`unreachable`) y regeneración del mapa. |
 | Con la ventana abierta en Ubuntu (WSL), ThreadSanitizer reporta 5 avisos **dentro de Qt y dbus**, bibliotecas del sistema que OpenCV usa para la ventana. En los dos accesos de cada aviso, la memoria es de Qt y uno de los hilos lo crea Qt (`QDBusConnection`); ningún dato del proyecto está involucrado. Sin ventana (tests), 0 avisos. | La rúbrica pide 0 reportes de TSan. | Etapa 10: analizarlo a fondo; opciones: archivo de supresiones de TSan limitado a Qt/dbus (documentado y justificado, como pide DP.11) o usar OpenCV con otro backend de ventanas. |
 | `--log <ruta>` aparece en el mensaje de uso pero aún no está implementado. | — | Etapa 8, junto con el registro de eventos. |

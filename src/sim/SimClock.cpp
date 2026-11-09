@@ -12,13 +12,16 @@ std::int64_t SimClock::nowMs() const noexcept {
     return static_cast<std::int64_t>(elapsedRealMs * timeScale_);
 }
 
+std::chrono::steady_clock::time_point SimClock::realTimeAt(std::int64_t simMs) const {
+    const std::chrono::duration<double, std::milli> realOffset(
+        static_cast<double>(simMs) / timeScale_);
+    return startReal_ +
+           std::chrono::duration_cast<std::chrono::steady_clock::duration>(realOffset);
+}
+
 bool SimClock::waitUntilMs(std::int64_t targetMs,
                            concurrency::ShutdownToken& stop) {
-    const std::chrono::duration<double, std::milli> realOffset(
-        static_cast<double>(targetMs) / timeScale_);
-    const auto deadline =
-        startReal_ +
-        std::chrono::duration_cast<std::chrono::steady_clock::duration>(realOffset);
+    const auto deadline = realTimeAt(targetMs);
 
     std::unique_lock<std::mutex> lock(mutex_);
     cv_.wait_until(lock, deadline, [&stop] { return stop.stopRequested(); });

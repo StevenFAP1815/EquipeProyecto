@@ -256,6 +256,31 @@ Formato: contexto, alternativas, decisión, justificación, consecuencias.
   descargada es exactamente la esperada.
 - Consecuencias: el README documenta la variable de entorno.
 
+## DD-024: Despachador con std::async y un limite comun de espera
+- Etapa: 5
+- Contexto: el brief exige que las estimaciones de un pedido se calculen al
+  mismo tiempo, que se esperen como maximo quoteTimeoutMs, que las tardias
+  se ignoren y que un error llegue al despachador sin tumbar el programa.
+- Alternativas: std::thread + promise por estimacion; grupo fijo de hilos
+  con cola de trabajos y promise; std::async(std::launch::async).
+- Decision: std::async(std::launch::async) por candidato; todos los future
+  se esperan con wait_until contra una misma hora limite; get() dentro de
+  try/catch. Candidatos: los repartidores libres mas cercanos al
+  restaurante, como maximo max(2, hardware_concurrency).
+- Justificacion: es la forma mas simple y legible de "tarea que devuelve un
+  resultado o una excepcion". La hora limite comun asegura que la espera
+  total no supera quoteTimeoutMs.
+- Consecuencias: el destructor de un future de std::async espera a que su
+  hilo termine; una estimacion tardia se ignora pero retiene al despachador
+  hasta que acaba (con el estimador real: microsegundos). Los demas hilos no
+  se detienen. Si fuera un problema, se cambiaria a un grupo fijo de hilos
+  con promise.
+- Reglas de rechazo: unreachable si no hay ruta inicio->restaurante,
+  restaurante->cliente o cliente->inicio (un repartidor no debe quedar
+  atrapado tras entregar); noCourier si nadie acepta antes de
+  createdAtMs + acceptTimeoutMs (tiempo simulado). Mientras tanto el
+  despachador duerme en freedSignal hasta que se libere un repartidor.
+
 ## DD-023: Codigo sin comentarios
 - Etapa: 3
 - Contexto: el docente pidio que los modulos no tengan comentarios, porque

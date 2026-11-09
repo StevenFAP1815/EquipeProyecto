@@ -3,6 +3,7 @@
 #include <delivery/concurrency/OrderBook.hpp>
 #include <delivery/concurrency/ShutdownToken.hpp>
 #include <delivery/infra/Config.hpp>
+#include <delivery/sim/Dispatcher.hpp>
 #include <delivery/sim/Fleet.hpp>
 #include <delivery/sim/SimClock.hpp>
 
@@ -18,6 +19,7 @@ public:
     Renderer(const infra::Config& config,
              const std::filesystem::path& imagePath,
              const sim::Fleet& fleet,
+             const sim::Dispatcher& dispatcher,
              const concurrency::OrderBook& book,
              const std::atomic<std::uint64_t>& createdOrders,
              sim::SimClock& clock,
@@ -37,6 +39,7 @@ private:
 
     const infra::Config& config_;
     const sim::Fleet& fleet_;
+    const sim::Dispatcher& dispatcher_;
     const concurrency::OrderBook& book_;
     const std::atomic<std::uint64_t>& createdOrders_;
     sim::SimClock& clock_;

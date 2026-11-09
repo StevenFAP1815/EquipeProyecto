@@ -17,6 +17,7 @@ add_executable(delivery_tests
     test_shutdown.cpp
     test_generator_and_courier.cpp
     test_street_network.cpp
+    test_dispatcher.cpp
 )
 
 target_link_libraries(delivery_tests PRIVATE
