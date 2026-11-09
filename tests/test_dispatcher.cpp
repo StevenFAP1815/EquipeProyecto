@@ -35,6 +35,9 @@ infra::Config makeConfig(int couriers, int quoteTimeoutMs, int acceptTimeoutMs) 
         core::Street{core::StreetId("s2"), core::NodeId("n2"), core::NodeId("n3"), false},
         core::Street{core::StreetId("s3"), core::NodeId("n3"), core::NodeId("n4"), true},
     };
+    cfg.restaurants = {
+        core::Restaurant{core::RestaurantId("r0"), "R0", core::NodeId("n1"), 2, {0, 0}},
+    };
     cfg.fleet.couriers = couriers;
     cfg.fleet.speedKmh = 30.0;
     cfg.fleet.startNode = core::NodeId("n0");
@@ -76,6 +79,7 @@ struct Harness {
     void pushOrder(const char* id, const char* restaurantNode, const char* deliveryNode) {
         core::Order o;
         o.id = core::OrderId(id);
+        o.restaurant = core::RestaurantId("r0");
         o.restaurantNode = core::NodeId(restaurantNode);
         o.deliveryNode = core::NodeId(deliveryNode);
         o.createdAtMs = clock.nowMs();

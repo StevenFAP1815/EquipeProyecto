@@ -71,6 +71,7 @@ El código está organizado en **capas**. Cada capa solo usa las capas de más a
 |---|---|
 | `OrderBook` | El **libro de pedidos**: una fila de pedidos en espera, con capacidad máxima. Un hilo deja pedidos y otro los saca; si no hay pedidos, el que saca **espera dormido** sin gastar procesador. |
 | `ShutdownToken` | La **señal de apagado**: una bandera que todos los hilos consultan para saber cuándo terminar. |
+| `PickupDesk` | El **mostrador de un restaurante**: tiene un número limitado de lugares para recoger comida. Cada repartidor que llega toma un número, como en una panadería, y espera su turno y un lugar libre. Así se atiende en orden de llegada y nunca hay más repartidores recogiendo que lugares. |
 | `ChangeSignal` | Un **aviso de "algo cambió"**: un hilo puede dormir hasta que otro avise. Lo usan los repartidores para avisar "quedé libre" a quien reparte los pedidos. |
 
 ### `sim/` — los actores

@@ -71,10 +71,17 @@ core::Order makeOrder(const char* id, const char* restaurantNode,
                       const char* deliveryNode, std::int64_t readyAtMs) {
     core::Order o;
     o.id = core::OrderId(id);
+    o.restaurant = core::RestaurantId("r0");
     o.restaurantNode = core::NodeId(restaurantNode);
     o.deliveryNode = core::NodeId(deliveryNode);
     o.readyAtMs = readyAtMs;
     return o;
+}
+
+sim::PickupDeskMap makeDesks() {
+    sim::PickupDeskMap desks;
+    desks.emplace(core::RestaurantId("r0"), std::make_unique<concurrency::PickupDesk>(1));
+    return desks;
 }
 
 infra::Config makeOneWayLine() {
@@ -123,7 +130,8 @@ TEST_CASE("Courier: recoge en el restaurante y entrega en el destino",
     concurrency::ShutdownToken stop;
     concurrency::ChangeSignal freed;
     sim::SimClock clock(5000.0);
-    sim::Courier courier(core::CourierId("c0"), network, clock, stop, freed, 30.0,
+    const sim::PickupDeskMap desks = makeDesks();
+    sim::Courier courier(core::CourierId("c0"), network, clock, stop, freed, desks, 30.0,
                          core::NodeId("n0"));
     std::thread worker([&courier] { courier.run(); });
 
@@ -155,7 +163,8 @@ TEST_CASE("Courier: espera en el restaurante hasta que la comida esta lista",
     concurrency::ShutdownToken stop;
     concurrency::ChangeSignal freed;
     sim::SimClock clock(5000.0);
-    sim::Courier courier(core::CourierId("c0"), network, clock, stop, freed, 30.0,
+    const sim::PickupDeskMap desks = makeDesks();
+    sim::Courier courier(core::CourierId("c0"), network, clock, stop, freed, desks, 30.0,
                          core::NodeId("n1"));
     std::thread worker([&courier] { courier.run(); });
 
@@ -174,8 +183,9 @@ TEST_CASE("Courier: el segundo pedido parte desde donde termino el primero",
     auto network = core::StreetNetwork::build(cfg.nodes, cfg.streets);
     concurrency::ShutdownToken stop;
     concurrency::ChangeSignal freed;
-    sim::SimClock clock(2000.0);
-    sim::Courier courier(core::CourierId("c0"), network, clock, stop, freed, 30.0,
+    sim::SimClock clock(500.0);
+    const sim::PickupDeskMap desks = makeDesks();
+    sim::Courier courier(core::CourierId("c0"), network, clock, stop, freed, desks, 30.0,
                          core::NodeId("n0"));
     std::thread worker([&courier] { courier.run(); });
 
@@ -205,7 +215,8 @@ TEST_CASE("Courier: un pedido sin ruta posible cuenta como fallido y libera al r
     concurrency::ShutdownToken stop;
     concurrency::ChangeSignal freed;
     sim::SimClock clock(5000.0);
-    sim::Courier courier(core::CourierId("c0"), network, clock, stop, freed, 30.0,
+    const sim::PickupDeskMap desks = makeDesks();
+    sim::Courier courier(core::CourierId("c0"), network, clock, stop, freed, desks, 30.0,
                          core::NodeId("n3"));
     std::thread worker([&courier] { courier.run(); });
 

@@ -61,6 +61,7 @@ add_library(delivery_core STATIC
     src/infra/ConfigLoader.cpp
     src/concurrency/ShutdownToken.cpp
     src/concurrency/ChangeSignal.cpp
+    src/concurrency/PickupDesk.cpp
     src/concurrency/OrderBook.cpp
     src/sim/SimClock.cpp
     src/sim/OrderGenerator.cpp
