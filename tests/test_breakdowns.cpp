@@ -91,7 +91,7 @@ struct FleetHarness {
         std::shared_lock<std::shared_mutex> snapshot(fleet->transferMutex());
         std::uint64_t total = 0;
         for (const auto& c : fleet->couriers()) {
-            total += c->ordersInBag() + c->deliveredCount();
+            total += c->ordersHandled();
         }
         return total;
     }

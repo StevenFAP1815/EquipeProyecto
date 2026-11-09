@@ -100,6 +100,7 @@ public:
     std::vector<core::NodeId> deliveryNodesInBag() const;
     std::int64_t latestReadyAtMs() const;
     std::size_t ordersInBag() const;
+    std::uint64_t ordersHandled() const;
     std::uint64_t deliveredCount() const;
     std::uint64_t failedCount() const;
     std::uint64_t breakdownCount() const;

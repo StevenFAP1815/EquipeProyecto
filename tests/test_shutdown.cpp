@@ -127,3 +127,17 @@ TEST_CASE("Fleet: un repartidor en movimiento termina al pedir el apagado",
     auto joined = std::async(std::launch::async, [&] { fleet.join(); });
     REQUIRE(joined.wait_for(2s) == std::future_status::ready);
 }
+
+TEST_CASE("ShutdownToken: waitForStopUntil vence a la hora limite o despierta con el apagado",
+          "[shutdown][concurrent]") {
+    concurrency::ShutdownToken stop;
+    REQUIRE_FALSE(stop.waitForStopUntil(std::chrono::steady_clock::now() + 20ms));
+
+    auto waiter = std::async(std::launch::async, [&] {
+        return stop.waitForStopUntil(std::chrono::steady_clock::now() + 60s);
+    });
+    std::this_thread::sleep_for(20ms);
+    stop.requestStop();
+    REQUIRE(waiter.wait_for(2s) == std::future_status::ready);
+    REQUIRE(waiter.get());
+}

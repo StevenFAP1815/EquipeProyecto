@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <mutex>
 
@@ -17,6 +18,8 @@ public:
     bool stopRequested() const noexcept;
 
     void waitForStop();
+
+    bool waitForStopUntil(std::chrono::steady_clock::time_point deadline);
 
 private:
     std::mutex mutex_;

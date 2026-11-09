@@ -362,6 +362,28 @@ Formato: contexto, alternativas, decisión, justificación, consecuencias.
 - Consecuencias: tools/check_event_log.py verifica cada ejecucion con las
   reglas de las secciones 4 y 6.
 
+## DD-029: Senales con un atomico y espera de main con limite de 100 ms
+- Etapa: 9 (implementa DD-004)
+- Contexto: SIGINT/SIGTERM deben detener todo en menos de 5 s. Un manejador
+  de senales en C++ solo puede tocar atomicos sin candado: no puede tomar un
+  mutex ni notificar una condition_variable (si la senal llega mientras ese
+  hilo tiene el mutex, el programa se traba).
+- Alternativas: sigwait en un hilo dedicado (solo POSIX, no existe en
+  Windows, donde se evalua el proyecto); self-pipe (dependiente de
+  plataforma); manejador que solo escribe un std::atomic<int> y main que lo
+  revisa al despertar.
+- Decision: std::signal(SIGINT/SIGTERM) con un manejador que hace
+  receivedSignal.store(n) (static_assert de que el atomico es lock-free).
+  main espera con ShutdownToken::waitForStopUntil en tramos de 100 ms,
+  limitados ademas por el fin de la duracion. Termina por duracion, senal o
+  apagado pedido (ESC / cerrar ventana despiertan al instante).
+- Justificacion: es portable y respeta las reglas de los manejadores. Es la
+  unica espera con revision periodica del programa: 10 revisiones por
+  segundo, CPU despreciable, reaccion en menos de 0,1 s.
+- Consecuencias: medido en Ubuntu: SIGINT y SIGTERM (a los 3 s, justo al
+  empezar y durante averias) terminan con codigo 0 en unos 0,12 s y el
+  registro pasa tools/check_event_log.py.
+
 ## DD-023: Codigo sin comentarios
 - Etapa: 3
 - Contexto: el docente pidio que los modulos no tengan comentarios, porque

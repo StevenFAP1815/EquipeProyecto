@@ -54,7 +54,7 @@ EquipeProyecto/
 
 | Hilo | Qué ejecuta | Sobre qué itera | Cómo espera | Quién lo crea / lo une |
 |---|---|---|---|---|
-| `main` | `main()` | — | `SimClock::waitUntilMs(duración)` | — |
+| `main` | `main()` | — | `ShutdownToken::waitForStopUntil` en tramos de 100 ms: termina por duración, señal (SIGINT/SIGTERM) o apagado pedido por la ventana | — |
 | `tProducer` | `OrderGenerator::run` | Un pedido (o una ráfaga) por intervalo aleatorio | `SimClock::waitUntilMs(próximo pedido)` | `main` / `main` |
 | `tDispatcher` | `Dispatcher::run` | Cada pedido del libro: comprueba que sea alcanzable, pide estimaciones y asigna | `OrderBook::waitAndPop` (CV), `future::wait_until(quoteTimeoutMs)` y, si no hay repartidor, `freedSignal.waitForChange` hasta `acceptTimeoutMs` | `main` / `main` |
 | estimación (temporal, hasta `max(2, hardware_concurrency)` por pedido) | `Dispatcher::estimateDeliveryMs` vía `std::async(std::launch::async, …)` | Una sola estimación: Dijkstra repartidor→restaurante y restaurante→cliente | No espera: calcula y termina | `std::async` / el destructor del `future` en `chooseCourier` |

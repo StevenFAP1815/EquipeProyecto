@@ -10,7 +10,10 @@
 #include <delivery/sim/SimClock.hpp>
 #include <delivery/viz/Renderer.hpp>
 
+#include <algorithm>
 #include <atomic>
+#include <chrono>
+#include <csignal>
 #include <cstdint>
 #include <filesystem>
 #include <iostream>
@@ -19,6 +22,34 @@
 #include <thread>
 
 namespace {
+constexpr auto kSignalCheckInterval = std::chrono::milliseconds(100);
+
+std::atomic<int> receivedSignal{0};
+static_assert(std::atomic<int>::is_always_lock_free,
+              "the signal handler may only touch lock-free atomics");
+
+void onSignal(int signalNumber) {
+    receivedSignal.store(signalNumber);
+}
+
+void waitForEndOfSimulation(const delivery::infra::Config& cfg,
+                            delivery::sim::SimClock& clock,
+                            delivery::concurrency::ShutdownToken& stop) {
+    const bool hasDuration = cfg.simulation.durationS > 0;
+    const std::int64_t endMs = static_cast<std::int64_t>(cfg.simulation.durationS) * 1000;
+
+    while (!stop.stopRequested() && receivedSignal.load() == 0) {
+        auto deadline = std::chrono::steady_clock::now() + kSignalCheckInterval;
+        if (hasDuration) {
+            if (clock.nowMs() >= endMs) {
+                return;
+            }
+            deadline = std::min(deadline, clock.realTimeAt(endMs));
+        }
+        stop.waitForStopUntil(deadline);
+    }
+}
+
 struct Arguments {
     std::filesystem::path configPath;
     std::filesystem::path logPath = "events.log";
@@ -67,6 +98,9 @@ int main(int argc, char** argv) {
         sim::Dispatcher dispatcher(cfg, network, book, fleet, clock, freedSignal, stop, log);
         viz::Renderer renderer(cfg, imagePath, fleet, book, log, clock, stop);
 
+        std::signal(SIGINT, onSignal);
+        std::signal(SIGTERM, onSignal);
+
         fleet.start();
         std::thread tProducer([&generator] {
             generator.run();
@@ -80,13 +114,7 @@ int main(int argc, char** argv) {
 
         std::cout << "Simulation has started..." << std::endl;
 
-        if (cfg.simulation.durationS > 0) {
-            const std::int64_t durationMs =
-                static_cast<std::int64_t>(cfg.simulation.durationS) * 1000;
-            clock.waitUntilMs(durationMs, stop);
-        } else {
-            stop.waitForStop();
-        }
+        waitForEndOfSimulation(cfg, clock, stop);
 
         stop.requestStop();
         log.simulationStopping(clock.nowMs());
