@@ -4,7 +4,7 @@ Simulación concurrente de despacho de pedidos de comida sobre la Zona Equipetro
 
 Varios hilos trabajan al mismo tiempo: un generador de pedidos, un hilo por cada motociclista repartidor y, en próximas etapas, un despachador y una ventana que dibuja el mapa en vivo.
 
-> **Estado:** Etapa 8 (registro de eventos y resumen) terminada. Qué está hecho, qué falta y los problemas conocidos están en [`docs/progress.md`](docs/progress.md).
+> **Estado:** Etapa 9 (señales y apagado) terminada. Qué está hecho, qué falta y los problemas conocidos están en [`docs/progress.md`](docs/progress.md).
 
 ## Documentación
 
@@ -48,7 +48,7 @@ ThreadSanitizer no existe para el compilador de MSYS2, por eso se ejecuta en **U
 
 El programa imprime `Simulation has started...` cuando todos los hilos están en marcha y un resumen JSON al terminar. Con una configuración inválida muestra un mensaje en stderr y sale con código distinto de cero, sin simular.
 
-Se abre una ventana con el mapa y los repartidores en movimiento. Pulsar ESC o cerrar la ventana termina la simulación de forma ordenada.
+Se abre una ventana con el mapa y los repartidores en movimiento. Pulsar ESC, cerrar la ventana, Ctrl+C (SIGINT) o SIGTERM termina la simulación de forma ordenada: deja de crear pedidos, registra `simulationStopping`, une todos los hilos, imprime el resumen y sale con código 0. Con `"durationS": 0` la simulación corre hasta recibir una señal.
 
 ## Tests
 

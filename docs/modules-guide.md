@@ -92,7 +92,7 @@ El código está organizado en **capas**. Cada capa solo usa las capas de más a
 
 ### `main.cpp` — el director de orquesta
 
-Lee la configuración, crea todos los módulos, arranca los hilos, espera el tiempo de simulación y luego detiene todo **en orden**, sin dejar ningún hilo abandonado.
+Lee la configuración, crea todos los módulos, arranca los hilos, espera a que se acabe el tiempo o llegue una señal de parada (Ctrl+C, SIGTERM o cerrar la ventana) y luego detiene todo **en orden**, sin dejar ningún hilo abandonado.
 
 ## Las pruebas (`tests/`)
 

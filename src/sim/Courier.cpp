@@ -140,6 +140,11 @@ std::size_t Courier::ordersInBag() const {
     return bag_.size();
 }
 
+std::uint64_t Courier::ordersHandled() const {
+    std::lock_guard<std::mutex> lock(stateMutex_);
+    return bag_.size() + delivered_ + failed_;
+}
+
 std::uint64_t Courier::deliveredCount() const {
     std::lock_guard<std::mutex> lock(stateMutex_);
     return delivered_;
