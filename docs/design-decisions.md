@@ -281,6 +281,26 @@ Formato: contexto, alternativas, decisión, justificación, consecuencias.
   createdAtMs + acceptTimeoutMs (tiempo simulado). Mientras tanto el
   despachador duerme en freedSignal hasta que se libere un repartidor.
 
+## DD-025: Mapa de avenidas fuertemente conexo
+- Etapa: 5 (regeneracion del mapa)
+- Contexto: el mapa anterior no era fuertemente conexo (restaurantes
+  inalcanzables, callejones sin salida) y no llegaba al Cuarto Anillo.
+- Alternativas: corregir el JSON a mano; incluir todas las calles
+  (cientos de nodos); solo avenidas.
+- Decision: area rectangular del 2.do al 4.to Anillo; solo vias trunk,
+  primary y secondary; interseccion = nodo OSM con 3 o mas vecinos; tramos
+  recorridos de interseccion a interseccion aunque cambie el "way" de OSM;
+  dos vias de un sentido opuestas entre las mismas intersecciones = calle
+  de doble mano; se conserva la componente fuertemente conexa mas grande;
+  puntos intermedios en las curvas (Douglas-Peucker, tolerancia 12 m) para
+  que las motos no crucen manzanas.
+- Justificacion: tamano moderado y legible (83 intersecciones, 138 nodos,
+  181 calles) que cumple los minimos (25 / 40 / 6); cero pedidos
+  unreachable por culpa del mapa.
+- Consecuencias: los clientes estan sobre avenidas. La configuracion pasa a
+  15 repartidores y un pedido por minuto (experimento 00). El script guarda
+  la respuesta de Overpass en tools/.cache/ (ignorada por Git).
+
 ## DD-023: Codigo sin comentarios
 - Etapa: 3
 - Contexto: el docente pidio que los modulos no tengan comentarios, porque

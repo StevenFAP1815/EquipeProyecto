@@ -37,11 +37,9 @@ El brief del curso define los criterios **DP.0 a DP.12**. Las **etapas** son el 
 
 | Problema | Impacto | Plan |
 |---|---|---|
-| El mapa no es *fuertemente conexo*: por las calles de un solo sentido, 6 de 34 intersecciones no se alcanzan desde el punto de partida; los restaurantes r1 y r5 son inalcanzables y r3 es un callejón sin salida. | Pedidos imposibles de entregar. | Etapa 5: rechazar esos pedidos con `unreachable`. Más adelante: regenerar el mapa. |
-| La imagen del mapa no muestra el Cuarto Anillo y las intersecciones se concentran entre el Segundo y el Tercer Anillo. | Puede restar puntos en DP.1 ("la ciudad es real"). | Ampliar `data/area.geojson` y regenerar el mapa (después de la Etapa 5). |
-| Con el mapa actual, casi dos tercios de los pedidos se rechazan como `unreachable` (ejecución de 3600 s simulados: 239 creados, 78 entregados, 157 rechazados, 4 pendientes). La causa es el mapa, no el despachador: 3 de los 6 restaurantes no se alcanzan o son callejones sin salida, y varios nodos de entrega no permiten volver. | Pocas entregas; el comportamiento del despachador es correcto. | Regenerar el mapa con un grafo fuertemente conexo (próximo paso). |
+| El mapa solo modela avenidas (troncales, primarias y secundarias): los clientes se ubican sobre ellas, no en calles interiores. | Decisión deliberada para mantener un mapa moderado y legible (138 nodos, 181 calles). | — |
+| El resultado final (entregados, rechazados) varía entre ejecuciones con la misma semilla. Ejemplo con el mapa nuevo: 57 / 18 / 24 en Windows y 74 / 3 / 22 en Ubuntu. Los **pedidos generados** sí son idénticos. | Normal en un sistema concurrente: el orden en que el sistema operativo da turno a los hilos cambia los tiempos. El brief exige reproducibilidad en la **generación** (DP.2), y se cumple (test de reproducibilidad). | Explicarlo en el informe; en la Etapa 11 repetir cada experimento varias veces. |
 | Una estimación que llega tarde se ignora, pero el `future` de `std::async` espera a que su hilo termine cuando se destruye, al final de `chooseCourier`. | El despachador puede quedar retenido lo que tarde la estimación más lenta (con el estimador real, microsegundos). El resto del sistema no se detiene. | Documentado en DD-024. Si hiciera falta, reemplazar `std::async` por un grupo fijo de hilos con `promise`. |
-| Varios repartidores quedan atrapados en "Beef And Bunz" (nodo `n18`, callejón sin salida). | Se ve en la ventana: confirma el problema de conectividad del mapa. | Etapa 5 (`unreachable`) y regeneración del mapa. |
 | Con la ventana abierta en Ubuntu (WSL), ThreadSanitizer reporta 5 avisos **dentro de Qt y dbus**, bibliotecas del sistema que OpenCV usa para la ventana. En los dos accesos de cada aviso, la memoria es de Qt y uno de los hilos lo crea Qt (`QDBusConnection`); ningún dato del proyecto está involucrado. Sin ventana (tests), 0 avisos. | La rúbrica pide 0 reportes de TSan. | Etapa 10: analizarlo a fondo; opciones: archivo de supresiones de TSan limitado a Qt/dbus (documentado y justificado, como pide DP.11) o usar OpenCV con otro backend de ventanas. |
 | `--log <ruta>` aparece en el mensaje de uso pero aún no está implementado. | — | Etapa 8, junto con el registro de eventos. |
 | En Windows, SIGTERM no lo envía el sistema operativo. | Solo se puede probar con Ctrl+C (SIGINT). | Etapa 9: probar SIGTERM en Ubuntu (WSL) y documentarlo. |
@@ -55,3 +53,15 @@ El brief del curso define los criterios **DP.0 a DP.12**. Las **etapas** son el 
 | Compilación con los comandos exactos del brief | En Windows, CMake usaba Ninja por defecto, así que `cmake .. && make` fallaba. Además, `cmake ..` tardaba más de 15 minutos porque descargaba repositorios completos. Se corrigió con la variable `CMAKE_GENERATOR` y descargando archivos comprimidos con hash. |
 | Mapa | El script que genera el mapa conservaba intersecciones mirando las calles como si fueran de doble sentido; con los sentidos reales, parte del mapa queda aislada. Se detectó tarde porque el cargador no comprueba la conectividad. |
 | Archivo de tests de la Etapa 3 | Nunca se subió a Git y se perdió; hubo que reescribirlo. Lección: hacer *commit* en cuanto los tests funcionan. |
+| Regenerar el mapa | Los servidores públicos de OpenStreetMap (Overpass) fallaron varias veces seguidas (errores 502/504 y tiempos de espera agotados). El script ahora prueba tres servidores con reintentos y guarda la respuesta en `tools/.cache/` para no repetir la descarga. |
+
+## Mapa (regenerado tras la Etapa 5)
+
+| | Antes | Ahora |
+|---|---|---|
+| Zona | Entre el 2.º y el 3.er Anillo | Del 2.º al 4.º Anillo, con la Av. San Martín |
+| Intersecciones / nodos / calles | 34 / 34 / 40 | 83 intersecciones, 138 nodos (con puntos en curvas) / 181 calles |
+| Conectividad | 6 nodos inalcanzables, 3 sumideros | Fuertemente conexo: desde cualquier nodo se llega a cualquier otro |
+| Restaurantes alcanzables | 3 de 6 | 6 de 6 |
+| Rechazos `unreachable` (3600 s) | 113 o más | 0 |
+| Configuración | 8 repartidores, un pedido cada 20 s | 15 repartidores, un pedido por minuto (ver `experiments/00-carga-del-mapa/`) |
