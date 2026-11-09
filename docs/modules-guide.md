@@ -105,6 +105,7 @@ Programas que ejecutan cada módulo con casos conocidos y comprueban el resultad
 |---|---|
 | `osm_to_config.py` | Descarga las avenidas y restaurantes reales de OpenStreetMap dentro de `data/area.geojson` (del 2.º al 4.º Anillo), se queda solo con la parte del mapa donde se puede ir y volver entre cualquier par de puntos respetando los sentidos, añade puntos en las curvas para que las motos sigan la calle, y genera `config/equipetrol.json` y la imagen del mapa. |
 | `check_event_log.py` | Revisa un registro de eventos y el resumen: cada línea es JSON válido, cada pedido sigue el orden de estados y termina en un solo estado final, ningún pedido está en manos de dos repartidores y las cuentas coinciden. |
+| `run_experiment.py` | Repite la simulación cambiando un solo parámetro (por ejemplo, la cantidad de repartidores) con varias semillas, guarda los datos de cada ejecución y arma la tabla comparativa. |
 | `run_with_signal.sh` | Ejecuta la simulación, espera la línea de inicio y envía Ctrl+C (SIGINT) a los N segundos, guardando todas las salidas. Se usa para el análisis con herramientas. |
 | `tsan_canary.cpp` | Programa mínimo con una condición de carrera a propósito: demuestra que las supresiones de ThreadSanitizer no esconden errores del proyecto. |
 | `verify_alignment.py` | Dibuja las calles del JSON sobre la imagen para comprobar visualmente que coinciden. |
