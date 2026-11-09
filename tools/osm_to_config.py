@@ -362,7 +362,7 @@ def emit_json(nodes, graph_nodes, edges, junctions, restaurants, bounds, output_
         "fleet": {"couriers": 15, "bagCapacity": 3, "speedKmh": 30, "startNode": ids[start]},
         "orders": {"meanIntervalMs": 60000, "burstMax": 12, "maxPending": 50, "seed": 42},
         "dispatch": {"quoteTimeoutMs": 200, "acceptTimeoutMs": 600000},
-        "incidents": {"breakdownProbability": 0.02},
+        "incidents": {"breakdownProbability": 0.1},
         "simulation": {"durationS": 3600, "timeScale": 60},
     }
     with open(output_path, "w", encoding="utf-8") as f:

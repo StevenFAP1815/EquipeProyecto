@@ -384,6 +384,26 @@ Formato: contexto, alternativas, decisión, justificación, consecuencias.
   empezar y durante averias) terminan con codigo 0 en unos 0,12 s y el
   registro pasa tools/check_event_log.py.
 
+## DD-030: Analisis con TSan y ASan, supresiones solo para Qt/dbus
+- Etapa: 10
+- Contexto: DP.11 pide una herramienta de memoria y una de carreras sobre
+  una ejecucion completa con rafagas, averias y apagado por senal. Con la
+  ventana abierta, TSan reporta 5-6 avisos dentro de libQt5Core y libdbus.
+- Alternativas: Valgrind (Memcheck/Helgrind) frente a AddressSanitizer;
+  dejar los avisos de Qt explicados o suprimirlos.
+- Decision: AddressSanitizer + LeakSanitizer (ENABLE_ASAN) para memoria,
+  sin instalar nada y lo bastante rapido para la ejecucion completa en
+  tiempo real. Para TSan, __tsan_default_suppressions() en
+  src/analysis/tsan_default_suppressions.cpp (solo con ENABLE_TSAN):
+  race:libQt5Core.so, race:libdbus-1.so, deadlock:libdbus-1.so.
+- Justificacion: los avisos son falsos positivos de bibliotecas no
+  instrumentadas (memoria e hilos de Qt). Un "canario" con una carrera
+  propia, compilado con las mismas supresiones, sigue reportandose.
+  breakdownProbability de config/equipetrol.json pasa de 0,02 a 0,1 para
+  que la ejecucion analizada incluya averias.
+- Consecuencias: informe en docs/tools-analysis.md y salidas sin editar en
+  analysis/raw/. Ejecutado con tools/run_with_signal.sh.
+
 ## DD-023: Codigo sin comentarios
 - Etapa: 3
 - Contexto: el docente pidio que los modulos no tengan comentarios, porque

@@ -71,7 +71,8 @@ EquipeProyecto/
 | `PickupDesk` (uno por restaurante, creado por `Fleet`) | repartidor ↔ repartidores del mismo restaurante | Monitor con tickets: `enter()` da un número de llegada y espera turno y cupo; `leave()` libera el cupo. FIFO y nunca más de `pickupSlots` |
 | `std::promise<bool>` / `std::future<bool>` de rescate | rescatista → repartidor averiado | Canal de un solo uso: "ya tengo tus pedidos" (o `false` si se apaga) |
 | `Fleet::transferMutex` (`std::shared_mutex`) | transferencias ↔ observadores | Exclusivo al transferir una bolsa; compartido al contar o dibujar |
-| `EventLog` | todos los hilos → archivo de eventos | Monitor: cada método arma la línea, toma `mutex_`, la escribe completa y actualiza las cuentas | Monitor del repartidor: `stateMutex_` + `cv_` |
+| `EventLog` | todos los hilos → archivo de eventos | Monitor: cada método arma la línea, toma `mutex_`, la escribe completa y actualiza las cuentas |
+| `Courier::tryAssign` | despachador → repartidor | Monitor del repartidor: `stateMutex_` + `cv_` |
 | `SimClock` | cualquier hilo ↔ reloj | `cv_.wait_until` hasta la hora real equivalente; `wakeAll()` al apagar |
 | `ShutdownToken` | `main` → todos | `std::atomic<bool>`; `waitForStop()` con `mutex` + `condition_variable` |
 | Lecturas de estado (`position()`, `state()`, `currentNode()`) | repartidor → render/despachador | Copias tomadas bajo `stateMutex_` |
@@ -94,13 +95,15 @@ Si el usuario pulsa ESC o cierra la ventana, `Renderer::run` llama a `stop.reque
 | `SimClock` | Después del constructor solo se leen `timeScale_` y `startReal_`, que son `const`. El `mutex_` existe solo para la condition variable. |
 | `Courier` | `state_`, `position_`, `currentNode_`, `bag_` (los pedidos que lleva), `bagRestaurant_`, `collecting_`, `delivered_`, `failed_` y `lastIdleMs_` solo se acceden con `stateMutex_`. Las consultas devuelven copias. `tryAssign` comprueba el cupo de la bolsa y agrega el pedido en la misma sección crítica: nunca se supera `bagCapacity`. |
 | `ChangeSignal` | `version_` solo se lee y se escribe con `mutex_`. |
+| `EventLog` | El archivo y todas las cuentas solo se tocan con `mutex_`; cada línea se escribe entera dentro de la sección crítica, por eso nunca se mezclan dos eventos. El resumen se calcula con las mismas cuentas, así coincide con el archivo. Orden de candados: el repartidor puede escribir con su candado tomado (repartidor → registro); el registro nunca toma otro candado. |
 | Transferencia de una bolsa | Se hace con `unique_lock(transferMutex)` y `scoped_lock` sobre los dos repartidores: los pedidos pasan de una bolsa a la otra en una sola operación indivisible. Todo lector que cuenta pedidos de varios repartidores toma `shared_lock(transferMutex)`, así nunca ve un pedido en dos bolsas ni en ninguna. Orden de candados fijo: primero `transferMutex`, después los de los repartidores. |
 | `PickupDesk` | `busy_`, `nextTicket_` y `nowServing_` solo con `mutex_`. El mapa de mostradores de `Fleet` se llena antes de crear los hilos y después solo se lee. |
 | `Dispatcher` | Sus contadores son `std::atomic`. Los hilos de estimación solo leen datos inmutables (`StreetNetwork`, `Config`), su propia copia de `QuoteRequest` y el repartidor a través de métodos con candado (`currentNode()`, `speedKmh()` es `const`). El resultado vuelve por el `future`, no por memoria compartida. |
 | `StreetNetwork` | Inmutable después de construirse; se comparte como `shared_ptr<const StreetNetwork>`. Solo hay lecturas. |
 | `Config` | Se construye antes de crear los hilos y después solo se lee (`const`). |
-| `Renderer` | Su imagen de fondo solo la usa el hilo `tRenderer`. Lee a los demás únicamente por métodos que toman su candado (`Courier::position/state`, `OrderBook::size/rejectedCount`) o por atómicos (`orderIdCounter`). |
-| `orderIdCounter`, `consumedCount` | `std::atomic<std::uint64_t>` con `fetch_add`. |
+| `Renderer` | Su imagen de fondo solo la usa el hilo `tRenderer`. Lee a los demás únicamente por métodos que toman su candado (`Courier::position/state/deliveryNodesInBag`, `OrderBook::size`, `EventLog::summary`), y dibuja a los repartidores con `shared_lock(transferMutex)`. |
+| `orderIdCounter` | `std::atomic<std::uint64_t>` con `fetch_add`: cada pedido recibe un id único. |
+| `receivedSignal` | `std::atomic<int>` sin candado (comprobado con `static_assert`): lo escribe el manejador de señales y lo lee `main`. |
 
 Verificado con ThreadSanitizer en cada PR (tests y simulación completa en WSL). Con la ventana abierta, TSan reporta avisos **dentro de Qt y dbus** (bibliotecas del sistema que usa OpenCV en Linux): ver [`progress.md`](progress.md#problemas-conocidos-pendientes).
 

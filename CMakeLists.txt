@@ -37,6 +37,15 @@ if(ENABLE_TSAN)
     add_link_options(-fsanitize=thread)
 endif()
 
+option(ENABLE_ASAN "Build with AddressSanitizer and LeakSanitizer" OFF)
+if(ENABLE_ASAN)
+    if(ENABLE_TSAN)
+        message(FATAL_ERROR "ENABLE_ASAN y ENABLE_TSAN no se pueden usar a la vez.")
+    endif()
+    add_compile_options(-fsanitize=address -fno-omit-frame-pointer -g -O1)
+    add_link_options(-fsanitize=address)
+endif()
+
 if(MSVC)
     add_compile_options(/W4 /permissive-)
 else()
@@ -84,6 +93,10 @@ target_link_libraries(delivery_sim PRIVATE
     delivery_core
     ${OpenCV_LIBS}
 )
+
+if(ENABLE_TSAN)
+    target_sources(delivery_sim PRIVATE src/analysis/tsan_default_suppressions.cpp)
+endif()
 
 enable_testing()
 add_subdirectory(tests)

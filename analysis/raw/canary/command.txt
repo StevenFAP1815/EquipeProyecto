@@ -1,0 +1,2 @@
+g++ -std=c++17 -fsanitize=thread -g -O1 tools/tsan_canary.cpp src/analysis/tsan_default_suppressions.cpp -o canary -pthread
+codigo de salida: 66

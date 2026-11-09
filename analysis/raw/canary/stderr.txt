@@ -1,0 +1,35 @@
+==================
+WARNING: ThreadSanitizer: data race (pid=2638)
+  Read of size 4 at 0x555555558154 by thread T2:
+    #0 operator() tools/tsan_canary.cpp:13 (canary+0x138a) (BuildId: 737079b5be316e16fbece0e9ddcb8a7d856f4e52)
+    #1 __invoke_impl<void, main()::<lambda()> > /usr/include/c++/15/bits/invoke.h:63 (canary+0x138a)
+    #2 __invoke<main()::<lambda()> > /usr/include/c++/15/bits/invoke.h:98 (canary+0x138a)
+    #3 _M_invoke<0> /usr/include/c++/15/bits/std_thread.h:303 (canary+0x138a)
+    #4 operator() /usr/include/c++/15/bits/std_thread.h:310 (canary+0x138a)
+    #5 _M_run /usr/include/c++/15/bits/std_thread.h:255 (canary+0x138a)
+    #6 <null> <null> (libstdc++.so.6+0xf5ef8) (BuildId: 3a7a8c6bd922e6314edb7a710fdc0293265c2c42)
+
+  Previous write of size 4 at 0x555555558154 by thread T1:
+    #0 operator() tools/tsan_canary.cpp:8 (canary+0x1404) (BuildId: 737079b5be316e16fbece0e9ddcb8a7d856f4e52)
+    #1 __invoke_impl<void, main()::<lambda()> > /usr/include/c++/15/bits/invoke.h:63 (canary+0x1404)
+    #2 __invoke<main()::<lambda()> > /usr/include/c++/15/bits/invoke.h:98 (canary+0x1404)
+    #3 _M_invoke<0> /usr/include/c++/15/bits/std_thread.h:303 (canary+0x1404)
+    #4 operator() /usr/include/c++/15/bits/std_thread.h:310 (canary+0x1404)
+    #5 _M_run /usr/include/c++/15/bits/std_thread.h:255 (canary+0x1404)
+    #6 <null> <null> (libstdc++.so.6+0xf5ef8) (BuildId: 3a7a8c6bd922e6314edb7a710fdc0293265c2c42)
+
+  Location is global 'sharedCounter' of size 4 at 0x555555558154 (canary+0x4154)
+
+  Thread T2 (tid=2641, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1078 (libtsan.so.2+0x5cb02) (BuildId: 66d37dc704b813df6c813b77217284deb43a0042)
+    #1 std::thread::_M_start_thread(std::unique_ptr<std::thread::_State, std::default_delete<std::thread::_State> >, void (*)()) <null> (libstdc++.so.6+0xf5ff0) (BuildId: 3a7a8c6bd922e6314edb7a710fdc0293265c2c42)
+    #2 <null> <null> (libc.so.6+0x2a600) (BuildId: 066527e430a32768d82741e00b81eebb1a872294)
+
+  Thread T1 (tid=2640, finished) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1078 (libtsan.so.2+0x5cb02) (BuildId: 66d37dc704b813df6c813b77217284deb43a0042)
+    #1 std::thread::_M_start_thread(std::unique_ptr<std::thread::_State, std::default_delete<std::thread::_State> >, void (*)()) <null> (libstdc++.so.6+0xf5ff0) (BuildId: 3a7a8c6bd922e6314edb7a710fdc0293265c2c42)
+    #2 <null> <null> (libc.so.6+0x2a600) (BuildId: 066527e430a32768d82741e00b81eebb1a872294)
+
+SUMMARY: ThreadSanitizer: data race tools/tsan_canary.cpp:13 in operator()
+==================
+ThreadSanitizer: reported 1 warnings

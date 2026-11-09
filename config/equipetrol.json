@@ -1868,7 +1868,7 @@
     "acceptTimeoutMs": 600000
   },
   "incidents": {
-    "breakdownProbability": 0.02
+    "breakdownProbability": 0.1
   },
   "simulation": {
     "durationS": 3600,

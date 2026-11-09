@@ -1,0 +1,4 @@
+comando: /home/hdsuarez/eq-tsan-antes/delivery_sim equipetrol.json --log /home/hdsuarez/an/tsan-antes/events.log
+SIGINT enviado a los 45 s de la linea de inicio
+codigo de salida: 66
+segundos desde la senal hasta la salida: 1.127469703
