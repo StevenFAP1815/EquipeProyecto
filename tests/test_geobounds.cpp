@@ -9,22 +9,18 @@ using namespace delivery::core;
 using Catch::Matchers::WithinAbs;
 
 namespace {
-
-// Caja de prueba: 0.02 grados de lado, ~2.2 km en cada direccion a la latitud
-// de Santa Cruz de la Sierra (~-17.76). Valores ficticios para tests.
 GeoBounds makeTestBounds() {
     return GeoBounds(
-        /*north=*/ -17.7500,
-        /*south=*/ -17.7700,
-        /*west =*/ -63.2000,
-        /*east =*/ -63.1800
+        -17.7500,
+        -17.7700,
+        -63.2000,
+        -63.1800
     );
 }
 
 constexpr int kWidth  = 800;
 constexpr int kHeight = 600;
-
-}  // namespace
+}
 
 TEST_CASE("GeoBounds: validate acepta cajas validas", "[geobounds]") {
     const GeoBounds b = makeTestBounds();
@@ -33,20 +29,20 @@ TEST_CASE("GeoBounds: validate acepta cajas validas", "[geobounds]") {
 
 TEST_CASE("GeoBounds: validate rechaza north <= south", "[geobounds]") {
     const GeoBounds b(
-        /*north=*/ -17.7700,
-        /*south=*/ -17.7500,
-        /*west =*/ -63.2000,
-        /*east =*/ -63.1800
+        -17.7700,
+        -17.7500,
+        -63.2000,
+        -63.1800
     );
     REQUIRE_THROWS_AS(b.validate(), std::invalid_argument);
 }
 
 TEST_CASE("GeoBounds: validate rechaza east <= west", "[geobounds]") {
     const GeoBounds b(
-        /*north=*/ -17.7500,
-        /*south=*/ -17.7700,
-        /*west =*/ -63.1800,
-        /*east =*/ -63.2000
+        -17.7500,
+        -17.7700,
+        -63.1800,
+        -63.2000
     );
     REQUIRE_THROWS_AS(b.validate(), std::invalid_argument);
 }
@@ -73,13 +69,11 @@ TEST_CASE("GeoBounds: centro mapea cerca del centro", "[geobounds]") {
     const LatLon center{(b.north() + b.south()) / 2.0,
                         (b.west() + b.east()) / 2.0};
     const Pixel p = b.toPixel(center, kWidth, kHeight);
-    // Permitimos +-1 pixel por el redondeo.
     REQUIRE(std::abs(p.x - kWidth / 2) <= 1);
     REQUIRE(std::abs(p.y - kHeight / 2) <= 1);
 }
 
 TEST_CASE("GeoBounds: latitud crece hacia arriba en Y", "[geobounds]") {
-    // Norte debe dar Y menor que sur (Y crece hacia abajo en la imagen).
     const GeoBounds b = makeTestBounds();
     const double midLon = (b.west() + b.east()) / 2.0;
     const Pixel pNorth = b.toPixel({b.north(), midLon}, kWidth, kHeight);
@@ -112,11 +106,9 @@ TEST_CASE("GeoBounds: distanceMeters es simetrica", "[geobounds]") {
 }
 
 TEST_CASE("GeoBounds: distanceMeters de 0.02 grados ~ 2.2 km", "[geobounds]") {
-    // 0.02 grados de latitud ~ 2.22 km. En una esfera.
     const LatLon a{-17.7500, -63.1900};
     const LatLon b{-17.7700, -63.1900};
     const double d = GeoBounds::distanceMeters(a, b);
-    // Tolerancia amplia: 2.0 - 2.5 km.
     REQUIRE(d > 2000.0);
     REQUIRE(d < 2500.0);
 }

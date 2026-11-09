@@ -1,9 +1,3 @@
-# Tests unitarios con Catch2.
-#
-# Este target es separado de delivery_sim. Catch2 solo se linkea aquí,
-# no al binario de producción. Cumple la restricción del proyecto:
-# el binario delivery_sim solo usa STL + OpenCV + JSON.
-
 find_package(Catch2 3 QUIET)
 
 if(NOT Catch2_FOUND)
@@ -35,8 +29,6 @@ target_link_libraries(delivery_tests PRIVATE
 find_package(Threads REQUIRED)
 target_link_libraries(delivery_tests PRIVATE Threads::Threads)
 
-# Compilamos los .cpp de producción directamente en el target de tests
-# para no obligar a construir una librería separada todavía.
 target_sources(delivery_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/src/core/GeoBounds.cpp
     ${CMAKE_SOURCE_DIR}/src/infra/ConfigLoader.cpp
@@ -50,13 +42,11 @@ target_sources(delivery_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/src/sim/Fleet.cpp
 )
 
-# Registrar los tests con CTest.
 list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
 include(CTest)
 include(Catch)
 catch_discover_tests(delivery_tests)
 
-# Los tests también deben heredar los flags de warnings.
 if(MSVC)
     target_compile_options(delivery_tests PRIVATE /W4 /permissive-)
 else()

@@ -5,14 +5,9 @@
 #include <thread>
 
 namespace delivery::sim {
-
 namespace {
-
-// Numero de pasos de interpolacion por segmento. 20 es suficiente para que
-// el render (Etapa 4) vea movimiento fluido.
 constexpr int kStepsPerSegment = 20;
-
-}  // namespace
+}
 
 Courier::Courier(core::CourierId id,
                 std::shared_ptr<const core::StreetNetwork> network,
@@ -26,7 +21,6 @@ Courier::Courier(core::CourierId id,
       stop_(stop),
       speedKmh_(speedKmh),
       startNode_(std::move(startNode)) {
-    // Posicion inicial: coordenadas del startNode.
     const auto coords = network_->nodeLatLon(startNode_);
     if (coords) {
         position_ = *coords;
@@ -69,7 +63,6 @@ void Courier::setPosition(const core::LatLon& pos) {
 
 void Courier::run() {
     while (!stop_.stopRequested()) {
-        // Esperar a que haya un target o hasta shutdown.
         core::NodeId target;
         {
             std::unique_lock<std::mutex> lock(stateMutex_);
@@ -86,13 +79,11 @@ void Courier::run() {
             pendingTarget_.reset();
         }
 
-        // Calcular ruta (fuera del lock).
         const auto route = core::findShortestPath(*network_, startNode_, target);
         if (route) {
             doMovement(*route);
         }
 
-        // Volver a Idle.
         {
             std::lock_guard<std::mutex> lock(stateMutex_);
             state_ = CourierState::Idle;
@@ -103,12 +94,9 @@ void Courier::run() {
 
 void Courier::doMovement(const core::RouteResult& route) {
     if (route.path.size() < 2) {
-        // Ruta trivial o vacia: ya estamos en el destino.
         return;
     }
 
-    // Velocidad en metros por milisegundo simulado.
-    // speedKmh [km/h] -> m/s -> m/ms.
     const double speedMetersPerMs = speedKmh_ / 3600.0;
 
     for (std::size_t i = 0; i + 1 < route.path.size(); ++i) {
@@ -142,5 +130,4 @@ void Courier::doMovement(const core::RouteResult& route) {
         }
     }
 }
-
-}  // namespace delivery::sim
+}

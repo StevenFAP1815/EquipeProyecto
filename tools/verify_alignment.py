@@ -1,34 +1,14 @@
-#!/usr/bin/env python3
-"""
-Verifica la alineacion entre config/equipetrol.json y data/equipetrol.png.
-
-Dibuja nodos (circulos) y calles (lineas) sobre el PNG usando el mismo
-GeoBounds::toPixel que usara el runtime en C++ (proyeccion equirectangular).
-
-Salida:
-    data/equipetrol_verify.png
-
-Uso:
-    pip install Pillow
-    python tools/verify_alignment.py
-"""
-
 import json
 import sys
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 def to_pixel(lat, lon, bounds, width, height):
-    """
-    Equivalente a GeoBounds::toPixel en C++.
-    Proyeccion equirectangular.
-    """
     u = (lon - bounds["west"]) / (bounds["east"] - bounds["west"])
     v = (bounds["north"] - lat) / (bounds["north"] - bounds["south"])
     px = int(round(u * (width - 1)))
     py = int(round(v * (height - 1)))
     return px, py
-
 
 def main():
     repo_root = Path(__file__).resolve().parent.parent
@@ -56,23 +36,20 @@ def main():
 
     draw = ImageDraw.Draw(img)
 
-    # 1. Dibujar calles (lineas azules finas).
     for s in streets:
         nf = nodes[s["from"]]
         nt = nodes[s["to"]]
         p1 = to_pixel(nf[0], nf[1], bounds, width, height)
         p2 = to_pixel(nt[0], nt[1], bounds, width, height)
-        color = (0, 100, 255)  # azul
+        color = (0, 100, 255)
         draw.line([p1, p2], fill=color, width=2)
 
-    # 2. Dibujar nodos (circulos verdes).
     for nid, (lat, lon) in nodes.items():
         px, py = to_pixel(lat, lon, bounds, width, height)
         r = 5
         draw.ellipse([px - r, py - r, px + r, py + r],
                      fill=(0, 200, 0), outline=(0, 100, 0))
 
-    # 3. Dibujar restaurantes (circulos rojos, mas grandes).
     for r in restaurants:
         nlat, nlon = nodes[r["node"]]
         px, py = to_pixel(nlat, nlon, bounds, width, height)
@@ -80,7 +57,6 @@ def main():
         draw.ellipse([px - rad, py - rad, px + rad, py + rad],
                      fill=(255, 50, 50), outline=(150, 0, 0), width=2)
 
-    # 4. Etiqueta pequeña.
     try:
         font = ImageFont.truetype("arial.ttf", 20)
     except Exception:
@@ -94,7 +70,6 @@ def main():
     print(f"OK: {out_path}", file=sys.stderr)
     print(f"  Nodos: {len(nodes)}, calles: {len(streets)}, "
           f"restaurantes: {len(restaurants)}", file=sys.stderr)
-
 
 if __name__ == "__main__":
     main()

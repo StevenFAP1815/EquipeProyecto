@@ -13,7 +13,6 @@ void verificarConectividad(const json& j) {
     std::unordered_map<std::string, int> gradoSalida;
     std::unordered_set<std::string> todosLosNodos;
 
-    // Registramos todos los nodos existentes
     for (const auto& node : j["nodes"]) {
         std::string id = node["id"];
         todosLosNodos.insert(id);
@@ -21,7 +20,6 @@ void verificarConectividad(const json& j) {
         gradoSalida[id] = 0;
     }
 
-    // Contamos las entradas y salidas de cada nodo
     for (const auto& street : j["streets"]) {
         std::string from = street["from"];
         std::string to = street["to"];

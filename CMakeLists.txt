@@ -15,7 +15,6 @@ else()
     add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-# ---- Dependencias ----
 find_package(OpenCV REQUIRED COMPONENTS core highgui imgproc imgcodecs)
 
 include(FetchContent)
@@ -26,7 +25,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(nlohmann_json)
 
-# ---- Target ----
 set(DELIVERY_SOURCES
     src/main.cpp
     src/core/GeoBounds.cpp
@@ -51,18 +49,15 @@ target_link_libraries(delivery_sim PRIVATE
     Threads::Threads
 )
 
-# ---- Tests ----
 enable_testing()
 add_subdirectory(tests)
 
-# ---- ThreadSanitizer (opcional) ----
 option(ENABLE_TSAN "Build with ThreadSanitizer" OFF)
 if(ENABLE_TSAN)
     if(MSVC)
         message(FATAL_ERROR "ENABLE_TSAN no está soportado con MSVC. Use Clang o GCC en Linux/WSL2.")
     endif()
 
-    # Detectar si el linker puede encontrar libtsan (solo en toolchains que la proveen)
     include(CheckCXXSourceCompiles)
     set(CMAKE_REQUIRED_FLAGS "-fsanitize=thread")
     set(CMAKE_REQUIRED_LINK_OPTIONS "-fsanitize=thread")
