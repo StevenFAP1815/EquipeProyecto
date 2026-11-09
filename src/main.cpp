@@ -3,9 +3,9 @@
 #include <delivery/core/Order.hpp>
 #include <delivery/infra/ConfigLoader.hpp>
 #include <delivery/sim/OrderGenerator.hpp>
+#include <delivery/sim/SimClock.hpp>
 
 #include <atomic>
-#include <chrono>
 #include <cstdint>
 #include <iostream>
 #include <thread>
@@ -42,7 +42,8 @@ int main(int argc, char** argv) {
         std::atomic<std::uint64_t> orderIdCounter{0};
         std::atomic<std::uint64_t> consumedCount{0};
 
-        sim::OrderGenerator generator(cfg, book, stop, orderIdCounter);
+        sim::SimClock clock(cfg.simulation.timeScale);
+        sim::OrderGenerator generator(cfg, book, stop, clock, orderIdCounter);
 
         std::thread tProducer([&generator] {
             generator.run();
@@ -52,18 +53,15 @@ int main(int argc, char** argv) {
         });
 
         if (cfg.simulation.durationS > 0) {
-            const double realSeconds =
-                static_cast<double>(cfg.simulation.durationS) /
-                cfg.simulation.timeScale;
-            std::this_thread::sleep_for(
-                std::chrono::milliseconds(
-                    static_cast<std::int64_t>(realSeconds * 1000.0)));
+            const std::int64_t durationMs =
+                static_cast<std::int64_t>(cfg.simulation.durationS) * 1000;
+            clock.waitUntilMs(durationMs, stop);
         } else {
             stop.waitForStop();
         }
 
         stop.requestStop();
-
+        clock.wakeAll();
         book.wakeAll();
 
         tProducer.join();

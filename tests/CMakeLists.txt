@@ -15,6 +15,7 @@ add_executable(delivery_tests
     test_config_loader.cpp
     test_order_book.cpp
     test_shutdown.cpp
+    test_generator_and_courier.cpp
 )
 
 target_include_directories(delivery_tests PRIVATE

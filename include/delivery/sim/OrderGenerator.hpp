@@ -4,6 +4,7 @@
 #include <delivery/concurrency/ShutdownToken.hpp>
 #include <delivery/core/Order.hpp>
 #include <delivery/infra/Config.hpp>
+#include <delivery/sim/SimClock.hpp>
 
 #include <atomic>
 #include <cstdint>
@@ -16,6 +17,7 @@ public:
     OrderGenerator(const infra::Config& config,
                    concurrency::OrderBook& book,
                    concurrency::ShutdownToken& stop,
+                   SimClock& clock,
                    std::atomic<std::uint64_t>& orderIdCounter);
 
     OrderGenerator(const OrderGenerator&) = delete;
@@ -26,13 +28,12 @@ public:
 private:
     std::optional<core::Order> generateOne(std::int64_t nowMs);
 
-    bool sleepUntilNextTick(std::int64_t& simulatedNowMs);
-
     core::OrderId nextOrderId();
 
     const infra::Config& config_;
     concurrency::OrderBook& book_;
     concurrency::ShutdownToken& stop_;
+    SimClock& clock_;
     std::atomic<std::uint64_t>& orderIdCounter_;
 
     std::mt19937_64 rng_;

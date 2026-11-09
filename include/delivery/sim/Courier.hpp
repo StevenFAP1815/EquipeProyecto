@@ -54,6 +54,7 @@ public:
     CourierId id() const noexcept { return id_; }
     CourierState state() const;
     core::LatLon position() const;
+    core::NodeId currentNode() const;
 
     std::int64_t lastIdleMs() const;
 
@@ -67,12 +68,12 @@ private:
     SimClock& clock_;
     concurrency::ShutdownToken& stop_;
     const double speedKmh_;
-    const core::NodeId startNode_;
 
     mutable std::mutex stateMutex_;
     std::condition_variable cv_;
     CourierState state_ = CourierState::Idle;
     core::LatLon position_;
+    core::NodeId currentNode_;
     std::optional<core::NodeId> pendingTarget_;
     std::int64_t lastIdleMs_ = 0;
 };

@@ -172,7 +172,7 @@ TEST_CASE("ShutdownToken: waitForStop retorna tras requestStop",
     REQUIRE(woken.load(std::memory_order_acquire));
 }
 
-TEST_CASE("OrderGenerator: misma seed produce misma secuencia",
+TEST_CASE("deriveSeed: es determinista y distingue flujos",
           "[generator][reproducible]") {
     const std::uint64_t seed = 42;
     const std::uint64_t s0a = core::deriveSeed(seed, 0);

@@ -1,9 +1,5 @@
 #include <delivery/sim/Courier.hpp>
 
-#include <algorithm>
-#include <chrono>
-#include <thread>
-
 namespace delivery::sim {
 namespace {
 constexpr int kStepsPerSegment = 20;
@@ -20,8 +16,8 @@ Courier::Courier(core::CourierId id,
       clock_(clock),
       stop_(stop),
       speedKmh_(speedKmh),
-      startNode_(std::move(startNode)) {
-    const auto coords = network_->nodeLatLon(startNode_);
+      currentNode_(std::move(startNode)) {
+    const auto coords = network_->nodeLatLon(currentNode_);
     if (coords) {
         position_ = *coords;
     }
@@ -58,6 +54,11 @@ core::LatLon Courier::position() const {
     return position_;
 }
 
+core::NodeId Courier::currentNode() const {
+    std::lock_guard<std::mutex> lock(stateMutex_);
+    return currentNode_;
+}
+
 std::int64_t Courier::lastIdleMs() const {
     std::lock_guard<std::mutex> lock(stateMutex_);
     return lastIdleMs_;
@@ -70,6 +71,7 @@ void Courier::setPosition(const core::LatLon& pos) {
 
 void Courier::run() {
     while (!stop_.stopRequested()) {
+        core::NodeId from;
         core::NodeId target;
         {
             std::unique_lock<std::mutex> lock(stateMutex_);
@@ -84,9 +86,10 @@ void Courier::run() {
             }
             target = *pendingTarget_;
             pendingTarget_.reset();
+            from = currentNode_;
         }
 
-        const auto route = core::findShortestPath(*network_, startNode_, target);
+        const auto route = core::findShortestPath(*network_, from, target);
         if (route) {
             doMovement(*route);
         }
@@ -124,17 +127,20 @@ void Courier::doMovement(const core::RouteResult& route) {
 
             const double alpha = static_cast<double>(s) / kStepsPerSegment;
 
-            core::LatLon p;
-            p.lat = aOpt->lat + (bOpt->lat - aOpt->lat) * alpha;
-            p.lon = aOpt->lon + (bOpt->lon - aOpt->lon) * alpha;
-            setPosition(p);
-
             const std::int64_t targetMs =
                 t0 + static_cast<std::int64_t>(travelMs * alpha);
             if (!clock_.waitUntilMs(targetMs, stop_)) {
                 return;
             }
+
+            core::LatLon p;
+            p.lat = aOpt->lat + (bOpt->lat - aOpt->lat) * alpha;
+            p.lon = aOpt->lon + (bOpt->lon - aOpt->lon) * alpha;
+            setPosition(p);
         }
+
+        std::lock_guard<std::mutex> lock(stateMutex_);
+        currentNode_ = route.path[i + 1];
     }
 }
 }
