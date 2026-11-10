@@ -84,6 +84,11 @@ void Dispatcher::dispatch(core::Order& order) {
             continue;
         }
 
+        const std::size_t waitingOrders = book_.size() + 1;
+        if (fleet_.addReinforcement(waitingOrders)) {
+            continue;
+        }
+
         if (clock_.nowMs() >= acceptDeadlineMs) {
             ++noCourier_;
             log_.orderRejected(clock_.nowMs(), order.id, core::RejectReason::NoCourier);
@@ -131,11 +136,11 @@ std::vector<Courier*> Dispatcher::nearestCandidates(const QuoteRequest& request)
     const core::LatLon restaurant = *network_->nodeLatLon(request.restaurantNode);
 
     std::vector<std::pair<double, Courier*>> free;
-    for (const auto& courier : fleet_.couriers()) {
+    for (Courier* courier : fleet_.activeCouriers()) {
         if (courier->canAccept(request.restaurant)) {
             const double meters =
                 core::GeoBounds::distanceMeters(courier->position(), restaurant);
-            free.emplace_back(meters, courier.get());
+            free.emplace_back(meters, courier);
         }
     }
 

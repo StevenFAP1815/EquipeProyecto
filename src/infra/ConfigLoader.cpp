@@ -262,6 +262,16 @@ SimulationConfig parseSimulation(const json& j) {
     return s;
 }
 
+ReinforcementsConfig parseReinforcements(const json& j) {
+    ReinforcementsConfig r;
+    r.max       = readInt(j, "max",       "reinforcements", 0);
+    r.threshold = readInt(j, "threshold", "reinforcements", 1);
+    const json& idleJson = requireMember(j, "idleMs", "reinforcements");
+    r.idleMs = readIntRaw(idleJson, "idleMs", "reinforcements", 1,
+                          std::numeric_limits<int>::max());
+    return r;
+}
+
 void buildNodeIndex(Config& cfg) {
     for (std::size_t i = 0; i < cfg.nodes.size(); ++i) {
         const auto [it, inserted] = cfg.nodeIndex.emplace(cfg.nodes[i].id, i);
@@ -336,6 +346,9 @@ Config parseConfig(const nlohmann::json& j) {
     cfg.dispatch    = parseDispatch(requireMember(j, "dispatch", "root"));
     cfg.incidents   = parseIncidents(requireMember(j, "incidents", "root"));
     cfg.simulation  = parseSimulation(requireMember(j, "simulation", "root"));
+    if (j.contains("reinforcements")) {
+        cfg.reinforcements = parseReinforcements(j["reinforcements"]);
+    }
 
     buildNodeIndex(cfg);
     buildStreetIndex(cfg);

@@ -32,6 +32,8 @@ std::string toJsonLine(const Summary& summary) {
     j["avgDeliveryMs"] = summary.avgDeliveryMs;
     j["maxDeliveryMs"] = summary.maxDeliveryMs;
     j["deliveredPerCourier"] = perCourier;
+    j["reinforcementsJoined"] = summary.reinforcementsJoined;
+    j["reinforcementsRetired"] = summary.reinforcementsRetired;
     return j.dump();
 }
 
@@ -159,6 +161,25 @@ void EventLog::orderReassigned(std::int64_t t, const core::OrderId& order,
     std::lock_guard<std::mutex> lock(mutex_);
     writeLine(e.dump());
     ++counts_.reassigned;
+}
+
+void EventLog::courierJoined(std::int64_t t, const core::CourierId& courier) {
+    Json e = baseEvent(t, "courierJoined");
+    e["courier"] = courier.str();
+
+    std::lock_guard<std::mutex> lock(mutex_);
+    writeLine(e.dump());
+    ++counts_.reinforcementsJoined;
+    counts_.deliveredPerCourier.emplace(courier.str(), 0);
+}
+
+void EventLog::courierRetired(std::int64_t t, const core::CourierId& courier) {
+    Json e = baseEvent(t, "courierRetired");
+    e["courier"] = courier.str();
+
+    std::lock_guard<std::mutex> lock(mutex_);
+    writeLine(e.dump());
+    ++counts_.reinforcementsRetired;
 }
 
 void EventLog::simulationStopping(std::int64_t t) {

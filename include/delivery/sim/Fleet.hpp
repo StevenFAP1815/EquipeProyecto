@@ -36,13 +36,17 @@ public:
 
     void join();
 
+    bool addReinforcement(std::size_t waitingOrders);
+
+    std::vector<Courier*> activeCouriers() const;
+
     const std::vector<std::unique_ptr<Courier>>& couriers() const noexcept {
         return couriers_;
     }
 
-    std::size_t size() const noexcept { return couriers_.size(); }
+    std::size_t size() const;
 
-    Courier* findCourier(const core::CourierId& id) noexcept;
+    Courier* findCourier(const core::CourierId& id);
 
     std::uint64_t deliveredCount() const;
     std::uint64_t failedCount() const;
@@ -58,9 +62,17 @@ public:
 
 private:
     std::optional<std::future<bool>> findRescuer(Courier& broken);
+    void startThreadLocked(Courier* courier);
 
     mutable std::shared_mutex transferMutex_;
+    mutable std::shared_mutex rosterMutex_;
     PickupDeskMap desks_;
+    const CourierEnvironment env_;
+    const CourierSettings baseSettings_;
+    const infra::ReinforcementsConfig reinforcements_;
+    const core::NodeId startNode_;
+    const std::uint64_t seed_;
+    int nextReinforcementId_ = 0;
     std::vector<std::unique_ptr<Courier>> couriers_;
     std::vector<std::thread> threads_;
 };

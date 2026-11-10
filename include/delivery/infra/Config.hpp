@@ -44,6 +44,14 @@ struct SimulationConfig {
     double timeScale = 1.0;
 };
 
+struct ReinforcementsConfig {
+    int max = 0;
+    int threshold = 1;
+    std::int64_t idleMs = 1;
+
+    bool enabled() const noexcept { return max > 0; }
+};
+
 struct Config {
     MapConfig map;
     std::vector<delivery::core::Node> nodes;
@@ -54,6 +62,7 @@ struct Config {
     DispatchConfig dispatch;
     IncidentsConfig incidents;
     SimulationConfig simulation;
+    ReinforcementsConfig reinforcements;
 
     std::unordered_map<delivery::core::NodeId,
                        std::size_t,
