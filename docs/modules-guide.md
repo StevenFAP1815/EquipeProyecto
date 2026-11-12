@@ -1,6 +1,5 @@
 # Guía de módulos
 
-> Para cualquier lector, sepa o no programar. Explica **qué hace** cada parte del proyecto y **para qué sirve**, sin entrar en el código.
 
 ## La idea en una frase
 
