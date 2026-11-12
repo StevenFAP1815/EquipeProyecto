@@ -10,6 +10,7 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace delivery::infra {
@@ -28,6 +29,9 @@ struct Summary {
     std::uint64_t noCourier = 0;
     std::uint64_t reinforcementsJoined = 0;
     std::uint64_t reinforcementsRetired = 0;
+    std::uint64_t urgentCreated = 0;
+    std::uint64_t urgentDelivered = 0;
+    std::int64_t avgUrgentDeliveryMs = 0;
 };
 
 std::string toJsonLine(const Summary& summary);
@@ -67,5 +71,7 @@ private:
     Summary counts_;
     std::int64_t totalDeliveryMs_ = 0;
     std::unordered_map<std::string, std::int64_t> createdAtByOrder_;
+    std::unordered_set<std::string> urgentOrders_;
+    std::int64_t totalUrgentDeliveryMs_ = 0;
 };
 }

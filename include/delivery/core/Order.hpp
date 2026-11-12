@@ -57,6 +57,7 @@ struct Order {
     NodeId deliveryNode;
     std::int64_t createdAtMs = 0;
     std::int64_t readyAtMs = 0;
+    bool urgent = false;
     OrderState state = OrderState::Created;
     RejectReason rejectReason = RejectReason::None;
     CourierId assignedCourier;

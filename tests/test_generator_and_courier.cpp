@@ -49,12 +49,13 @@ infra::Config makeGeneratorConfig(std::uint64_t seed) {
 std::vector<std::string> generateOrders(std::uint64_t seed) {
     const infra::Config cfg = makeGeneratorConfig(seed);
     concurrency::OrderBook book(100000);
+    concurrency::ChangeSignal freed;
     concurrency::ShutdownToken stop;
     sim::SimClock clock(cfg.simulation.timeScale);
     std::atomic<std::uint64_t> counter{0};
 
     infra::EventLog log;
-    sim::OrderGenerator generator(cfg, book, stop, clock, counter, log);
+    sim::OrderGenerator generator(cfg, book, freed, stop, clock, counter, log);
     generator.run();
 
     std::vector<std::string> orders;

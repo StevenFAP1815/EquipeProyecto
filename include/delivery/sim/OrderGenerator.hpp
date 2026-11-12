@@ -1,5 +1,6 @@
 #pragma once
 
+#include <delivery/concurrency/ChangeSignal.hpp>
 #include <delivery/concurrency/OrderBook.hpp>
 #include <delivery/concurrency/ShutdownToken.hpp>
 #include <delivery/core/Order.hpp>
@@ -17,6 +18,7 @@ class OrderGenerator {
 public:
     OrderGenerator(const infra::Config& config,
                    concurrency::OrderBook& book,
+                   concurrency::ChangeSignal& freedSignal,
                    concurrency::ShutdownToken& stop,
                    SimClock& clock,
                    std::atomic<std::uint64_t>& orderIdCounter,
@@ -34,6 +36,7 @@ private:
 
     const infra::Config& config_;
     concurrency::OrderBook& book_;
+    concurrency::ChangeSignal& freedSignal_;
     concurrency::ShutdownToken& stop_;
     SimClock& clock_;
     std::atomic<std::uint64_t>& orderIdCounter_;
@@ -45,5 +48,7 @@ private:
     std::uniform_real_distribution<double> burstProbDist_;
     std::uniform_int_distribution<std::size_t> pickRestaurantDist_;
     std::uniform_int_distribution<std::size_t> pickNodeDist_;
+    std::mt19937_64 urgentRng_;
+    std::uniform_real_distribution<double> urgentDist_;
 };
 }

@@ -233,6 +233,17 @@ OrdersConfig parseOrders(const json& j) {
         schemaError("orders.seed must be an integer");
     }
     o.seed = seedJson.get<std::uint64_t>();
+
+    if (j.contains("urgentProbability")) {
+        o.urgentProbability = readDouble(j, "urgentProbability", "orders");
+        if (o.urgentProbability < 0.0 || o.urgentProbability > 1.0) {
+            schemaError("orders.urgentProbability must be in [0, 1]");
+        }
+    }
+    if (j.contains("agingMs")) {
+        o.agingMs = readIntRaw(j["agingMs"], "agingMs", "orders", 0,
+                               std::numeric_limits<int>::max());
+    }
     return o;
 }
 

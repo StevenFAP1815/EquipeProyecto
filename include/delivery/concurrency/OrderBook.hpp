@@ -9,6 +9,7 @@
 #include <deque>
 #include <mutex>
 #include <optional>
+#include <vector>
 
 namespace delivery::concurrency {
 class OrderBook {
@@ -21,6 +22,16 @@ public:
     bool tryPush(core::Order&& order);
 
     std::optional<core::Order> waitAndPop(ShutdownToken& stop);
+
+    std::optional<core::Order> popNext(std::int64_t nowMs, std::int64_t agingMs);
+
+    void putBack(core::Order&& order);
+
+    std::vector<core::OrderId> removeExpired(std::int64_t nowMs, std::int64_t acceptTimeoutMs);
+
+    std::optional<std::int64_t> nextDeadlineMs(std::int64_t nowMs,
+                                               std::int64_t acceptTimeoutMs,
+                                               std::int64_t agingMs) const;
 
     std::size_t size() const;
 
