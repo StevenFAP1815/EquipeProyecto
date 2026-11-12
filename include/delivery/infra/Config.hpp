@@ -54,6 +54,13 @@ struct ReinforcementsConfig {
     bool enabled() const noexcept { return max > 0; }
 };
 
+struct KitchenConfig {
+    std::int64_t pauseEveryMs = 0;
+    std::int64_t pauseMs = 0;
+
+    bool enabled() const noexcept { return pauseEveryMs > 0 && pauseMs > 0; }
+};
+
 struct Config {
     MapConfig map;
     std::vector<delivery::core::Node> nodes;
@@ -65,6 +72,7 @@ struct Config {
     IncidentsConfig incidents;
     SimulationConfig simulation;
     ReinforcementsConfig reinforcements;
+    KitchenConfig kitchen;
 
     std::unordered_map<delivery::core::NodeId,
                        std::size_t,

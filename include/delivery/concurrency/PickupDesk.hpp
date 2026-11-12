@@ -20,8 +20,14 @@ public:
 
     void wakeAll();
 
+    void pause();
+
+    void resume();
+
     int slots() const noexcept { return slots_; }
     int busySlots() const;
+    bool isPaused() const;
+    std::uint64_t delayedByPause() const;
 
 private:
     const int slots_;
@@ -30,5 +36,7 @@ private:
     int busy_ = 0;
     std::uint64_t nextTicket_ = 0;
     std::uint64_t nowServing_ = 0;
+    bool paused_ = false;
+    std::uint64_t delayedByPause_ = 0;
 };
 }

@@ -5,11 +5,13 @@ from collections import defaultdict
 ORDER_EVENTS = {"orderCreated", "orderAssigned", "pickupStarted", "orderPickedUp",
                 "orderDelivered", "orderRejected", "orderReassigned"}
 COURIER_LIFECYCLE_EVENTS = {"courierJoined", "courierRetired"}
-ALL_EVENTS = ORDER_EVENTS | COURIER_LIFECYCLE_EVENTS | {"courierBreakdown", "simulationStopping"}
+PAUSE_EVENTS = {"restaurantPaused", "restaurantResumed"}
+ALL_EVENTS = (ORDER_EVENTS | COURIER_LIFECYCLE_EVENTS | PAUSE_EVENTS
+              | {"courierBreakdown", "simulationStopping"})
 REQUIRED = {
     "orderCreated": {"order", "restaurant", "urgent"},
     "orderAssigned": {"order", "courier"},
-    "pickupStarted": {"order", "courier", "restaurant"},
+    "pickupStarted": {"order", "courier", "restaurant", "queuedAt"},
     "orderPickedUp": {"order", "courier", "restaurant"},
     "orderDelivered": {"order", "courier"},
     "orderRejected": {"order", "reason"},
@@ -17,6 +19,8 @@ REQUIRED = {
     "courierBreakdown": {"courier"},
     "courierJoined": {"courier"},
     "courierRetired": {"courier"},
+    "restaurantPaused": {"restaurant"},
+    "restaurantResumed": {"restaurant"},
     "simulationStopping": set(),
 }
 REASONS = {"queueFull", "unreachable", "noCourier"}
@@ -48,6 +52,33 @@ def check_reinforcement_window(number, name, e, joined, retired, errors):
             errors.append(f"línea {number}: evento de {courier} después de courierRetired")
 
 
+def check_pause(number, name, e, stopping_seen, pause_start, pauses, errors):
+    restaurant = e["restaurant"]
+    if stopping_seen:
+        errors.append(f"línea {number}: {name} después de simulationStopping")
+    if name == "restaurantPaused":
+        if restaurant in pause_start:
+            errors.append(f"línea {number}: {restaurant} se pausa dos veces seguidas")
+        pause_start[restaurant] = e["t"]
+        return
+    if restaurant not in pause_start:
+        errors.append(f"línea {number}: {restaurant} se reanuda sin pausa previa")
+        return
+    pauses[restaurant].append((pause_start.pop(restaurant), e["t"]))
+
+
+def check_pickups_outside_pauses(slot_start, pause_start, pauses, errors):
+    for restaurant, start in pause_start.items():
+        pauses[restaurant].append((start, None))
+    for (courier, restaurant, queued_at), started in slot_start.items():
+        if queued_at > started:
+            errors.append(f"{courier} en {restaurant}: queuedAt posterior a pickupStarted")
+        for begin, end in pauses[restaurant]:
+            if begin < started and (end is None or started < end):
+                errors.append(f"{courier} en {restaurant}: obtiene el puesto en t={started}, "
+                              f"dentro de la pausa que empezó en t={begin}")
+
+
 def check(log_path, summary_text):
     errors = []
     counts = defaultdict(int)
@@ -61,6 +92,10 @@ def check(log_path, summary_text):
     created_t = {}
     urgent = set()
     urgent_times = []
+    stopping_seen = False
+    pause_start = {}
+    pauses = defaultdict(list)
+    slot_start = {}
 
     with open(log_path, encoding="utf-8") as f:
         for number, line in enumerate(f, start=1):
@@ -79,6 +114,10 @@ def check(log_path, summary_text):
                 continue
             counts[name] += 1
             check_reinforcement_window(number, name, e, joined, retired, errors)
+            if name == "simulationStopping":
+                stopping_seen = True
+            if name in PAUSE_EVENTS:
+                check_pause(number, name, e, stopping_seen, pause_start, pauses, errors)
             if name not in ORDER_EVENTS:
                 continue
 
@@ -108,6 +147,9 @@ def check(log_path, summary_text):
             elif name in ("pickupStarted", "orderPickedUp"):
                 if holder.get(order) != e["courier"]:
                     errors.append(f"línea {number}: {order} lo recoge quien no lo tiene")
+                if name == "pickupStarted":
+                    visit = (e["courier"], e["restaurant"], e["queuedAt"])
+                    slot_start.setdefault(visit, e["t"])
                 if name == "orderPickedUp":
                     stage[order] = "pickedUp"
             elif name == "orderReassigned":
@@ -128,6 +170,7 @@ def check(log_path, summary_text):
 
     if counts["simulationStopping"] != 1:
         errors.append("simulationStopping debe aparecer exactamente una vez")
+    check_pickups_outside_pauses(slot_start, pause_start, pauses, errors)
 
     summary = json.loads(summary_text)
     expected = {
@@ -142,6 +185,7 @@ def check(log_path, summary_text):
         "urgentCreated": len(urgent),
         "urgentDelivered": len(urgent_times),
         "avgUrgentDeliveryMs": sum(urgent_times) // len(urgent_times) if urgent_times else 0,
+        "pauses": counts["restaurantPaused"],
     }
     for key, value in expected.items():
         if summary.get(key) != value:
@@ -151,6 +195,9 @@ def check(log_path, summary_text):
             errors.append(f"resumen: deliveredPerCourier[{courier}] no coincide")
     if sum(summary["deliveredPerCourier"].values()) != summary["delivered"]:
         errors.append("resumen: deliveredPerCourier no suma delivered")
+    delayed = summary.get("pickupsDelayedByPause")
+    if not isinstance(delayed, int) or delayed < 0:
+        errors.append("resumen: pickupsDelayedByPause debe ser un entero >= 0")
 
     return errors, counts
 

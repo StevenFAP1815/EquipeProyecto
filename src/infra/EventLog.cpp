@@ -37,6 +37,8 @@ std::string toJsonLine(const Summary& summary) {
     j["urgentCreated"] = summary.urgentCreated;
     j["urgentDelivered"] = summary.urgentDelivered;
     j["avgUrgentDeliveryMs"] = summary.avgUrgentDeliveryMs;
+    j["pauses"] = summary.pauses;
+    j["pickupsDelayedByPause"] = summary.pickupsDelayedByPause;
     return j.dump();
 }
 
@@ -89,11 +91,13 @@ void EventLog::orderAssigned(std::int64_t t, const core::OrderId& order,
 
 void EventLog::pickupStarted(std::int64_t t, const core::OrderId& order,
                              const core::CourierId& courier,
-                             const core::RestaurantId& restaurant) {
+                             const core::RestaurantId& restaurant,
+                             std::int64_t queuedAtMs) {
     Json e = baseEvent(t, "pickupStarted");
     e["order"] = order.str();
     e["courier"] = courier.str();
     e["restaurant"] = restaurant.str();
+    e["queuedAt"] = queuedAtMs;
 
     std::lock_guard<std::mutex> lock(mutex_);
     writeLine(e.dump());
@@ -194,6 +198,23 @@ void EventLog::courierRetired(std::int64_t t, const core::CourierId& courier) {
     std::lock_guard<std::mutex> lock(mutex_);
     writeLine(e.dump());
     ++counts_.reinforcementsRetired;
+}
+
+void EventLog::restaurantPaused(std::int64_t t, const core::RestaurantId& restaurant) {
+    Json e = baseEvent(t, "restaurantPaused");
+    e["restaurant"] = restaurant.str();
+
+    std::lock_guard<std::mutex> lock(mutex_);
+    writeLine(e.dump());
+    ++counts_.pauses;
+}
+
+void EventLog::restaurantResumed(std::int64_t t, const core::RestaurantId& restaurant) {
+    Json e = baseEvent(t, "restaurantResumed");
+    e["restaurant"] = restaurant.str();
+
+    std::lock_guard<std::mutex> lock(mutex_);
+    writeLine(e.dump());
 }
 
 void EventLog::simulationStopping(std::int64_t t) {

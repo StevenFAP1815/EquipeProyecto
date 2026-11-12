@@ -55,7 +55,7 @@ bool Courier::tryAssign(core::Order& order) {
         const std::int64_t now = env_.clock.nowMs();
         env_.log.orderAssigned(now, order.id, id_);
         if (atDesk_) {
-            env_.log.pickupStarted(now, order.id, id_, order.restaurant);
+            env_.log.pickupStarted(now, order.id, id_, order.restaurant, queuedAtMs_);
         }
         order.state = core::OrderState::Assigned;
         order.assignedCourier = id_;
@@ -268,6 +268,10 @@ bool Courier::waitForWorkOrRetire(std::unique_lock<std::mutex>& lock) {
 
 bool Courier::pickUpAtDesk(const core::RestaurantId& restaurant) {
     concurrency::PickupDesk& desk = *env_.desks.at(restaurant);
+    {
+        std::lock_guard<std::mutex> lock(stateMutex_);
+        queuedAtMs_ = env_.clock.nowMs();
+    }
     if (!desk.enter(env_.stop)) {
         return false;
     }
@@ -275,7 +279,8 @@ bool Courier::pickUpAtDesk(const core::RestaurantId& restaurant) {
         std::lock_guard<std::mutex> lock(stateMutex_);
         atDesk_ = true;
         for (const core::Order& order : bag_) {
-            env_.log.pickupStarted(env_.clock.nowMs(), order.id, id_, order.restaurant);
+            env_.log.pickupStarted(env_.clock.nowMs(), order.id, id_, order.restaurant,
+                                   queuedAtMs_);
         }
     }
 

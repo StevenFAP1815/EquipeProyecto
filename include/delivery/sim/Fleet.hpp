@@ -60,6 +60,12 @@ public:
         return *desks_.at(id);
     }
 
+    concurrency::PickupDesk& desk(const core::RestaurantId& id) {
+        return *desks_.at(id);
+    }
+
+    std::uint64_t pickupsDelayedByPause() const;
+
 private:
     std::optional<std::future<bool>> findRescuer(Courier& broken);
     void startThreadLocked(Courier* courier);

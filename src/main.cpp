@@ -6,6 +6,7 @@
 #include <delivery/infra/EventLog.hpp>
 #include <delivery/sim/Dispatcher.hpp>
 #include <delivery/sim/Fleet.hpp>
+#include <delivery/sim/KitchenPauses.hpp>
 #include <delivery/sim/OrderGenerator.hpp>
 #include <delivery/sim/SimClock.hpp>
 #include <delivery/viz/Renderer.hpp>
@@ -97,6 +98,7 @@ int main(int argc, char** argv) {
         sim::Fleet fleet(cfg, network, clock, stop, freedSignal, log);
         sim::Dispatcher dispatcher(cfg, network, book, fleet, clock, freedSignal, stop, log);
         viz::Renderer renderer(cfg, imagePath, fleet, book, log, clock, stop);
+        sim::KitchenPauses kitchen(cfg, fleet, clock, stop, log);
 
         std::signal(SIGINT, onSignal);
         std::signal(SIGTERM, onSignal);
@@ -111,14 +113,18 @@ int main(int argc, char** argv) {
         std::thread tRenderer([&renderer] {
             renderer.run();
         });
+        std::thread tKitchen([&kitchen] {
+            kitchen.run();
+        });
 
         std::cout << "Simulation has started..." << std::endl;
 
         waitForEndOfSimulation(cfg, clock, stop);
 
         stop.requestStop();
-        log.simulationStopping(clock.nowMs());
         clock.wakeAll();
+        tKitchen.join();
+        log.simulationStopping(clock.nowMs());
         book.wakeAll();
         freedSignal.wakeAll();
 
@@ -127,7 +133,8 @@ int main(int argc, char** argv) {
         tRenderer.join();
         fleet.join();
 
-        const infra::Summary summary = log.summary();
+        infra::Summary summary = log.summary();
+        summary.pickupsDelayedByPause = fleet.pickupsDelayedByPause();
         const std::uint64_t pendingInSystem =
             book.size() + dispatcher.pendingAtStopCount() + fleet.ordersInProgress();
         if (summary.pending != pendingInSystem) {

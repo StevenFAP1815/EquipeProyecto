@@ -283,6 +283,18 @@ ReinforcementsConfig parseReinforcements(const json& j) {
     return r;
 }
 
+KitchenConfig parseKitchen(const json& j) {
+    KitchenConfig k;
+    k.pauseEveryMs = readIntRaw(requireMember(j, "pauseEveryMs", "kitchen"), "pauseEveryMs",
+                                "kitchen", 1, std::numeric_limits<int>::max());
+    k.pauseMs = readIntRaw(requireMember(j, "pauseMs", "kitchen"), "pauseMs",
+                           "kitchen", 0, std::numeric_limits<int>::max());
+    if (k.pauseMs >= k.pauseEveryMs) {
+        schemaError("kitchen.pauseMs must be smaller than kitchen.pauseEveryMs");
+    }
+    return k;
+}
+
 void buildNodeIndex(Config& cfg) {
     for (std::size_t i = 0; i < cfg.nodes.size(); ++i) {
         const auto [it, inserted] = cfg.nodeIndex.emplace(cfg.nodes[i].id, i);
@@ -359,6 +371,9 @@ Config parseConfig(const nlohmann::json& j) {
     cfg.simulation  = parseSimulation(requireMember(j, "simulation", "root"));
     if (j.contains("reinforcements")) {
         cfg.reinforcements = parseReinforcements(j["reinforcements"]);
+    }
+    if (j.contains("kitchen")) {
+        cfg.kitchen = parseKitchen(j["kitchen"]);
     }
 
     buildNodeIndex(cfg);

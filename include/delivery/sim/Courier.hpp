@@ -151,6 +151,7 @@ private:
     core::RestaurantId bagRestaurant_;
     bool collecting_ = false;
     bool atDesk_ = false;
+    std::int64_t queuedAtMs_ = 0;
     std::optional<RescueRequest> rescueRequest_;
     std::uint64_t delivered_ = 0;
     std::uint64_t failed_ = 0;

@@ -209,6 +209,14 @@ std::uint64_t Fleet::reassignedCount() const {
     return total;
 }
 
+std::uint64_t Fleet::pickupsDelayedByPause() const {
+    std::uint64_t total = 0;
+    for (const auto& entry : desks_) {
+        total += entry.second->delayedByPause();
+    }
+    return total;
+}
+
 Courier* Fleet::findCourier(const core::CourierId& id) {
     std::shared_lock<std::shared_mutex> roster(rosterMutex_);
     for (auto& c : couriers_) {
