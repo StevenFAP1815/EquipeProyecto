@@ -93,7 +93,7 @@ int main(int argc, char** argv) {
         std::atomic<std::uint64_t> orderIdCounter{0};
 
         sim::SimClock clock(cfg.simulation.timeScale);
-        sim::OrderGenerator generator(cfg, book, stop, clock, orderIdCounter, log);
+        sim::OrderGenerator generator(cfg, book, freedSignal, stop, clock, orderIdCounter, log);
         sim::Fleet fleet(cfg, network, clock, stop, freedSignal, log);
         sim::Dispatcher dispatcher(cfg, network, book, fleet, clock, freedSignal, stop, log);
         viz::Renderer renderer(cfg, imagePath, fleet, book, log, clock, stop);

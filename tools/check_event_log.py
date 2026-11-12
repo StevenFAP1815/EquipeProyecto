@@ -4,9 +4,10 @@ from collections import defaultdict
 
 ORDER_EVENTS = {"orderCreated", "orderAssigned", "pickupStarted", "orderPickedUp",
                 "orderDelivered", "orderRejected", "orderReassigned"}
-ALL_EVENTS = ORDER_EVENTS | {"courierBreakdown", "simulationStopping"}
+COURIER_LIFECYCLE_EVENTS = {"courierJoined", "courierRetired"}
+ALL_EVENTS = ORDER_EVENTS | COURIER_LIFECYCLE_EVENTS | {"courierBreakdown", "simulationStopping"}
 REQUIRED = {
-    "orderCreated": {"order", "restaurant"},
+    "orderCreated": {"order", "restaurant", "urgent"},
     "orderAssigned": {"order", "courier"},
     "pickupStarted": {"order", "courier", "restaurant"},
     "orderPickedUp": {"order", "courier", "restaurant"},
@@ -14,9 +15,37 @@ REQUIRED = {
     "orderRejected": {"order", "reason"},
     "orderReassigned": {"order", "from", "to"},
     "courierBreakdown": {"courier"},
+    "courierJoined": {"courier"},
+    "courierRetired": {"courier"},
     "simulationStopping": set(),
 }
 REASONS = {"queueFull", "unreachable", "noCourier"}
+REINFORCEMENT_PREFIX = "r"
+
+
+def check_reinforcement_window(number, name, e, joined, retired, errors):
+    if name == "courierJoined":
+        courier = e["courier"]
+        if courier in joined:
+            errors.append(f"línea {number}: id de refuerzo {courier} reutilizado")
+        joined.add(courier)
+        return
+    if name == "courierRetired":
+        courier = e["courier"]
+        if courier not in joined:
+            errors.append(f"línea {number}: {courier} se retira sin courierJoined previo")
+        elif courier in retired:
+            errors.append(f"línea {number}: {courier} se retira dos veces")
+        retired.add(courier)
+        return
+    for field in ("courier", "from", "to"):
+        courier = e.get(field)
+        if not isinstance(courier, str) or not courier.startswith(REINFORCEMENT_PREFIX):
+            continue
+        if courier not in joined:
+            errors.append(f"línea {number}: evento de {courier} antes de courierJoined")
+        elif courier in retired:
+            errors.append(f"línea {number}: evento de {courier} después de courierRetired")
 
 
 def check(log_path, summary_text):
@@ -27,6 +56,11 @@ def check(log_path, summary_text):
     stage = {}
     holder = {}
     final = {}
+    joined = set()
+    retired = set()
+    created_t = {}
+    urgent = set()
+    urgent_times = []
 
     with open(log_path, encoding="utf-8") as f:
         for number, line in enumerate(f, start=1):
@@ -44,6 +78,7 @@ def check(log_path, summary_text):
                 errors.append(f"línea {number}: faltan campos {sorted(missing)}")
                 continue
             counts[name] += 1
+            check_reinforcement_window(number, name, e, joined, retired, errors)
             if name not in ORDER_EVENTS:
                 continue
 
@@ -57,6 +92,11 @@ def check(log_path, summary_text):
             if name == "orderCreated":
                 if order in stage:
                     errors.append(f"línea {number}: {order} creado dos veces")
+                if not isinstance(e["urgent"], bool):
+                    errors.append(f"línea {number}: urgent debe ser true o false")
+                elif e["urgent"]:
+                    urgent.add(order)
+                created_t[order] = e["t"]
                 stage[order] = "created"
             elif order not in stage:
                 errors.append(f"línea {number}: {order} sin orderCreated previo")
@@ -78,6 +118,8 @@ def check(log_path, summary_text):
                 if stage[order] != "pickedUp" or holder.get(order) != e["courier"]:
                     errors.append(f"línea {number}: entrega de {order} fuera de orden o por otro repartidor")
                 delivered_per_courier[e["courier"]] += 1
+                if order in urgent:
+                    urgent_times.append(e["t"] - created_t[order])
                 final[order] = "delivered"
             elif name == "orderRejected":
                 if e["reason"] not in REASONS:
@@ -95,6 +137,11 @@ def check(log_path, summary_text):
         "pending": counts["orderCreated"] - counts["orderDelivered"] - counts["orderRejected"],
         "reassigned": counts["orderReassigned"],
         "breakdowns": counts["courierBreakdown"],
+        "reinforcementsJoined": counts["courierJoined"],
+        "reinforcementsRetired": counts["courierRetired"],
+        "urgentCreated": len(urgent),
+        "urgentDelivered": len(urgent_times),
+        "avgUrgentDeliveryMs": sum(urgent_times) // len(urgent_times) if urgent_times else 0,
     }
     for key, value in expected.items():
         if summary.get(key) != value:

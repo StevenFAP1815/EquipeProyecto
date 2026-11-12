@@ -30,6 +30,9 @@ Courier::Courier(core::CourierId id,
 }
 
 bool Courier::canAcceptLocked(const core::RestaurantId& restaurant) const {
+    if (retired_) {
+        return false;
+    }
     if (bag_.empty()) {
         return state_ == CourierState::Idle && !rescueRequest_.has_value();
     }
@@ -69,7 +72,8 @@ std::optional<std::future<bool>> Courier::acceptRescue(Courier& broken) {
     {
         std::lock_guard<std::mutex> lock(stateMutex_);
         if (&broken == this || env_.stop.stopRequested() ||
-            state_ != CourierState::Idle || !bag_.empty() || rescueRequest_.has_value()) {
+            state_ != CourierState::Idle || !bag_.empty() || rescueRequest_.has_value() ||
+            retired_) {
             return std::nullopt;
         }
         rescueRequest_.emplace();
@@ -95,7 +99,13 @@ CourierState Courier::state() const {
 
 bool Courier::isAvailable() const {
     std::lock_guard<std::mutex> lock(stateMutex_);
-    return state_ == CourierState::Idle && bag_.empty() && !rescueRequest_.has_value();
+    return !retired_ && state_ == CourierState::Idle && bag_.empty() &&
+           !rescueRequest_.has_value();
+}
+
+bool Courier::isRetired() const {
+    std::lock_guard<std::mutex> lock(stateMutex_);
+    return retired_;
 }
 
 bool Courier::canAccept(const core::RestaurantId& restaurant) const {
@@ -188,10 +198,9 @@ void Courier::run() {
         core::NodeId restaurantNode;
         {
             std::unique_lock<std::mutex> lock(stateMutex_);
-            cv_.wait(lock, [&] {
-                return !bag_.empty() || rescueRequest_.has_value() ||
-                       env_.stop.stopRequested();
-            });
+            if (!waitForWorkOrRetire(lock)) {
+                return;
+            }
             if (env_.stop.stopRequested()) {
                 if (rescueRequest_) {
                     rescueRequest_->done.set_value(false);
@@ -232,6 +241,28 @@ void Courier::run() {
             return;
         }
         becomeIdle();
+    }
+}
+
+bool Courier::waitForWorkOrRetire(std::unique_lock<std::mutex>& lock) {
+    const auto hasWork = [&] {
+        return !bag_.empty() || rescueRequest_.has_value() || env_.stop.stopRequested();
+    };
+    if (!settings_.isReinforcement) {
+        cv_.wait(lock, hasWork);
+        return true;
+    }
+    while (true) {
+        const std::int64_t retireAtMs = lastIdleMs_ + settings_.idleMs;
+        if (cv_.wait_until(lock, env_.clock.realTimeAt(retireAtMs), hasWork)) {
+            return true;
+        }
+        if (env_.clock.nowMs() < retireAtMs) {
+            continue;
+        }
+        retired_ = true;
+        env_.log.courierRetired(env_.clock.nowMs(), id_);
+        return false;
     }
 }
 

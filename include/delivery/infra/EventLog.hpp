@@ -10,6 +10,7 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace delivery::infra {
@@ -26,6 +27,11 @@ struct Summary {
     std::uint64_t queueFull = 0;
     std::uint64_t unreachable = 0;
     std::uint64_t noCourier = 0;
+    std::uint64_t reinforcementsJoined = 0;
+    std::uint64_t reinforcementsRetired = 0;
+    std::uint64_t urgentCreated = 0;
+    std::uint64_t urgentDelivered = 0;
+    std::int64_t avgUrgentDeliveryMs = 0;
 };
 
 std::string toJsonLine(const Summary& summary);
@@ -51,6 +57,8 @@ public:
     void courierBreakdown(std::int64_t t, const core::CourierId& courier);
     void orderReassigned(std::int64_t t, const core::OrderId& order, const core::CourierId& from,
                          const core::CourierId& to);
+    void courierJoined(std::int64_t t, const core::CourierId& courier);
+    void courierRetired(std::int64_t t, const core::CourierId& courier);
     void simulationStopping(std::int64_t t);
 
     Summary summary() const;
@@ -63,5 +71,7 @@ private:
     Summary counts_;
     std::int64_t totalDeliveryMs_ = 0;
     std::unordered_map<std::string, std::int64_t> createdAtByOrder_;
+    std::unordered_set<std::string> urgentOrders_;
+    std::int64_t totalUrgentDeliveryMs_ = 0;
 };
 }

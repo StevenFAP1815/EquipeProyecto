@@ -32,6 +32,11 @@ std::string toJsonLine(const Summary& summary) {
     j["avgDeliveryMs"] = summary.avgDeliveryMs;
     j["maxDeliveryMs"] = summary.maxDeliveryMs;
     j["deliveredPerCourier"] = perCourier;
+    j["reinforcementsJoined"] = summary.reinforcementsJoined;
+    j["reinforcementsRetired"] = summary.reinforcementsRetired;
+    j["urgentCreated"] = summary.urgentCreated;
+    j["urgentDelivered"] = summary.urgentDelivered;
+    j["avgUrgentDeliveryMs"] = summary.avgUrgentDeliveryMs;
     return j.dump();
 }
 
@@ -60,11 +65,16 @@ void EventLog::orderCreated(std::int64_t t, const core::Order& order) {
     Json e = baseEvent(t, "orderCreated");
     e["order"] = order.id.str();
     e["restaurant"] = order.restaurant.str();
+    e["urgent"] = order.urgent;
 
     std::lock_guard<std::mutex> lock(mutex_);
     writeLine(e.dump());
     ++counts_.created;
     createdAtByOrder_[order.id.str()] = order.createdAtMs;
+    if (order.urgent) {
+        ++counts_.urgentCreated;
+        urgentOrders_.insert(order.id.str());
+    }
 }
 
 void EventLog::orderAssigned(std::int64_t t, const core::OrderId& order,
@@ -118,6 +128,11 @@ void EventLog::orderDelivered(std::int64_t t, const core::OrderId& order,
         totalDeliveryMs_ += deliveryMs;
         counts_.maxDeliveryMs = std::max(counts_.maxDeliveryMs, deliveryMs);
         createdAtByOrder_.erase(created);
+
+        if (urgentOrders_.erase(order.str()) > 0) {
+            ++counts_.urgentDelivered;
+            totalUrgentDeliveryMs_ += deliveryMs;
+        }
     }
 }
 
@@ -138,6 +153,7 @@ void EventLog::orderRejected(std::int64_t t, const core::OrderId& order,
         ++counts_.noCourier;
     }
     createdAtByOrder_.erase(order.str());
+    urgentOrders_.erase(order.str());
 }
 
 void EventLog::courierBreakdown(std::int64_t t, const core::CourierId& courier) {
@@ -161,6 +177,25 @@ void EventLog::orderReassigned(std::int64_t t, const core::OrderId& order,
     ++counts_.reassigned;
 }
 
+void EventLog::courierJoined(std::int64_t t, const core::CourierId& courier) {
+    Json e = baseEvent(t, "courierJoined");
+    e["courier"] = courier.str();
+
+    std::lock_guard<std::mutex> lock(mutex_);
+    writeLine(e.dump());
+    ++counts_.reinforcementsJoined;
+    counts_.deliveredPerCourier.emplace(courier.str(), 0);
+}
+
+void EventLog::courierRetired(std::int64_t t, const core::CourierId& courier) {
+    Json e = baseEvent(t, "courierRetired");
+    e["courier"] = courier.str();
+
+    std::lock_guard<std::mutex> lock(mutex_);
+    writeLine(e.dump());
+    ++counts_.reinforcementsRetired;
+}
+
 void EventLog::simulationStopping(std::int64_t t) {
     const Json e = baseEvent(t, "simulationStopping");
 
@@ -176,6 +211,10 @@ Summary EventLog::summary() const {
     s.avgDeliveryMs = s.delivered == 0
                           ? 0
                           : totalDeliveryMs_ / static_cast<std::int64_t>(s.delivered);
+    s.avgUrgentDeliveryMs =
+        s.urgentDelivered == 0
+            ? 0
+            : totalUrgentDeliveryMs_ / static_cast<std::int64_t>(s.urgentDelivered);
     return s;
 }
 }

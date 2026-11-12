@@ -233,6 +233,17 @@ OrdersConfig parseOrders(const json& j) {
         schemaError("orders.seed must be an integer");
     }
     o.seed = seedJson.get<std::uint64_t>();
+
+    if (j.contains("urgentProbability")) {
+        o.urgentProbability = readDouble(j, "urgentProbability", "orders");
+        if (o.urgentProbability < 0.0 || o.urgentProbability > 1.0) {
+            schemaError("orders.urgentProbability must be in [0, 1]");
+        }
+    }
+    if (j.contains("agingMs")) {
+        o.agingMs = readIntRaw(j["agingMs"], "agingMs", "orders", 0,
+                               std::numeric_limits<int>::max());
+    }
     return o;
 }
 
@@ -260,6 +271,16 @@ SimulationConfig parseSimulation(const json& j) {
         schemaError("simulation.timeScale must be positive");
     }
     return s;
+}
+
+ReinforcementsConfig parseReinforcements(const json& j) {
+    ReinforcementsConfig r;
+    r.max       = readInt(j, "max",       "reinforcements", 0);
+    r.threshold = readInt(j, "threshold", "reinforcements", 1);
+    const json& idleJson = requireMember(j, "idleMs", "reinforcements");
+    r.idleMs = readIntRaw(idleJson, "idleMs", "reinforcements", 1,
+                          std::numeric_limits<int>::max());
+    return r;
 }
 
 void buildNodeIndex(Config& cfg) {
@@ -336,6 +357,9 @@ Config parseConfig(const nlohmann::json& j) {
     cfg.dispatch    = parseDispatch(requireMember(j, "dispatch", "root"));
     cfg.incidents   = parseIncidents(requireMember(j, "incidents", "root"));
     cfg.simulation  = parseSimulation(requireMember(j, "simulation", "root"));
+    if (j.contains("reinforcements")) {
+        cfg.reinforcements = parseReinforcements(j["reinforcements"]);
+    }
 
     buildNodeIndex(cfg);
     buildStreetIndex(cfg);

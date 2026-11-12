@@ -7,6 +7,7 @@
 #include <chrono>
 #include <future>
 #include <limits>
+#include <optional>
 #include <stdexcept>
 #include <thread>
 #include <utility>
@@ -46,9 +47,15 @@ Dispatcher::Dispatcher(const infra::Config& config,
 }
 
 void Dispatcher::run() {
-    while (auto order = book_.waitAndPop(stop_)) {
-        if (stop_.stopRequested()) {
-            ++pendingAtStop_;
+    const std::int64_t acceptTimeoutMs = config_.dispatch.acceptTimeoutMs;
+    const std::int64_t agingMs = config_.orders.agingMs;
+
+    while (!stop_.stopRequested()) {
+        const std::uint64_t seenVersion = freedSignal_.version();
+
+        std::optional<core::Order> order = book_.popNext(clock_.nowMs(), agingMs);
+        if (!order) {
+            freedSignal_.waitForChange(seenVersion, stop_);
             continue;
         }
         if (!isReachable(*order)) {
@@ -56,7 +63,28 @@ void Dispatcher::run() {
             log_.orderRejected(clock_.nowMs(), order->id, core::RejectReason::Unreachable);
             continue;
         }
-        dispatch(*order);
+        if (tryToAssign(*order)) {
+            continue;
+        }
+
+        book_.putBack(std::move(*order));
+        if (stop_.stopRequested()) {
+            break;
+        }
+
+        const std::int64_t now = clock_.nowMs();
+        for (const core::OrderId& id : book_.removeExpired(now, acceptTimeoutMs)) {
+            ++noCourier_;
+            log_.orderRejected(now, id, core::RejectReason::NoCourier);
+        }
+
+        const std::optional<std::int64_t> deadline =
+            book_.nextDeadlineMs(now, acceptTimeoutMs, agingMs);
+        if (deadline) {
+            freedSignal_.waitForChange(seenVersion, clock_.realTimeAt(*deadline), stop_);
+        } else {
+            freedSignal_.waitForChange(seenVersion, stop_);
+        }
     }
 }
 
@@ -67,31 +95,25 @@ bool Dispatcher::isReachable(const core::Order& order) const {
            core::findShortestPath(*network_, order.deliveryNode, start);
 }
 
-void Dispatcher::dispatch(core::Order& order) {
+bool Dispatcher::tryToAssign(core::Order& order) {
     const QuoteRequest request{order.restaurant, order.restaurantNode, order.deliveryNode,
                                order.readyAtMs};
-    const std::int64_t acceptDeadlineMs =
-        order.createdAtMs + config_.dispatch.acceptTimeoutMs;
 
     while (!stop_.stopRequested()) {
-        const std::uint64_t seenVersion = freedSignal_.version();
-
         Courier* best = chooseCourier(request);
-        if (best != nullptr && best->tryAssign(order)) {
-            return;
-        }
         if (best != nullptr) {
+            if (best->tryAssign(order)) {
+                return true;
+            }
             continue;
         }
 
-        if (clock_.nowMs() >= acceptDeadlineMs) {
-            ++noCourier_;
-            log_.orderRejected(clock_.nowMs(), order.id, core::RejectReason::NoCourier);
-            return;
+        const std::size_t waitingOrders = book_.size() + 1;
+        if (!fleet_.addReinforcement(waitingOrders)) {
+            return false;
         }
-        freedSignal_.waitForChange(seenVersion, clock_.realTimeAt(acceptDeadlineMs), stop_);
     }
-    ++pendingAtStop_;
+    return false;
 }
 
 Courier* Dispatcher::chooseCourier(const QuoteRequest& request) {
@@ -131,11 +153,11 @@ std::vector<Courier*> Dispatcher::nearestCandidates(const QuoteRequest& request)
     const core::LatLon restaurant = *network_->nodeLatLon(request.restaurantNode);
 
     std::vector<std::pair<double, Courier*>> free;
-    for (const auto& courier : fleet_.couriers()) {
+    for (Courier* courier : fleet_.activeCouriers()) {
         if (courier->canAccept(request.restaurant)) {
             const double meters =
                 core::GeoBounds::distanceMeters(courier->position(), restaurant);
-            free.emplace_back(meters, courier.get());
+            free.emplace_back(meters, courier);
         }
     }
 
