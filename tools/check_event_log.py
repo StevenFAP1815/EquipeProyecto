@@ -6,7 +6,8 @@ ORDER_EVENTS = {"orderCreated", "orderAssigned", "pickupStarted", "orderPickedUp
                 "orderDelivered", "orderRejected", "orderReassigned"}
 COURIER_LIFECYCLE_EVENTS = {"courierJoined", "courierRetired"}
 PAUSE_EVENTS = {"restaurantPaused", "restaurantResumed"}
-ALL_EVENTS = (ORDER_EVENTS | COURIER_LIFECYCLE_EVENTS | PAUSE_EVENTS
+BREAK_EVENTS = {"courierBreakStarted", "courierBreakEnded"}
+ALL_EVENTS = (ORDER_EVENTS | COURIER_LIFECYCLE_EVENTS | PAUSE_EVENTS | BREAK_EVENTS
               | {"courierBreakdown", "simulationStopping"})
 REQUIRED = {
     "orderCreated": {"order", "restaurant", "urgent"},
@@ -21,6 +22,8 @@ REQUIRED = {
     "courierRetired": {"courier"},
     "restaurantPaused": {"restaurant"},
     "restaurantResumed": {"restaurant"},
+    "courierBreakStarted": {"courier"},
+    "courierBreakEnded": {"courier"},
     "simulationStopping": set(),
 }
 REASONS = {"queueFull", "unreachable", "noCourier"}
@@ -79,6 +82,26 @@ def check_pickups_outside_pauses(slot_start, pause_start, pauses, errors):
                               f"dentro de la pausa que empezó en t={begin}")
 
 
+def check_break(number, name, e, resting, breaks_per_courier, errors):
+    courier = e["courier"]
+    if name == "courierBreakStarted":
+        if courier in resting:
+            errors.append(f"línea {number}: {courier} empieza un descanso sin terminar el anterior")
+        resting.add(courier)
+        breaks_per_courier[courier] += 1
+        return
+    if courier not in resting:
+        errors.append(f"línea {number}: {courier} termina un descanso que no empezó")
+    resting.discard(courier)
+
+
+def check_no_work_while_resting(number, name, e, resting, errors):
+    if name == "orderAssigned" and e["courier"] in resting:
+        errors.append(f"línea {number}: {e['order']} asignado a {e['courier']} durante su descanso")
+    if name == "orderReassigned" and e["to"] in resting:
+        errors.append(f"línea {number}: {e['order']} traspasado a {e['to']} durante su descanso")
+
+
 def check(log_path, summary_text):
     errors = []
     counts = defaultdict(int)
@@ -96,6 +119,8 @@ def check(log_path, summary_text):
     pause_start = {}
     pauses = defaultdict(list)
     slot_start = {}
+    resting = set()
+    breaks_per_courier = defaultdict(int)
 
     with open(log_path, encoding="utf-8") as f:
         for number, line in enumerate(f, start=1):
@@ -118,6 +143,9 @@ def check(log_path, summary_text):
                 stopping_seen = True
             if name in PAUSE_EVENTS:
                 check_pause(number, name, e, stopping_seen, pause_start, pauses, errors)
+            if name in BREAK_EVENTS:
+                check_break(number, name, e, resting, breaks_per_courier, errors)
+            check_no_work_while_resting(number, name, e, resting, errors)
             if name not in ORDER_EVENTS:
                 continue
 
@@ -186,6 +214,7 @@ def check(log_path, summary_text):
         "urgentDelivered": len(urgent_times),
         "avgUrgentDeliveryMs": sum(urgent_times) // len(urgent_times) if urgent_times else 0,
         "pauses": counts["restaurantPaused"],
+        "breaks": counts["courierBreakStarted"],
     }
     for key, value in expected.items():
         if summary.get(key) != value:
@@ -195,6 +224,12 @@ def check(log_path, summary_text):
             errors.append(f"resumen: deliveredPerCourier[{courier}] no coincide")
     if sum(summary["deliveredPerCourier"].values()) != summary["delivered"]:
         errors.append("resumen: deliveredPerCourier no suma delivered")
+    summary_breaks = summary.get("breaksPerCourier", {})
+    for courier in set(summary_breaks) | set(breaks_per_courier):
+        if summary_breaks.get(courier, 0) != breaks_per_courier[courier]:
+            errors.append(f"resumen: breaksPerCourier[{courier}] no coincide")
+    if sum(summary_breaks.values()) != summary.get("breaks"):
+        errors.append("resumen: breaksPerCourier no suma breaks")
     delayed = summary.get("pickupsDelayedByPause")
     if not isinstance(delayed, int) or delayed < 0:
         errors.append("resumen: pickupsDelayedByPause debe ser un entero >= 0")

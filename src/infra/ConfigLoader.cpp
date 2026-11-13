@@ -219,6 +219,19 @@ FleetConfig parseFleet(const json& j) {
     if (f.startNode.empty()) {
         schemaError("fleet.startNode must not be empty");
     }
+
+    if (j.contains("breakAfterDeliveries")) {
+        f.breakAfterDeliveries = readInt(j, "breakAfterDeliveries", "fleet", 0,
+                                         std::numeric_limits<int>::max());
+    }
+    if (j.contains("breakMs")) {
+        f.breakMs = readIntRaw(j["breakMs"], "breakMs", "fleet", 1,
+                               std::numeric_limits<int>::max());
+    }
+    if (f.breakAfterDeliveries > 0 && f.breakMs <= 0) {
+        schemaError("fleet.breakMs is required and must be positive when "
+                    "fleet.breakAfterDeliveries is greater than 0");
+    }
     return f;
 }
 

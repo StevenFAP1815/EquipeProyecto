@@ -39,6 +39,13 @@ std::string toJsonLine(const Summary& summary) {
     j["avgUrgentDeliveryMs"] = summary.avgUrgentDeliveryMs;
     j["pauses"] = summary.pauses;
     j["pickupsDelayedByPause"] = summary.pickupsDelayedByPause;
+
+    Json breaksPerCourier = Json::object();
+    for (const auto& entry : summary.breaksPerCourier) {
+        breaksPerCourier[entry.first] = entry.second;
+    }
+    j["breaks"] = summary.breaks;
+    j["breaksPerCourier"] = breaksPerCourier;
     return j.dump();
 }
 
@@ -60,6 +67,7 @@ void EventLog::registerCouriers(const std::vector<core::CourierId>& couriers) {
     std::lock_guard<std::mutex> lock(mutex_);
     for (const core::CourierId& c : couriers) {
         counts_.deliveredPerCourier.emplace(c.str(), 0);
+        counts_.breaksPerCourier.emplace(c.str(), 0);
     }
 }
 
@@ -189,6 +197,7 @@ void EventLog::courierJoined(std::int64_t t, const core::CourierId& courier) {
     writeLine(e.dump());
     ++counts_.reinforcementsJoined;
     counts_.deliveredPerCourier.emplace(courier.str(), 0);
+    counts_.breaksPerCourier.emplace(courier.str(), 0);
 }
 
 void EventLog::courierRetired(std::int64_t t, const core::CourierId& courier) {
@@ -212,6 +221,24 @@ void EventLog::restaurantPaused(std::int64_t t, const core::RestaurantId& restau
 void EventLog::restaurantResumed(std::int64_t t, const core::RestaurantId& restaurant) {
     Json e = baseEvent(t, "restaurantResumed");
     e["restaurant"] = restaurant.str();
+
+    std::lock_guard<std::mutex> lock(mutex_);
+    writeLine(e.dump());
+}
+
+void EventLog::courierBreakStarted(std::int64_t t, const core::CourierId& courier) {
+    Json e = baseEvent(t, "courierBreakStarted");
+    e["courier"] = courier.str();
+
+    std::lock_guard<std::mutex> lock(mutex_);
+    writeLine(e.dump());
+    ++counts_.breaks;
+    ++counts_.breaksPerCourier[courier.str()];
+}
+
+void EventLog::courierBreakEnded(std::int64_t t, const core::CourierId& courier) {
+    Json e = baseEvent(t, "courierBreakEnded");
+    e["courier"] = courier.str();
 
     std::lock_guard<std::mutex> lock(mutex_);
     writeLine(e.dump());

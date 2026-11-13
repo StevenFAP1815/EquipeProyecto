@@ -149,3 +149,31 @@ TEST_CASE("ConfigLoader: kitchen fuera de rango lanza ConfigSchemaError",
     j["kitchen"] = {{"pauseEveryMs", 1000}};
     REQUIRE_THROWS_AS(parseConfig(j), ConfigSchemaError);
 }
+
+TEST_CASE("ConfigLoader: descansos de la flota son opcionales y se leen",
+          "[config_loader][break]") {
+    nlohmann::json j = loadBaseJson();
+    REQUIRE(parseConfig(j).fleet.breakAfterDeliveries == 0);
+
+    j["fleet"]["breakAfterDeliveries"] = 2;
+    j["fleet"]["breakMs"] = 600000;
+    const Config cfg = parseConfig(j);
+    REQUIRE(cfg.fleet.breakAfterDeliveries == 2);
+    REQUIRE(cfg.fleet.breakMs == 600000);
+}
+
+TEST_CASE("ConfigLoader: descansos fuera de rango lanzan ConfigSchemaError",
+          "[config_loader][break][invalid]") {
+    nlohmann::json j = loadBaseJson();
+
+    j["fleet"]["breakAfterDeliveries"] = -1;
+    j["fleet"]["breakMs"] = 600000;
+    REQUIRE_THROWS_AS(parseConfig(j), ConfigSchemaError);
+
+    j["fleet"]["breakAfterDeliveries"] = 2;
+    j["fleet"]["breakMs"] = 0;
+    REQUIRE_THROWS_AS(parseConfig(j), ConfigSchemaError);
+
+    j["fleet"].erase("breakMs");
+    REQUIRE_THROWS_AS(parseConfig(j), ConfigSchemaError);
+}

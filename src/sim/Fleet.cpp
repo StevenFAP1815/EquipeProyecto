@@ -13,6 +13,8 @@ CourierSettings makeBaseSettings(const infra::Config& cfg) {
     settings.bagCapacity = cfg.fleet.bagCapacity;
     settings.speedKmh = cfg.fleet.speedKmh;
     settings.breakdownProbability = cfg.incidents.breakdownProbability;
+    settings.breakAfterDeliveries = cfg.fleet.breakAfterDeliveries;
+    settings.breakMs = cfg.fleet.breakMs;
     return settings;
 }
 }

@@ -21,6 +21,8 @@ struct FleetConfig {
     int bagCapacity = 1;
     double speedKmh = 0.0;
     delivery::core::NodeId startNode;
+    int breakAfterDeliveries = 0;
+    std::int64_t breakMs = 0;
 };
 
 struct OrdersConfig {

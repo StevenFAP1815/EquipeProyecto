@@ -30,7 +30,7 @@ Courier::Courier(core::CourierId id,
 }
 
 bool Courier::canAcceptLocked(const core::RestaurantId& restaurant) const {
-    if (retired_) {
+    if (retired_ || onBreak_) {
         return false;
     }
     if (bag_.empty()) {
@@ -73,7 +73,7 @@ std::optional<std::future<bool>> Courier::acceptRescue(Courier& broken) {
         std::lock_guard<std::mutex> lock(stateMutex_);
         if (&broken == this || env_.stop.stopRequested() ||
             state_ != CourierState::Idle || !bag_.empty() || rescueRequest_.has_value() ||
-            retired_) {
+            retired_ || onBreak_) {
             return std::nullopt;
         }
         rescueRequest_.emplace();
@@ -99,13 +99,18 @@ CourierState Courier::state() const {
 
 bool Courier::isAvailable() const {
     std::lock_guard<std::mutex> lock(stateMutex_);
-    return !retired_ && state_ == CourierState::Idle && bag_.empty() &&
+    return !retired_ && !onBreak_ && state_ == CourierState::Idle && bag_.empty() &&
            !rescueRequest_.has_value();
 }
 
 bool Courier::isRetired() const {
     std::lock_guard<std::mutex> lock(stateMutex_);
     return retired_;
+}
+
+bool Courier::isOnBreak() const {
+    std::lock_guard<std::mutex> lock(stateMutex_);
+    return onBreak_;
 }
 
 bool Courier::canAccept(const core::RestaurantId& restaurant) const {
@@ -192,6 +197,10 @@ void Courier::setState(CourierState state) {
 
 void Courier::run() {
     while (true) {
+        if (!finishBreakIfNeeded()) {
+            return;
+        }
+
         std::optional<RescueRequest> rescue;
         core::NodeId from;
         core::RestaurantId restaurant;
@@ -352,6 +361,7 @@ bool Courier::deliverBag(bool mayBreakDown) {
         if (arrived) {
             env_.log.orderDelivered(env_.clock.nowMs(), bag_.front().id, id_);
             ++delivered_;
+            ++deliveriesSinceBreak_;
         } else {
             env_.log.orderRejected(env_.clock.nowMs(), bag_.front().id,
                                    core::RejectReason::Unreachable);
@@ -444,6 +454,7 @@ void Courier::failWholeBag() {
         collecting_ = false;
         state_ = CourierState::Idle;
         lastIdleMs_ = env_.clock.nowMs();
+        startBreakIfDueLocked();
     }
     env_.freedSignal.notify();
 }
@@ -454,8 +465,47 @@ void Courier::becomeIdle() {
         collecting_ = false;
         state_ = CourierState::Idle;
         lastIdleMs_ = env_.clock.nowMs();
+        startBreakIfDueLocked();
     }
     env_.freedSignal.notify();
+}
+
+void Courier::startBreakIfDueLocked() {
+    if (settings_.breakAfterDeliveries <= 0 || !bag_.empty() || env_.stop.stopRequested()) {
+        return;
+    }
+    if (deliveriesSinceBreak_ < settings_.breakAfterDeliveries) {
+        return;
+    }
+    const std::int64_t now = env_.clock.nowMs();
+    onBreak_ = true;
+    deliveriesSinceBreak_ = 0;
+    breakEndMs_ = now + settings_.breakMs;
+    env_.log.courierBreakStarted(now, id_);
+}
+
+bool Courier::finishBreakIfNeeded() {
+    std::int64_t endMs = 0;
+    {
+        std::lock_guard<std::mutex> lock(stateMutex_);
+        if (!onBreak_) {
+            return true;
+        }
+        endMs = breakEndMs_;
+    }
+
+    if (!env_.clock.waitUntilMs(endMs, env_.stop)) {
+        return false;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(stateMutex_);
+        onBreak_ = false;
+        lastIdleMs_ = env_.clock.nowMs();
+        env_.log.courierBreakEnded(lastIdleMs_, id_);
+    }
+    env_.freedSignal.notify();
+    return true;
 }
 
 bool Courier::travel(const core::NodeId& from, const core::NodeId& to) {

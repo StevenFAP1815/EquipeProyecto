@@ -34,6 +34,8 @@ struct Summary {
     std::int64_t avgUrgentDeliveryMs = 0;
     std::uint64_t pauses = 0;
     std::uint64_t pickupsDelayedByPause = 0;
+    std::uint64_t breaks = 0;
+    std::map<std::string, std::uint64_t> breaksPerCourier;
 };
 
 std::string toJsonLine(const Summary& summary);
@@ -63,6 +65,8 @@ public:
     void courierRetired(std::int64_t t, const core::CourierId& courier);
     void restaurantPaused(std::int64_t t, const core::RestaurantId& restaurant);
     void restaurantResumed(std::int64_t t, const core::RestaurantId& restaurant);
+    void courierBreakStarted(std::int64_t t, const core::CourierId& courier);
+    void courierBreakEnded(std::int64_t t, const core::CourierId& courier);
     void simulationStopping(std::int64_t t);
 
     Summary summary() const;
