@@ -49,10 +49,22 @@ endif()
 if(MSVC)
     add_compile_options(/W4 /permissive-)
 else()
-    add_compile_options(-Wall -Wextra -Wpedantic)
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-Wall> $<$<COMPILE_LANGUAGE:CXX>:-Wextra>
+                        $<$<COMPILE_LANGUAGE:CXX>:-Wpedantic>)
 endif()
 
 option(ENABLE_VIEWER "Build the OpenCV window" ON)
+option(USE_CUDA "Compile the .cu sources with nvcc for an NVIDIA GPU" OFF)
+
+if(USE_CUDA)
+    if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+        set(CMAKE_CUDA_ARCHITECTURES 75)
+    endif()
+    enable_language(CUDA)
+    set(CMAKE_CUDA_STANDARD 17)
+    set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+    find_package(CUDAToolkit REQUIRED)
+endif()
 
 find_package(Threads REQUIRED)
 if(ENABLE_VIEWER)
@@ -66,6 +78,24 @@ FetchContent_Declare(
     URL_HASH SHA256=d6c65aca6b1ed68e7a182f4757257b107ae403032760ed6ef121c9d55e81757d
 )
 FetchContent_MakeAvailable(nlohmann_json)
+
+set(DELIVERY_GPU_SOURCES
+    src/gpu/DeviceInfo.cu
+)
+
+add_library(delivery_gpu STATIC ${DELIVERY_GPU_SOURCES})
+target_include_directories(delivery_gpu PUBLIC include)
+target_link_libraries(delivery_gpu PUBLIC Threads::Threads)
+
+if(USE_CUDA)
+    target_link_libraries(delivery_gpu PUBLIC CUDA::cudart)
+    target_compile_definitions(delivery_gpu PUBLIC DELIVERY_USE_CUDA)
+else()
+    set_source_files_properties(${DELIVERY_GPU_SOURCES} PROPERTIES LANGUAGE CXX)
+    if(NOT MSVC)
+        target_compile_options(delivery_gpu PRIVATE -x c++)
+    endif()
+endif()
 
 add_library(delivery_core STATIC
     src/core/GeoBounds.cpp
@@ -85,6 +115,7 @@ add_library(delivery_core STATIC
 )
 target_include_directories(delivery_core PUBLIC include)
 target_link_libraries(delivery_core PUBLIC
+    delivery_gpu
     nlohmann_json::nlohmann_json
     Threads::Threads
 )

@@ -2,6 +2,7 @@
 #include <delivery/concurrency/OrderBook.hpp>
 #include <delivery/concurrency/ShutdownToken.hpp>
 #include <delivery/core/StreetNetwork.hpp>
+#include <delivery/gpu/DeviceInfo.hpp>
 #include <delivery/infra/ConfigLoader.hpp>
 #include <delivery/infra/EventLog.hpp>
 #include <delivery/sim/Dispatcher.hpp>
@@ -92,6 +93,7 @@ int main(int argc, char** argv) {
 
     try {
         const infra::Config cfg = infra::loadConfigFromFile(args->configPath);
+        std::cerr << gpu::describe(gpu::queryDevice()) << std::endl;
         const auto network = core::StreetNetwork::build(cfg.nodes, cfg.streets);
 
         infra::EventLog log(args->logPath);
