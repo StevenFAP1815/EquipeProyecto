@@ -24,6 +24,7 @@ add_executable(delivery_tests
     test_event_log.cpp
     test_device_info.cpp
     test_city_config.cpp
+    test_bench_runner.cpp
 )
 
 target_link_libraries(delivery_tests PRIVATE

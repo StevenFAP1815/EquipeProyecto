@@ -1,3 +1,5 @@
+#include <delivery/bench/Applications.hpp>
+#include <delivery/bench/BenchRunner.hpp>
 #include <delivery/concurrency/ChangeSignal.hpp>
 #include <delivery/concurrency/OrderBook.hpp>
 #include <delivery/concurrency/ShutdownToken.hpp>
@@ -19,6 +21,7 @@
 #include <csignal>
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <optional>
 #include <string>
@@ -57,7 +60,33 @@ struct Arguments {
     std::filesystem::path configPath;
     std::filesystem::path logPath = "events.log";
     bool headless = false;
+    std::filesystem::path benchPath;
+    bool benchOnce = false;
+    std::string benchOnly;
 };
+
+int runBenchmarks(const delivery::infra::Config& cfg, const Arguments& args) {
+    using namespace delivery;
+    std::ofstream csv(args.benchPath);
+    if (!csv) {
+        std::cerr << "Cannot write " << args.benchPath << "\n";
+        return 1;
+    }
+    bench::BenchOptions options;
+    options.only = args.benchOnly;
+    if (args.benchOnce) {
+        options.repetitions = 1;
+        options.warmup = false;
+    }
+    bench::BenchRunner runner(csv, options);
+    for (const bench::BenchCase& benchCase : bench::allBenchCases(cfg)) {
+        std::cerr << "bench: " << benchCase.application << std::endl;
+        runner.run(benchCase);
+    }
+    std::cout << "bench: " << runner.rowsWritten() << " rows, " << runner.failures()
+              << " incorrect, written to " << args.benchPath.string() << std::endl;
+    return runner.failures() == 0 ? 0 : 3;
+}
 
 std::optional<Arguments> parseArguments(int argc, char** argv) {
     if (argc < 2) {
@@ -71,6 +100,12 @@ std::optional<Arguments> parseArguments(int argc, char** argv) {
             args.logPath = argv[++i];
         } else if (option == "--headless") {
             args.headless = true;
+        } else if (option == "--bench" && i + 1 < argc) {
+            args.benchPath = argv[++i];
+        } else if (option == "--bench-once") {
+            args.benchOnce = true;
+        } else if (option == "--bench-only" && i + 1 < argc) {
+            args.benchOnly = argv[++i];
         } else {
             return std::nullopt;
         }
@@ -87,13 +122,18 @@ int main(int argc, char** argv) {
 
     const std::optional<Arguments> args = parseArguments(argc, argv);
     if (!args) {
-        std::cerr << "Usage: delivery_sim <config.json> [--log <path>] [--headless]\n";
+        std::cerr << "Usage: delivery_sim <config.json> [--log <path>] [--headless]\n"
+                     "       delivery_sim <config.json> --headless --bench <results.csv>"
+                     " [--bench-once] [--bench-only <application>]\n";
         return 1;
     }
 
     try {
         const infra::Config cfg = infra::loadConfigFromFile(args->configPath);
         std::cerr << gpu::describe(gpu::queryDevice()) << std::endl;
+        if (!args->benchPath.empty()) {
+            return runBenchmarks(cfg, *args);
+        }
         const auto network = core::StreetNetwork::build(cfg.nodes, cfg.streets);
 
         infra::EventLog log(args->logPath);
