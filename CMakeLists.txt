@@ -108,6 +108,7 @@ add_library(delivery_core STATIC
     src/concurrency/ChangeSignal.cpp
     src/concurrency/PickupDesk.cpp
     src/concurrency/OrderBook.cpp
+    src/concurrency/GpuWorker.cpp
     src/sim/SimClock.cpp
     src/sim/OrderGenerator.cpp
     src/sim/Courier.cpp

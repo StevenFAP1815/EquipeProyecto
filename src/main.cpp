@@ -1,6 +1,7 @@
 #include <delivery/bench/Applications.hpp>
 #include <delivery/bench/BenchRunner.hpp>
 #include <delivery/concurrency/ChangeSignal.hpp>
+#include <delivery/concurrency/GpuWorker.hpp>
 #include <delivery/concurrency/OrderBook.hpp>
 #include <delivery/concurrency/ShutdownToken.hpp>
 #include <delivery/core/StreetNetwork.hpp>
@@ -130,10 +131,13 @@ int main(int argc, char** argv) {
 
     try {
         const infra::Config cfg = infra::loadConfigFromFile(args->configPath);
-        std::cerr << gpu::describe(gpu::queryDevice()) << std::endl;
         if (!args->benchPath.empty()) {
+            std::cerr << gpu::describe(gpu::queryDevice()) << std::endl;
             return runBenchmarks(cfg, *args);
         }
+        concurrency::GpuWorker gpuWorker;
+        std::cerr << gpu::describe(gpuWorker.submit([] { return gpu::queryDevice(); }).get())
+                  << std::endl;
         const auto network = core::StreetNetwork::build(cfg.nodes, cfg.streets);
 
         infra::EventLog log(args->logPath);
@@ -186,6 +190,7 @@ int main(int argc, char** argv) {
 
         tProducer.join();
         tDispatcher.join();
+        gpuWorker.stop();
         if (tRenderer.joinable()) {
             tRenderer.join();
         }
