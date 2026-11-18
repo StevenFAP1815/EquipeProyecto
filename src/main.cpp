@@ -8,7 +8,9 @@
 #include <delivery/sim/Fleet.hpp>
 #include <delivery/sim/OrderGenerator.hpp>
 #include <delivery/sim/SimClock.hpp>
+#ifdef DELIVERY_HAS_VIEWER
 #include <delivery/viz/Renderer.hpp>
+#endif
 
 #include <algorithm>
 #include <atomic>
@@ -53,20 +55,28 @@ void waitForEndOfSimulation(const delivery::infra::Config& cfg,
 struct Arguments {
     std::filesystem::path configPath;
     std::filesystem::path logPath = "events.log";
+    bool headless = false;
 };
 
 std::optional<Arguments> parseArguments(int argc, char** argv) {
-    if (argc != 2 && argc != 4) {
+    if (argc < 2) {
         return std::nullopt;
     }
     Arguments args;
     args.configPath = argv[1];
-    if (argc == 4) {
-        if (std::string(argv[2]) != "--log") {
+    for (int i = 2; i < argc; ++i) {
+        const std::string option = argv[i];
+        if (option == "--log" && i + 1 < argc) {
+            args.logPath = argv[++i];
+        } else if (option == "--headless") {
+            args.headless = true;
+        } else {
             return std::nullopt;
         }
-        args.logPath = argv[3];
     }
+#ifndef DELIVERY_HAS_VIEWER
+    args.headless = true;
+#endif
     return args;
 }
 }
@@ -76,14 +86,12 @@ int main(int argc, char** argv) {
 
     const std::optional<Arguments> args = parseArguments(argc, argv);
     if (!args) {
-        std::cerr << "Usage: delivery_sim <config.json> [--log <path>]\n";
+        std::cerr << "Usage: delivery_sim <config.json> [--log <path>] [--headless]\n";
         return 1;
     }
 
     try {
         const infra::Config cfg = infra::loadConfigFromFile(args->configPath);
-        const std::filesystem::path imagePath =
-            args->configPath.parent_path() / cfg.map.imagePath;
         const auto network = core::StreetNetwork::build(cfg.nodes, cfg.streets);
 
         infra::EventLog log(args->logPath);
@@ -96,7 +104,14 @@ int main(int argc, char** argv) {
         sim::OrderGenerator generator(cfg, book, stop, clock, orderIdCounter, log);
         sim::Fleet fleet(cfg, network, clock, stop, freedSignal, log);
         sim::Dispatcher dispatcher(cfg, network, book, fleet, clock, freedSignal, stop, log);
-        viz::Renderer renderer(cfg, imagePath, fleet, book, log, clock, stop);
+#ifdef DELIVERY_HAS_VIEWER
+        std::optional<viz::Renderer> renderer;
+        if (!args->headless) {
+            const std::filesystem::path imagePath =
+                args->configPath.parent_path() / cfg.map.imagePath;
+            renderer.emplace(cfg, imagePath, fleet, book, log, clock, stop);
+        }
+#endif
 
         std::signal(SIGINT, onSignal);
         std::signal(SIGTERM, onSignal);
@@ -108,9 +123,14 @@ int main(int argc, char** argv) {
         std::thread tDispatcher([&dispatcher] {
             dispatcher.run();
         });
-        std::thread tRenderer([&renderer] {
-            renderer.run();
-        });
+        std::thread tRenderer;
+#ifdef DELIVERY_HAS_VIEWER
+        if (renderer) {
+            tRenderer = std::thread([&renderer] {
+                renderer->run();
+            });
+        }
+#endif
 
         std::cout << "Simulation has started..." << std::endl;
 
@@ -124,7 +144,9 @@ int main(int argc, char** argv) {
 
         tProducer.join();
         tDispatcher.join();
-        tRenderer.join();
+        if (tRenderer.joinable()) {
+            tRenderer.join();
+        }
         fleet.join();
 
         const infra::Summary summary = log.summary();

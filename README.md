@@ -53,8 +53,10 @@ cmake -DENABLE_ASAN=ON .. && make   # AddressSanitizer + LeakSanitizer
 ```bash
 ./delivery_sim ../config/equipetrol.json
 ./delivery_sim ../config/equipetrol.json --log run1.log
+./delivery_sim ../config/equipetrol.json --headless
 ```
 
+- `--headless` ejecuta la simulación sin ventana. Compilando con `cmake -DENABLE_VIEWER=OFF ..` el programa no necesita OpenCV y siempre corre sin ventana.
 - Cuando todos los hilos están en marcha imprime `Simulation has started...`.
 - Abre una ventana con el mapa, los restaurantes, cada repartidor como un punto que se mueve por las calles (con un color por estado), los puntos de entrega y un panel de contadores.
 - Cada cambio de estado se escribe como una línea JSON en `events.log` (o en la ruta de `--log`).

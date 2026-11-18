@@ -52,8 +52,12 @@ else()
     add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
+option(ENABLE_VIEWER "Build the OpenCV window" ON)
+
 find_package(Threads REQUIRED)
-find_package(OpenCV REQUIRED COMPONENTS core highgui imgproc imgcodecs)
+if(ENABLE_VIEWER)
+    find_package(OpenCV REQUIRED COMPONENTS core highgui imgproc imgcodecs)
+endif()
 
 include(FetchContent)
 FetchContent_Declare(
@@ -87,12 +91,16 @@ target_link_libraries(delivery_core PUBLIC
 
 add_executable(delivery_sim
     src/main.cpp
-    src/viz/Renderer.cpp
 )
 target_link_libraries(delivery_sim PRIVATE
     delivery_core
-    ${OpenCV_LIBS}
 )
+
+if(ENABLE_VIEWER)
+    target_sources(delivery_sim PRIVATE src/viz/Renderer.cpp)
+    target_link_libraries(delivery_sim PRIVATE ${OpenCV_LIBS})
+    target_compile_definitions(delivery_sim PRIVATE DELIVERY_HAS_VIEWER)
+endif()
 
 if(ENABLE_TSAN)
     target_sources(delivery_sim PRIVATE src/analysis/tsan_default_suppressions.cpp)
