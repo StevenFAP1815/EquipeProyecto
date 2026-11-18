@@ -1,6 +1,8 @@
 #pragma once
 
 #include <delivery/concurrency/ChangeSignal.hpp>
+#include <delivery/concurrency/GpuWorker.hpp>
+#include <delivery/core/PlanarProjection.hpp>
 #include <delivery/concurrency/OrderBook.hpp>
 #include <delivery/concurrency/ShutdownToken.hpp>
 #include <delivery/core/Order.hpp>
@@ -45,7 +47,10 @@ public:
     Dispatcher(const Dispatcher&) = delete;
     Dispatcher& operator=(const Dispatcher&) = delete;
 
+    static constexpr std::int32_t kCandidateRadiusDm = 20000;
+
     void useTravelTable(std::shared_ptr<const core::TravelTable> table);
+    void useGpu(concurrency::GpuWorker& worker);
 
     void run();
 
@@ -61,12 +66,18 @@ private:
     void dispatch(core::Order& order);
     Courier* chooseCourier(const QuoteRequest& request);
     std::vector<Courier*> nearestCandidates(const QuoteRequest& request) const;
+    std::vector<int> filterCandidates(const std::vector<std::int32_t>& xDm,
+                                      const std::vector<std::int32_t>& yDm,
+                                      const std::vector<std::uint8_t>& available,
+                                      core::PlanarPoint center) const;
     std::int64_t estimateDeliveryMs(const Courier& courier, QuoteRequest request) const;
     std::optional<double> travelMeters(const core::NodeId& from, const core::NodeId& to) const;
 
     const infra::Config& config_;
     std::shared_ptr<const core::StreetNetwork> network_;
     std::shared_ptr<const core::TravelTable> travelTable_;
+    concurrency::GpuWorker* gpuWorker_ = nullptr;
+    core::PlanarProjection projection_;
     concurrency::OrderBook& book_;
     Fleet& fleet_;
     SimClock& clock_;

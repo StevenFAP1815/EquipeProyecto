@@ -1,7 +1,9 @@
 #include <delivery/sim/Dispatcher.hpp>
 
+#include <delivery/core/CandidateFilter.hpp>
 #include <delivery/core/GeoBounds.hpp>
 #include <delivery/core/PathFinder.hpp>
+#include <delivery/gpu/CandidateFilter.hpp>
 
 #include <algorithm>
 #include <chrono>
@@ -30,6 +32,8 @@ Dispatcher::Dispatcher(const infra::Config& config,
                        Estimator estimator)
     : config_(config),
       network_(std::move(network)),
+      projection_(core::LatLon{(config.map.bounds.north() + config.map.bounds.south()) / 2.0,
+                               (config.map.bounds.west() + config.map.bounds.east()) / 2.0}),
       book_(book),
       fleet_(fleet),
       clock_(clock),
@@ -153,20 +157,73 @@ Courier* Dispatcher::chooseCourier(const QuoteRequest& request) {
     return best;
 }
 
+void Dispatcher::useGpu(concurrency::GpuWorker& worker) {
+    gpuWorker_ = &worker;
+}
+
+std::vector<int> Dispatcher::filterCandidates(const std::vector<std::int32_t>& xDm,
+                                              const std::vector<std::int32_t>& yDm,
+                                              const std::vector<std::uint8_t>& available,
+                                              core::PlanarPoint center) const {
+    if (gpuWorker_ != nullptr) {
+        try {
+            auto inside = gpuWorker_->submit([xDm, yDm, available, center] {
+                return gpu::filterWithinRadius(xDm, yDm, available, center.xDm, center.yDm,
+                                               kCandidateRadiusDm);
+            });
+            const auto deadline = std::chrono::steady_clock::now() +
+                                  std::chrono::milliseconds(config_.dispatch.quoteTimeoutMs);
+            if (inside.wait_until(deadline) == std::future_status::ready) {
+                return inside.get();
+            }
+        } catch (const std::exception&) {
+        }
+    }
+    return core::filterWithinRadiusCpu(xDm, yDm, available, center.xDm, center.yDm,
+                                       kCandidateRadiusDm, 1);
+}
+
 std::vector<Courier*> Dispatcher::nearestCandidates(const QuoteRequest& request) const {
     const core::LatLon restaurant = *network_->nodeLatLon(request.restaurantNode);
+    const auto& couriers = fleet_.couriers();
 
-    std::vector<std::pair<double, Courier*>> free;
-    for (const auto& courier : fleet_.couriers()) {
-        if (courier->canAccept(request.restaurant)) {
-            const double meters =
-                core::GeoBounds::distanceMeters(courier->position(), restaurant);
-            free.emplace_back(meters, courier.get());
+    std::vector<core::LatLon> positions;
+    std::vector<std::int32_t> xDm;
+    std::vector<std::int32_t> yDm;
+    std::vector<std::uint8_t> available;
+    positions.reserve(couriers.size());
+    xDm.reserve(couriers.size());
+    yDm.reserve(couriers.size());
+    available.reserve(couriers.size());
+    for (const auto& courier : couriers) {
+        const core::LatLon position = courier->position();
+        const core::PlanarPoint planar = projection_.toDecimeters(position);
+        positions.push_back(position);
+        xDm.push_back(planar.xDm);
+        yDm.push_back(planar.yDm);
+        available.push_back(courier->canAccept(request.restaurant) ? 1 : 0);
+    }
+
+    std::vector<int> selected =
+        filterCandidates(xDm, yDm, available, projection_.toDecimeters(restaurant));
+    if (selected.size() < maxCandidates_) {
+        selected.clear();
+        for (std::size_t i = 0; i < available.size(); ++i) {
+            if (available[i] != 0) {
+                selected.push_back(static_cast<int>(i));
+            }
         }
     }
 
-    std::sort(free.begin(), free.end(),
-              [](const auto& a, const auto& b) { return a.first < b.first; });
+    std::vector<std::pair<double, Courier*>> free;
+    for (int index : selected) {
+        const auto i = static_cast<std::size_t>(index);
+        free.emplace_back(core::GeoBounds::distanceMeters(positions[i], restaurant),
+                          couriers[i].get());
+    }
+
+    std::stable_sort(free.begin(), free.end(),
+                     [](const auto& a, const auto& b) { return a.first < b.first; });
     if (free.size() > maxCandidates_) {
         free.resize(maxCandidates_);
     }

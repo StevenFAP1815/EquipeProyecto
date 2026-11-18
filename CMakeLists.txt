@@ -83,6 +83,7 @@ set(DELIVERY_GPU_SOURCES
     src/gpu/DeviceInfo.cu
     src/gpu/EventTimer.cu
     src/gpu/FloydWarshall.cu
+    src/gpu/CandidateFilter.cu
 )
 
 add_library(delivery_gpu STATIC ${DELIVERY_GPU_SOURCES})
@@ -105,6 +106,8 @@ add_library(delivery_core STATIC
     src/core/StreetNetwork.cpp
     src/core/CsrGraph.cpp
     src/core/TravelTable.cpp
+    src/core/PlanarProjection.cpp
+    src/core/CandidateFilter.cpp
     src/infra/ConfigLoader.cpp
     src/infra/EventLog.cpp
     src/concurrency/ShutdownToken.cpp

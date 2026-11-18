@@ -190,6 +190,9 @@ int main(int argc, char** argv) {
         sim::Dispatcher dispatcher(cfg, network, book, fleet, clock, freedSignal, stop, log);
         const bool useGpu = gpuCompiledIn() && !args->cpuOnly;
         dispatcher.useTravelTable(buildTravelTable(*network, gpuWorker, useGpu));
+        if (useGpu) {
+            dispatcher.useGpu(gpuWorker);
+        }
 #ifdef DELIVERY_HAS_VIEWER
         std::optional<viz::Renderer> renderer;
         if (!args->headless) {
