@@ -29,6 +29,7 @@ add_executable(delivery_tests
     test_travel_table.cpp
     test_candidate_filter.cpp
     test_eta_batch.cpp
+    test_argmin_reduction.cpp
 )
 
 target_link_libraries(delivery_tests PRIVATE

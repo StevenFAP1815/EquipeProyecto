@@ -1,5 +1,6 @@
 #pragma once
 
+#include <delivery/gpu/ArgminReduction.hpp>
 #include <delivery/gpu/EtaFormula.hpp>
 #include <delivery/gpu/KernelTiming.hpp>
 
@@ -43,6 +44,8 @@ public:
                                         long long nowMs, KernelTiming* timing = nullptr);
     std::vector<long long> etaMatrixAoS(const EtaOrders& orders, const EtaCouriers& couriers,
                                         long long nowMs, KernelTiming* timing = nullptr);
+    std::vector<BestCourier> bestPerOrder(const EtaOrders& orders, const EtaCouriers& couriers,
+                                          long long nowMs, KernelTiming* timing = nullptr);
 
 private:
     int n_;

@@ -211,6 +211,75 @@ BenchCase etaBatchCase() {
                                 const double ms = watch.elapsedMs();
                                 return Measurement{ms, etas == *reference};
                             }});
+        auto bestReference = std::make_shared<std::vector<gpu::BestCourier>>(gpu::rowArgminCpu(
+            *reference, work->orders.size(), work->couriers.size(), 1));
+        versions.push_back({"gpu_e2e_best", [work, bestReference, engine] {
+                                Stopwatch watch;
+                                const auto best =
+                                    engine->bestPerOrder(work->orders, work->couriers, 0);
+                                const double ms = watch.elapsedMs();
+                                return Measurement{ms, best == *bestReference};
+                            }});
+#endif
+        return versions;
+    };
+    return c;
+}
+
+struct EtaMatrix {
+    int rows = 0;
+    int cols = 0;
+    std::vector<long long> etas;
+};
+
+EtaMatrix randomEtaMatrix(int rows, int cols, std::uint64_t seed) {
+    std::mt19937_64 rng(seed);
+    std::uniform_int_distribution<long long> eta(60000, 60999);
+    std::bernoulli_distribution unreachable(0.05);
+    EtaMatrix m{rows, cols, {}};
+    m.etas.resize(static_cast<std::size_t>(rows) * cols);
+    for (long long& value : m.etas) {
+        value = unreachable(rng) ? gpu::kNoEta : eta(rng);
+    }
+    return m;
+}
+
+BenchCase dispatchArgminCase() {
+    static const std::vector<std::pair<int, int>> shapes = {
+        {10, 500}, {50, 2000}, {200, 5000}, {1000, 5000}, {1000, 20000}};
+    BenchCase c;
+    c.application = "dispatch_argmin";
+    for (const auto& [rows, cols] : shapes) {
+        c.sizes.push_back(std::to_string(rows) + "x" + std::to_string(cols));
+    }
+    c.prepare = [](std::size_t sizeIndex) {
+        const auto [rows, cols] = shapes[sizeIndex];
+        auto m = std::make_shared<EtaMatrix>(randomEtaMatrix(rows, cols, kBenchSeed));
+        auto reference = std::make_shared<std::vector<gpu::BestCourier>>(
+            gpu::rowArgminCpu(m->etas, m->rows, m->cols, 1));
+
+        std::vector<Version> versions;
+        for (unsigned threads : threadSweep(hardwareThreads())) {
+            versions.push_back({"cpu_t" + std::to_string(threads), [m, reference, threads] {
+                                    Stopwatch watch;
+                                    const auto best =
+                                        gpu::rowArgminCpu(m->etas, m->rows, m->cols, threads);
+                                    const double ms = watch.elapsedMs();
+                                    return Measurement{ms, best == *reference};
+                                }});
+        }
+#ifdef DELIVERY_USE_CUDA
+        versions.push_back({"gpu_kernel", [m, reference] {
+                                gpu::KernelTiming timing;
+                                const auto best = gpu::rowArgmin(m->etas, m->rows, m->cols, &timing);
+                                return Measurement{timing.kernelMs, best == *reference};
+                            }});
+        versions.push_back({"gpu_e2e", [m, reference] {
+                                Stopwatch watch;
+                                const auto best = gpu::rowArgmin(m->etas, m->rows, m->cols);
+                                const double ms = watch.elapsedMs();
+                                return Measurement{ms, best == *reference};
+                            }});
 #endif
         return versions;
     };
@@ -222,6 +291,7 @@ std::vector<BenchCase> allBenchCases(const infra::Config&) {
     cases.push_back(travelTableCase());
     cases.push_back(candidateFilterCase());
     cases.push_back(etaBatchCase());
+    cases.push_back(dispatchArgminCase());
     return cases;
 }
 }

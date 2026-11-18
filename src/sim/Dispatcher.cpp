@@ -67,25 +67,26 @@ int Dispatcher::cmPerSecond(double speedKmh) {
     return std::max(1, static_cast<int>(std::lround(speedKmh * 100000.0 / 3600.0)));
 }
 
-std::vector<long long> Dispatcher::batchEtas(const gpu::EtaOrders& orders,
-                                             const gpu::EtaCouriers& couriers, long long nowMs) {
+gpu::BestCourier Dispatcher::batchBest(const gpu::EtaOrders& orders,
+                                       const gpu::EtaCouriers& couriers, long long nowMs) {
     if (etaEngine_ != nullptr && gpuWorker_ != nullptr) {
         try {
-            auto etas = gpuWorker_->submit([engine = etaEngine_, orders, couriers, nowMs] {
-                return engine->etaMatrixSoA(orders, couriers, nowMs);
+            auto best = gpuWorker_->submit([engine = etaEngine_, orders, couriers, nowMs] {
+                return engine->bestPerOrder(orders, couriers, nowMs);
             });
             const auto deadline = std::chrono::steady_clock::now() +
                                   std::chrono::milliseconds(config_.dispatch.quoteTimeoutMs);
-            if (etas.wait_until(deadline) == std::future_status::ready) {
-                return etas.get();
+            if (best.wait_until(deadline) == std::future_status::ready) {
+                return best.get().front();
             }
             ++lateQuotes_;
         } catch (const std::exception&) {
             ++quoteErrors_;
         }
     }
-    return gpu::etaMatrixCpu(travelTable_->data(), travelTable_->size(), orders, couriers, nowMs,
-                             1);
+    const auto etas = gpu::etaMatrixCpu(travelTable_->data(), travelTable_->size(), orders,
+                                        couriers, nowMs, 1);
+    return gpu::rowArgminCpu(etas, orders.size(), couriers.size(), 1).front();
 }
 
 Courier* Dispatcher::chooseCourierBatch(const QuoteRequest& request) {
@@ -108,16 +109,11 @@ Courier* Dispatcher::chooseCourierBatch(const QuoteRequest& request) {
                      cmPerSecond(courier->speedKmh()));
     }
 
-    const std::vector<long long> etas = batchEtas(orders, couriers, clock_.nowMs());
-    Courier* best = nullptr;
-    long long bestEta = gpu::kNoEta;
-    for (std::size_t i = 0; i < candidates.size(); ++i) {
-        if (etas[i] < bestEta) {
-            bestEta = etas[i];
-            best = candidates[i];
-        }
+    const gpu::BestCourier best = batchBest(orders, couriers, clock_.nowMs());
+    if (best.index < 0) {
+        return nullptr;
     }
-    return best;
+    return candidates[static_cast<std::size_t>(best.index)];
 }
 
 std::optional<double> Dispatcher::travelMeters(const core::NodeId& from,

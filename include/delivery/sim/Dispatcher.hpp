@@ -70,8 +70,8 @@ private:
     std::vector<Courier*> nearestCandidates(const QuoteRequest& request) const;
     std::vector<Courier*> filteredCandidates(const QuoteRequest& request) const;
     Courier* chooseCourierBatch(const QuoteRequest& request);
-    std::vector<long long> batchEtas(const gpu::EtaOrders& orders, const gpu::EtaCouriers& couriers,
-                                     long long nowMs);
+    gpu::BestCourier batchBest(const gpu::EtaOrders& orders, const gpu::EtaCouriers& couriers,
+                               long long nowMs);
     int nodeIndexOf(const core::NodeId& node) const;
     static int cmPerSecond(double speedKmh);
     std::vector<int> filterCandidates(const std::vector<std::int32_t>& xDm,

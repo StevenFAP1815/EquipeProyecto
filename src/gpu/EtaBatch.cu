@@ -197,6 +197,65 @@ std::vector<long long> EtaEngine::etaMatrixSoA(const EtaOrders& orders,
     return out;
 }
 
+std::vector<BestCourier> EtaEngine::bestPerOrder(const EtaOrders& orders,
+                                                 const EtaCouriers& couriers, long long nowMs,
+                                                 KernelTiming* timing) {
+    validate(orders, couriers);
+    const int rows = orders.size();
+    const int cols = couriers.size();
+    std::vector<BestCourier> best(static_cast<std::size_t>(rows));
+    if (rows == 0 || cols == 0) {
+        return best;
+    }
+
+    EventTimer copyTimer;
+    EventTimer kernelTimer;
+    copyTimer.start();
+    int* dRestaurant = upload(orders.restaurant);
+    int* dDelivery = upload(orders.delivery);
+    long long* dReady = upload(orders.readyAtMs);
+    int* dNode = upload(couriers.node);
+    int* dStops = upload(couriers.stopsSoA());
+    long long* dLatest = upload(couriers.latestReadyAtMs);
+    int* dSpeed = upload(couriers.cmPerSecond);
+    long long* dEtas = nullptr;
+    BestCourier* dBest = nullptr;
+    CHECK(cudaMalloc(&dEtas, static_cast<std::size_t>(rows) * cols * sizeof(long long)));
+    CHECK(cudaMalloc(&dBest, best.size() * sizeof(BestCourier)));
+    double copyMs = copyTimer.stopMs();
+
+    const dim3 grid((cols + kEtaBlock - 1) / kEtaBlock, rows);
+    kernelTimer.start();
+    launch(etaKernelSoA, grid, dim3(kEtaBlock), static_cast<const std::int32_t*>(deviceTable_),
+           n_, static_cast<const int*>(dRestaurant), static_cast<const int*>(dDelivery),
+           static_cast<const long long*>(dReady), static_cast<const int*>(dNode),
+           static_cast<const int*>(dStops), static_cast<const long long*>(dLatest),
+           static_cast<const int*>(dSpeed), cols, nowMs, dEtas);
+    CHECK(cudaGetLastError());
+    launchRowArgmin(dEtas, rows, cols, dBest);
+    const double kernelMs = kernelTimer.stopMs();
+
+    copyTimer.start();
+    CHECK(cudaMemcpy(best.data(), dBest, best.size() * sizeof(BestCourier),
+                     cudaMemcpyDeviceToHost));
+    copyMs += copyTimer.stopMs();
+
+    CHECK(cudaFree(dRestaurant));
+    CHECK(cudaFree(dDelivery));
+    CHECK(cudaFree(dReady));
+    CHECK(cudaFree(dNode));
+    CHECK(cudaFree(dStops));
+    CHECK(cudaFree(dLatest));
+    CHECK(cudaFree(dSpeed));
+    CHECK(cudaFree(dEtas));
+    CHECK(cudaFree(dBest));
+    if (timing != nullptr) {
+        timing->kernelMs = kernelMs;
+        timing->copyMs = copyMs;
+    }
+    return best;
+}
+
 std::vector<long long> EtaEngine::etaMatrixAoS(const EtaOrders& orders,
                                                const EtaCouriers& couriers, long long nowMs,
                                                KernelTiming* timing) {
