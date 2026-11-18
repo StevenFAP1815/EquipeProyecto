@@ -9,6 +9,7 @@
 #include <delivery/core/StreetNetwork.hpp>
 #include <delivery/core/TravelTable.hpp>
 #include <delivery/gpu/DeviceInfo.hpp>
+#include <delivery/gpu/EtaBatch.hpp>
 #include <delivery/gpu/FloydWarshall.hpp>
 #include <delivery/infra/ConfigLoader.hpp>
 #include <delivery/infra/EventLog.hpp>
@@ -189,9 +190,15 @@ int main(int argc, char** argv) {
         sim::Fleet fleet(cfg, network, clock, stop, freedSignal, log);
         sim::Dispatcher dispatcher(cfg, network, book, fleet, clock, freedSignal, stop, log);
         const bool useGpu = gpuCompiledIn() && !args->cpuOnly;
-        dispatcher.useTravelTable(buildTravelTable(*network, gpuWorker, useGpu));
+        const auto travelTable = buildTravelTable(*network, gpuWorker, useGpu);
+        dispatcher.useTravelTable(travelTable);
+        std::unique_ptr<gpu::EtaEngine> etaEngine;
         if (useGpu) {
             dispatcher.useGpu(gpuWorker);
+            etaEngine = gpuWorker.submit([&travelTable] {
+                return std::make_unique<gpu::EtaEngine>(travelTable->size(), travelTable->data());
+            }).get();
+            dispatcher.useEtaEngine(etaEngine.get());
         }
 #ifdef DELIVERY_HAS_VIEWER
         std::optional<viz::Renderer> renderer;
@@ -233,6 +240,9 @@ int main(int argc, char** argv) {
 
         tProducer.join();
         tDispatcher.join();
+        if (etaEngine) {
+            gpuWorker.submit([&etaEngine] { etaEngine.reset(); }).get();
+        }
         gpuWorker.stop();
         if (tRenderer.joinable()) {
             tRenderer.join();

@@ -8,6 +8,7 @@
 #include <delivery/core/Order.hpp>
 #include <delivery/core/StreetNetwork.hpp>
 #include <delivery/core/TravelTable.hpp>
+#include <delivery/gpu/EtaBatch.hpp>
 #include <delivery/infra/Config.hpp>
 #include <delivery/infra/EventLog.hpp>
 #include <delivery/sim/Courier.hpp>
@@ -51,6 +52,7 @@ public:
 
     void useTravelTable(std::shared_ptr<const core::TravelTable> table);
     void useGpu(concurrency::GpuWorker& worker);
+    void useEtaEngine(gpu::EtaEngine* engine);
 
     void run();
 
@@ -66,6 +68,12 @@ private:
     void dispatch(core::Order& order);
     Courier* chooseCourier(const QuoteRequest& request);
     std::vector<Courier*> nearestCandidates(const QuoteRequest& request) const;
+    std::vector<Courier*> filteredCandidates(const QuoteRequest& request) const;
+    Courier* chooseCourierBatch(const QuoteRequest& request);
+    std::vector<long long> batchEtas(const gpu::EtaOrders& orders, const gpu::EtaCouriers& couriers,
+                                     long long nowMs);
+    int nodeIndexOf(const core::NodeId& node) const;
+    static int cmPerSecond(double speedKmh);
     std::vector<int> filterCandidates(const std::vector<std::int32_t>& xDm,
                                       const std::vector<std::int32_t>& yDm,
                                       const std::vector<std::uint8_t>& available,
@@ -77,6 +85,7 @@ private:
     std::shared_ptr<const core::StreetNetwork> network_;
     std::shared_ptr<const core::TravelTable> travelTable_;
     concurrency::GpuWorker* gpuWorker_ = nullptr;
+    gpu::EtaEngine* etaEngine_ = nullptr;
     core::PlanarProjection projection_;
     concurrency::OrderBook& book_;
     Fleet& fleet_;
@@ -85,6 +94,7 @@ private:
     concurrency::ShutdownToken& stop_;
     infra::EventLog& log_;
     Estimator estimator_;
+    const bool customEstimator_;
     const std::size_t maxCandidates_;
 
     std::atomic<std::uint64_t> unreachable_{0};

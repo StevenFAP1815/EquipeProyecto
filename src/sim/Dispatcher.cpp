@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <future>
 #include <limits>
 #include <stdexcept>
@@ -41,6 +42,7 @@ Dispatcher::Dispatcher(const infra::Config& config,
       stop_(stop),
       log_(log),
       estimator_(std::move(estimator)),
+      customEstimator_(static_cast<bool>(estimator_)),
       maxCandidates_(chooseMaxCandidates()) {
     if (!estimator_) {
         estimator_ = [this](const Courier& courier, QuoteRequest request) {
@@ -51,6 +53,71 @@ Dispatcher::Dispatcher(const infra::Config& config,
 
 void Dispatcher::useTravelTable(std::shared_ptr<const core::TravelTable> table) {
     travelTable_ = std::move(table);
+}
+
+void Dispatcher::useEtaEngine(gpu::EtaEngine* engine) {
+    etaEngine_ = engine;
+}
+
+int Dispatcher::nodeIndexOf(const core::NodeId& node) const {
+    return static_cast<int>(*network_->nodeIndex(node));
+}
+
+int Dispatcher::cmPerSecond(double speedKmh) {
+    return std::max(1, static_cast<int>(std::lround(speedKmh * 100000.0 / 3600.0)));
+}
+
+std::vector<long long> Dispatcher::batchEtas(const gpu::EtaOrders& orders,
+                                             const gpu::EtaCouriers& couriers, long long nowMs) {
+    if (etaEngine_ != nullptr && gpuWorker_ != nullptr) {
+        try {
+            auto etas = gpuWorker_->submit([engine = etaEngine_, orders, couriers, nowMs] {
+                return engine->etaMatrixSoA(orders, couriers, nowMs);
+            });
+            const auto deadline = std::chrono::steady_clock::now() +
+                                  std::chrono::milliseconds(config_.dispatch.quoteTimeoutMs);
+            if (etas.wait_until(deadline) == std::future_status::ready) {
+                return etas.get();
+            }
+            ++lateQuotes_;
+        } catch (const std::exception&) {
+            ++quoteErrors_;
+        }
+    }
+    return gpu::etaMatrixCpu(travelTable_->data(), travelTable_->size(), orders, couriers, nowMs,
+                             1);
+}
+
+Courier* Dispatcher::chooseCourierBatch(const QuoteRequest& request) {
+    const std::vector<Courier*> candidates = filteredCandidates(request);
+    if (candidates.empty()) {
+        return nullptr;
+    }
+    gpu::EtaOrders orders;
+    orders.restaurant.push_back(nodeIndexOf(request.restaurantNode));
+    orders.delivery.push_back(nodeIndexOf(request.deliveryNode));
+    orders.readyAtMs.push_back(request.readyAtMs);
+
+    gpu::EtaCouriers couriers;
+    for (const Courier* courier : candidates) {
+        std::vector<int> stops;
+        for (const core::NodeId& stop : courier->deliveryNodesInBag()) {
+            stops.push_back(nodeIndexOf(stop));
+        }
+        couriers.add(nodeIndexOf(courier->currentNode()), stops, courier->latestReadyAtMs(),
+                     cmPerSecond(courier->speedKmh()));
+    }
+
+    const std::vector<long long> etas = batchEtas(orders, couriers, clock_.nowMs());
+    Courier* best = nullptr;
+    long long bestEta = gpu::kNoEta;
+    for (std::size_t i = 0; i < candidates.size(); ++i) {
+        if (etas[i] < bestEta) {
+            bestEta = etas[i];
+            best = candidates[i];
+        }
+    }
+    return best;
 }
 
 std::optional<double> Dispatcher::travelMeters(const core::NodeId& from,
@@ -125,6 +192,10 @@ void Dispatcher::dispatch(core::Order& order) {
 }
 
 Courier* Dispatcher::chooseCourier(const QuoteRequest& request) {
+    if (travelTable_ && !customEstimator_ &&
+        config_.fleet.bagCapacity <= gpu::kMaxBagStops) {
+        return chooseCourierBatch(request);
+    }
     const std::vector<Courier*> candidates = nearestCandidates(request);
 
     std::vector<std::future<std::int64_t>> quotes;
@@ -184,6 +255,14 @@ std::vector<int> Dispatcher::filterCandidates(const std::vector<std::int32_t>& x
 }
 
 std::vector<Courier*> Dispatcher::nearestCandidates(const QuoteRequest& request) const {
+    std::vector<Courier*> result = filteredCandidates(request);
+    if (result.size() > maxCandidates_) {
+        result.resize(maxCandidates_);
+    }
+    return result;
+}
+
+std::vector<Courier*> Dispatcher::filteredCandidates(const QuoteRequest& request) const {
     const core::LatLon restaurant = *network_->nodeLatLon(request.restaurantNode);
     const auto& couriers = fleet_.couriers();
 
@@ -224,9 +303,6 @@ std::vector<Courier*> Dispatcher::nearestCandidates(const QuoteRequest& request)
 
     std::stable_sort(free.begin(), free.end(),
                      [](const auto& a, const auto& b) { return a.first < b.first; });
-    if (free.size() > maxCandidates_) {
-        free.resize(maxCandidates_);
-    }
 
     std::vector<Courier*> result;
     for (const auto& entry : free) {

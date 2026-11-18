@@ -84,6 +84,7 @@ set(DELIVERY_GPU_SOURCES
     src/gpu/EventTimer.cu
     src/gpu/FloydWarshall.cu
     src/gpu/CandidateFilter.cu
+    src/gpu/EtaBatch.cu
 )
 
 add_library(delivery_gpu STATIC ${DELIVERY_GPU_SOURCES})
