@@ -56,6 +56,7 @@ cmake -DENABLE_ASAN=ON .. && make   # AddressSanitizer + LeakSanitizer
 ./delivery_sim ../config/equipetrol.json --headless
 ```
 
+- `config/city.json` es una ciudad sintética de 4.096 intersecciones, 60 restaurantes y 3.000 repartidores, generada con semilla fija por `python3 tools/make_city.py` (parámetros `--rows --cols --couriers --restaurants --seed --out`).
 - `--headless` ejecuta la simulación sin ventana. Compilando con `cmake -DENABLE_VIEWER=OFF ..` el programa no necesita OpenCV y siempre corre sin ventana.
 - Cuando todos los hilos están en marcha imprime `Simulation has started...`.
 - Abre una ventana con el mapa, los restaurantes, cada repartidor como un punto que se mueve por las calles (con un color por estado), los puntos de entrega y un panel de contadores.

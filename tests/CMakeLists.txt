@@ -23,6 +23,7 @@ add_executable(delivery_tests
     test_breakdowns.cpp
     test_event_log.cpp
     test_device_info.cpp
+    test_city_config.cpp
 )
 
 target_link_libraries(delivery_tests PRIVATE
@@ -32,6 +33,7 @@ target_link_libraries(delivery_tests PRIVATE
 
 target_compile_definitions(delivery_tests PRIVATE
     TESTS_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data"
+    CONFIG_DIR="${PROJECT_SOURCE_DIR}/config"
 )
 
 include(Catch)
