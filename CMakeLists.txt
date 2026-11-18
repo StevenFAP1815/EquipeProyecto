@@ -87,6 +87,7 @@ set(DELIVERY_GPU_SOURCES
     src/gpu/EtaBatch.cu
     src/gpu/ArgminReduction.cu
     src/gpu/DeliveryHistogram.cu
+    src/gpu/RadixSort.cu
 )
 
 add_library(delivery_gpu STATIC ${DELIVERY_GPU_SOURCES})

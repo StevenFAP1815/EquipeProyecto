@@ -12,6 +12,7 @@
 #include <delivery/gpu/DeviceInfo.hpp>
 #include <delivery/gpu/EtaBatch.hpp>
 #include <delivery/gpu/FloydWarshall.hpp>
+#include <delivery/gpu/RadixSort.hpp>
 #include <delivery/infra/ConfigLoader.hpp>
 #include <delivery/infra/EventLog.hpp>
 #include <delivery/sim/Dispatcher.hpp>
@@ -99,6 +100,16 @@ void reportDeliveryStatistics(const delivery::infra::EventLog& log,
         histogram = gpu::deliveryHistogramCpu(durations, cpuThreads());
     }
     std::cerr << gpu::describeHistogram(histogram) << std::endl;
+
+    const std::vector<unsigned> keys = gpu::toSortKeys(durations);
+    std::vector<unsigned> sorted;
+    if (useGpu) {
+        sorted = worker.submit([&keys] { return gpu::radixSort(keys); }).get();
+    } else {
+        sorted = gpu::sortKeysCpu(keys, cpuThreads());
+    }
+    std::cerr << gpu::describePercentiles(gpu::percentilesOfSorted(sorted), sorted.size())
+              << std::endl;
 }
 
 std::shared_ptr<const delivery::core::TravelTable> buildTravelTable(

@@ -8,6 +8,7 @@
 #include <delivery/gpu/DeliveryHistogram.hpp>
 #include <delivery/gpu/EtaBatch.hpp>
 #include <delivery/gpu/FloydWarshall.hpp>
+#include <delivery/gpu/RadixSort.hpp>
 
 #include <memory>
 #include <random>
@@ -338,6 +339,51 @@ BenchCase deliveryHistogramCase() {
     return c;
 }
 
+BenchCase deliveryPercentilesCase() {
+    static const std::vector<int> counts = {10000, 100000, 1000000, 4000000};
+    BenchCase c;
+    c.application = "delivery_percentiles";
+    for (int count : counts) {
+        c.sizes.push_back(std::to_string(count));
+    }
+    c.prepare = [](std::size_t sizeIndex) {
+        auto keys = std::make_shared<std::vector<unsigned>>(
+            gpu::toSortKeys(randomDeliveryDurations(counts[sizeIndex], kBenchSeed)));
+        auto sortedReference = std::make_shared<std::vector<unsigned>>(gpu::sortKeysCpu(*keys, 1));
+        const gpu::Percentiles reference = gpu::percentilesOfSorted(*sortedReference);
+
+        std::vector<Version> versions;
+        for (unsigned threads : threadSweep(hardwareThreads())) {
+            versions.push_back({"cpu_t" + std::to_string(threads),
+                                [keys, sortedReference, reference, threads] {
+                                    Stopwatch watch;
+                                    const auto sorted = gpu::sortKeysCpu(*keys, threads);
+                                    const auto p = gpu::percentilesOfSorted(sorted);
+                                    const double ms = watch.elapsedMs();
+                                    return Measurement{ms, p == reference && sorted == *sortedReference};
+                                }});
+        }
+#ifdef DELIVERY_USE_CUDA
+        versions.push_back({"gpu_kernel", [keys, sortedReference, reference] {
+                                gpu::KernelTiming timing;
+                                const auto sorted = gpu::radixSort(*keys, &timing);
+                                const auto p = gpu::percentilesOfSorted(sorted);
+                                return Measurement{timing.kernelMs,
+                                                   p == reference && sorted == *sortedReference};
+                            }});
+        versions.push_back({"gpu_e2e", [keys, sortedReference, reference] {
+                                Stopwatch watch;
+                                const auto sorted = gpu::radixSort(*keys);
+                                const auto p = gpu::percentilesOfSorted(sorted);
+                                const double ms = watch.elapsedMs();
+                                return Measurement{ms, p == reference && sorted == *sortedReference};
+                            }});
+#endif
+        return versions;
+    };
+    return c;
+}
+
 std::vector<BenchCase> allBenchCases(const infra::Config&) {
     std::vector<BenchCase> cases;
     cases.push_back(travelTableCase());
@@ -345,6 +391,7 @@ std::vector<BenchCase> allBenchCases(const infra::Config&) {
     cases.push_back(etaBatchCase());
     cases.push_back(dispatchArgminCase());
     cases.push_back(deliveryHistogramCase());
+    cases.push_back(deliveryPercentilesCase());
     return cases;
 }
 }
