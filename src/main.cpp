@@ -8,6 +8,7 @@
 #include <delivery/core/CsrGraph.hpp>
 #include <delivery/core/StreetNetwork.hpp>
 #include <delivery/core/TravelTable.hpp>
+#include <delivery/gpu/DeliveryHistogram.hpp>
 #include <delivery/gpu/DeviceInfo.hpp>
 #include <delivery/gpu/EtaBatch.hpp>
 #include <delivery/gpu/FloydWarshall.hpp>
@@ -79,6 +80,25 @@ bool gpuCompiledIn() {
 #else
     return false;
 #endif
+}
+
+unsigned cpuThreads() {
+    return std::max(1u, std::thread::hardware_concurrency());
+}
+
+void reportDeliveryStatistics(const delivery::infra::EventLog& log,
+                              delivery::concurrency::GpuWorker& worker, bool useGpu) {
+    using namespace delivery;
+    const auto raw = log.deliveryDurationsMs();
+    const std::vector<long long> durations(raw.begin(), raw.end());
+
+    std::vector<unsigned> histogram;
+    if (useGpu) {
+        histogram = worker.submit([&durations] { return gpu::deliveryHistogram(durations); }).get();
+    } else {
+        histogram = gpu::deliveryHistogramCpu(durations, cpuThreads());
+    }
+    std::cerr << gpu::describeHistogram(histogram) << std::endl;
 }
 
 std::shared_ptr<const delivery::core::TravelTable> buildTravelTable(
@@ -243,11 +263,13 @@ int main(int argc, char** argv) {
         if (etaEngine) {
             gpuWorker.submit([&etaEngine] { etaEngine.reset(); }).get();
         }
-        gpuWorker.stop();
         if (tRenderer.joinable()) {
             tRenderer.join();
         }
         fleet.join();
+
+        reportDeliveryStatistics(log, gpuWorker, useGpu);
+        gpuWorker.stop();
 
         const infra::Summary summary = log.summary();
         const std::uint64_t pendingInSystem =

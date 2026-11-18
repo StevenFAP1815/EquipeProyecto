@@ -30,6 +30,7 @@ add_executable(delivery_tests
     test_candidate_filter.cpp
     test_eta_batch.cpp
     test_argmin_reduction.cpp
+    test_delivery_histogram.cpp
 )
 
 target_link_libraries(delivery_tests PRIVATE

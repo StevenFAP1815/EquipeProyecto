@@ -86,6 +86,7 @@ set(DELIVERY_GPU_SOURCES
     src/gpu/CandidateFilter.cu
     src/gpu/EtaBatch.cu
     src/gpu/ArgminReduction.cu
+    src/gpu/DeliveryHistogram.cu
 )
 
 add_library(delivery_gpu STATIC ${DELIVERY_GPU_SOURCES})

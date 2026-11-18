@@ -5,6 +5,7 @@
 #include <delivery/core/CsrGraph.hpp>
 #include <delivery/core/TravelTable.hpp>
 #include <delivery/gpu/CandidateFilter.hpp>
+#include <delivery/gpu/DeliveryHistogram.hpp>
 #include <delivery/gpu/EtaBatch.hpp>
 #include <delivery/gpu/FloydWarshall.hpp>
 
@@ -286,12 +287,64 @@ BenchCase dispatchArgminCase() {
     return c;
 }
 
+std::vector<long long> randomDeliveryDurations(int count, std::uint64_t seed) {
+    std::mt19937_64 rng(seed);
+    std::gamma_distribution<double> minutes(4.0, 5.0);
+    std::vector<long long> durations;
+    durations.reserve(static_cast<std::size_t>(count));
+    for (int i = 0; i < count; ++i) {
+        durations.push_back(static_cast<long long>(minutes(rng) * 60000.0));
+    }
+    return durations;
+}
+
+BenchCase deliveryHistogramCase() {
+    static const std::vector<int> counts = {10000, 100000, 1000000, 4000000, 16000000};
+    BenchCase c;
+    c.application = "delivery_histogram";
+    for (int count : counts) {
+        c.sizes.push_back(std::to_string(count));
+    }
+    c.prepare = [](std::size_t sizeIndex) {
+        auto durations = std::make_shared<std::vector<long long>>(
+            randomDeliveryDurations(counts[sizeIndex], kBenchSeed));
+        auto reference = std::make_shared<std::vector<unsigned>>(
+            gpu::deliveryHistogramCpu(*durations, 1));
+
+        std::vector<Version> versions;
+        for (unsigned threads : threadSweep(hardwareThreads())) {
+            versions.push_back({"cpu_t" + std::to_string(threads), [durations, reference, threads] {
+                                    Stopwatch watch;
+                                    const auto bins = gpu::deliveryHistogramCpu(*durations, threads);
+                                    const double ms = watch.elapsedMs();
+                                    return Measurement{ms, bins == *reference};
+                                }});
+        }
+#ifdef DELIVERY_USE_CUDA
+        versions.push_back({"gpu_kernel", [durations, reference] {
+                                gpu::KernelTiming timing;
+                                const auto bins = gpu::deliveryHistogram(*durations, &timing);
+                                return Measurement{timing.kernelMs, bins == *reference};
+                            }});
+        versions.push_back({"gpu_e2e", [durations, reference] {
+                                Stopwatch watch;
+                                const auto bins = gpu::deliveryHistogram(*durations);
+                                const double ms = watch.elapsedMs();
+                                return Measurement{ms, bins == *reference};
+                            }});
+#endif
+        return versions;
+    };
+    return c;
+}
+
 std::vector<BenchCase> allBenchCases(const infra::Config&) {
     std::vector<BenchCase> cases;
     cases.push_back(travelTableCase());
     cases.push_back(candidateFilterCase());
     cases.push_back(etaBatchCase());
     cases.push_back(dispatchArgminCase());
+    cases.push_back(deliveryHistogramCase());
     return cases;
 }
 }

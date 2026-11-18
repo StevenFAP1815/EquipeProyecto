@@ -54,6 +54,7 @@ public:
     void simulationStopping(std::int64_t t);
 
     Summary summary() const;
+    std::vector<std::int64_t> deliveryDurationsMs() const;
 
 private:
     void writeLine(const std::string& line);
@@ -62,6 +63,7 @@ private:
     std::ofstream file_;
     Summary counts_;
     std::int64_t totalDeliveryMs_ = 0;
+    std::vector<std::int64_t> deliveryDurationsMs_;
     std::unordered_map<std::string, std::int64_t> createdAtByOrder_;
 };
 }

@@ -117,6 +117,7 @@ void EventLog::orderDelivered(std::int64_t t, const core::OrderId& order,
         const std::int64_t deliveryMs = t - created->second;
         totalDeliveryMs_ += deliveryMs;
         counts_.maxDeliveryMs = std::max(counts_.maxDeliveryMs, deliveryMs);
+        deliveryDurationsMs_.push_back(deliveryMs);
         createdAtByOrder_.erase(created);
     }
 }
@@ -167,6 +168,11 @@ void EventLog::simulationStopping(std::int64_t t) {
     std::lock_guard<std::mutex> lock(mutex_);
     writeLine(e.dump());
     file_.flush();
+}
+
+std::vector<std::int64_t> EventLog::deliveryDurationsMs() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return deliveryDurationsMs_;
 }
 
 Summary EventLog::summary() const {
