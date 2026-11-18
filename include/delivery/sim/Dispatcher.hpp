@@ -5,6 +5,7 @@
 #include <delivery/concurrency/ShutdownToken.hpp>
 #include <delivery/core/Order.hpp>
 #include <delivery/core/StreetNetwork.hpp>
+#include <delivery/core/TravelTable.hpp>
 #include <delivery/infra/Config.hpp>
 #include <delivery/infra/EventLog.hpp>
 #include <delivery/sim/Courier.hpp>
@@ -16,6 +17,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <vector>
 
 namespace delivery::sim {
@@ -43,6 +45,8 @@ public:
     Dispatcher(const Dispatcher&) = delete;
     Dispatcher& operator=(const Dispatcher&) = delete;
 
+    void useTravelTable(std::shared_ptr<const core::TravelTable> table);
+
     void run();
 
     std::uint64_t unreachableCount() const { return unreachable_.load(); }
@@ -58,9 +62,11 @@ private:
     Courier* chooseCourier(const QuoteRequest& request);
     std::vector<Courier*> nearestCandidates(const QuoteRequest& request) const;
     std::int64_t estimateDeliveryMs(const Courier& courier, QuoteRequest request) const;
+    std::optional<double> travelMeters(const core::NodeId& from, const core::NodeId& to) const;
 
     const infra::Config& config_;
     std::shared_ptr<const core::StreetNetwork> network_;
+    std::shared_ptr<const core::TravelTable> travelTable_;
     concurrency::OrderBook& book_;
     Fleet& fleet_;
     SimClock& clock_;

@@ -82,6 +82,7 @@ FetchContent_MakeAvailable(nlohmann_json)
 set(DELIVERY_GPU_SOURCES
     src/gpu/DeviceInfo.cu
     src/gpu/EventTimer.cu
+    src/gpu/FloydWarshall.cu
 )
 
 add_library(delivery_gpu STATIC ${DELIVERY_GPU_SOURCES})
@@ -102,6 +103,8 @@ add_library(delivery_core STATIC
     src/core/GeoBounds.cpp
     src/core/PathFinder.cpp
     src/core/StreetNetwork.cpp
+    src/core/CsrGraph.cpp
+    src/core/TravelTable.cpp
     src/infra/ConfigLoader.cpp
     src/infra/EventLog.cpp
     src/concurrency/ShutdownToken.cpp

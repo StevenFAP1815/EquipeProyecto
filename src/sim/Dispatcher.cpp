@@ -45,6 +45,32 @@ Dispatcher::Dispatcher(const infra::Config& config,
     }
 }
 
+void Dispatcher::useTravelTable(std::shared_ptr<const core::TravelTable> table) {
+    travelTable_ = std::move(table);
+}
+
+std::optional<double> Dispatcher::travelMeters(const core::NodeId& from,
+                                               const core::NodeId& to) const {
+    if (travelTable_) {
+        const auto a = network_->nodeIndex(from);
+        const auto b = network_->nodeIndex(to);
+        if (!a || !b) {
+            return std::nullopt;
+        }
+        const int i = static_cast<int>(*a);
+        const int j = static_cast<int>(*b);
+        if (!travelTable_->reachable(i, j)) {
+            return std::nullopt;
+        }
+        return travelTable_->centimeters(i, j) / 100.0;
+    }
+    const auto route = core::findShortestPath(*network_, from, to);
+    if (!route) {
+        return std::nullopt;
+    }
+    return route->totalMeters;
+}
+
 void Dispatcher::run() {
     while (auto order = book_.waitAndPop(stop_)) {
         if (stop_.stopRequested()) {
@@ -62,9 +88,9 @@ void Dispatcher::run() {
 
 bool Dispatcher::isReachable(const core::Order& order) const {
     const core::NodeId& start = config_.fleet.startNode;
-    return core::findShortestPath(*network_, start, order.restaurantNode) &&
-           core::findShortestPath(*network_, order.restaurantNode, order.deliveryNode) &&
-           core::findShortestPath(*network_, order.deliveryNode, start);
+    return travelMeters(start, order.restaurantNode) &&
+           travelMeters(order.restaurantNode, order.deliveryNode) &&
+           travelMeters(order.deliveryNode, start);
 }
 
 void Dispatcher::dispatch(core::Order& order) {
@@ -153,8 +179,7 @@ std::vector<Courier*> Dispatcher::nearestCandidates(const QuoteRequest& request)
 }
 
 std::int64_t Dispatcher::estimateDeliveryMs(const Courier& courier, QuoteRequest request) const {
-    const auto toRestaurant =
-        core::findShortestPath(*network_, courier.currentNode(), request.restaurantNode);
+    const auto toRestaurant = travelMeters(courier.currentNode(), request.restaurantNode);
     if (!toRestaurant) {
         throw std::runtime_error("courier " + courier.id().str() +
                                  " cannot reach restaurant node " +
@@ -165,18 +190,18 @@ std::int64_t Dispatcher::estimateDeliveryMs(const Courier& courier, QuoteRequest
     std::vector<core::NodeId> stops = courier.deliveryNodesInBag();
     stops.push_back(request.deliveryNode);
     for (const core::NodeId& stop : stops) {
-        const auto leg = core::findShortestPath(*network_, at, stop);
+        const auto leg = travelMeters(at, stop);
         if (!leg) {
             throw std::runtime_error("no route between deliveries");
         }
-        metersAfterPickup += leg->totalMeters;
+        metersAfterPickup += *leg;
         at = stop;
     }
 
     const double metersPerMs = courier.speedKmh() / 3600.0;
     const std::int64_t now = clock_.nowMs();
     const std::int64_t arrival =
-        now + static_cast<std::int64_t>(toRestaurant->totalMeters / metersPerMs);
+        now + static_cast<std::int64_t>(*toRestaurant / metersPerMs);
     const std::int64_t pickup =
         std::max({arrival, request.readyAtMs, courier.latestReadyAtMs()});
     const std::int64_t delivered =

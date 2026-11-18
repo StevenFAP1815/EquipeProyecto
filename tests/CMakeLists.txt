@@ -26,6 +26,7 @@ add_executable(delivery_tests
     test_city_config.cpp
     test_bench_runner.cpp
     test_gpu_worker.cpp
+    test_travel_table.cpp
 )
 
 target_link_libraries(delivery_tests PRIVATE

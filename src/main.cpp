@@ -1,11 +1,15 @@
 #include <delivery/bench/Applications.hpp>
 #include <delivery/bench/BenchRunner.hpp>
+#include <delivery/bench/Stopwatch.hpp>
 #include <delivery/concurrency/ChangeSignal.hpp>
 #include <delivery/concurrency/GpuWorker.hpp>
 #include <delivery/concurrency/OrderBook.hpp>
 #include <delivery/concurrency/ShutdownToken.hpp>
+#include <delivery/core/CsrGraph.hpp>
 #include <delivery/core/StreetNetwork.hpp>
+#include <delivery/core/TravelTable.hpp>
 #include <delivery/gpu/DeviceInfo.hpp>
+#include <delivery/gpu/FloydWarshall.hpp>
 #include <delivery/infra/ConfigLoader.hpp>
 #include <delivery/infra/EventLog.hpp>
 #include <delivery/sim/Dispatcher.hpp>
@@ -24,6 +28,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <optional>
 #include <string>
 #include <thread>
@@ -64,7 +69,38 @@ struct Arguments {
     std::filesystem::path benchPath;
     bool benchOnce = false;
     std::string benchOnly;
+    bool cpuOnly = false;
 };
+
+bool gpuCompiledIn() {
+#ifdef DELIVERY_USE_CUDA
+    return true;
+#else
+    return false;
+#endif
+}
+
+std::shared_ptr<const delivery::core::TravelTable> buildTravelTable(
+    const delivery::core::StreetNetwork& network, delivery::concurrency::GpuWorker& worker,
+    bool useGpu) {
+    using namespace delivery;
+    const core::CsrGraph graph = core::CsrGraph::fromNetwork(network);
+    const bench::Stopwatch watch;
+    std::shared_ptr<const core::TravelTable> table;
+    if (useGpu) {
+        std::vector<std::int32_t> centimeters = worker.submit([&graph] {
+            return gpu::floydWarshallTiled(graph.n, core::denseAdjacency(graph));
+        }).get();
+        table = std::make_shared<const core::TravelTable>(graph.n, std::move(centimeters));
+    } else {
+        const unsigned threads = std::max(1u, std::thread::hardware_concurrency());
+        table = std::make_shared<const core::TravelTable>(core::allPairsDijkstra(graph, threads));
+    }
+    std::cerr << "Travel table: " << graph.n << " nodes on "
+              << (useGpu ? "GPU (tiled Floyd-Warshall)" : "CPU (parallel Dijkstra)") << " in "
+              << watch.elapsedMs() << " ms" << std::endl;
+    return table;
+}
 
 int runBenchmarks(const delivery::infra::Config& cfg, const Arguments& args) {
     using namespace delivery;
@@ -103,6 +139,8 @@ std::optional<Arguments> parseArguments(int argc, char** argv) {
             args.headless = true;
         } else if (option == "--bench" && i + 1 < argc) {
             args.benchPath = argv[++i];
+        } else if (option == "--cpu-only") {
+            args.cpuOnly = true;
         } else if (option == "--bench-once") {
             args.benchOnce = true;
         } else if (option == "--bench-only" && i + 1 < argc) {
@@ -123,7 +161,7 @@ int main(int argc, char** argv) {
 
     const std::optional<Arguments> args = parseArguments(argc, argv);
     if (!args) {
-        std::cerr << "Usage: delivery_sim <config.json> [--log <path>] [--headless]\n"
+        std::cerr << "Usage: delivery_sim <config.json> [--log <path>] [--headless] [--cpu-only]\n"
                      "       delivery_sim <config.json> --headless --bench <results.csv>"
                      " [--bench-once] [--bench-only <application>]\n";
         return 1;
@@ -150,6 +188,8 @@ int main(int argc, char** argv) {
         sim::OrderGenerator generator(cfg, book, stop, clock, orderIdCounter, log);
         sim::Fleet fleet(cfg, network, clock, stop, freedSignal, log);
         sim::Dispatcher dispatcher(cfg, network, book, fleet, clock, freedSignal, stop, log);
+        const bool useGpu = gpuCompiledIn() && !args->cpuOnly;
+        dispatcher.useTravelTable(buildTravelTable(*network, gpuWorker, useGpu));
 #ifdef DELIVERY_HAS_VIEWER
         std::optional<viz::Renderer> renderer;
         if (!args->headless) {
