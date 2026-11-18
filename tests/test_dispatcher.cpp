@@ -88,6 +88,7 @@ struct Harness {
         o.createdAtMs = clock.nowMs();
         o.readyAtMs = o.createdAtMs;
         REQUIRE(book.tryPush(std::move(o)));
+        freed.notify();
     }
 };
 

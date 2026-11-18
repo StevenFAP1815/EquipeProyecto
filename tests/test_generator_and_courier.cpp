@@ -49,12 +49,13 @@ infra::Config makeGeneratorConfig(std::uint64_t seed) {
 std::vector<std::string> generateOrders(std::uint64_t seed) {
     const infra::Config cfg = makeGeneratorConfig(seed);
     concurrency::OrderBook book(100000);
+    concurrency::ChangeSignal freed;
     concurrency::ShutdownToken stop;
     sim::SimClock clock(cfg.simulation.timeScale);
     std::atomic<std::uint64_t> counter{0};
 
     infra::EventLog log;
-    sim::OrderGenerator generator(cfg, book, stop, clock, counter, log);
+    sim::OrderGenerator generator(cfg, book, freed, stop, clock, counter, log);
     generator.run();
 
     std::vector<std::string> orders;
@@ -252,6 +253,69 @@ TEST_CASE("Courier: un pedido sin ruta posible cuenta como fallido y libera al r
     REQUIRE(courier.failedCount() == 1);
     REQUIRE(courier.deliveredCount() == 0);
     stopCourier(stop, clock, courier, worker);
+}
+
+TEST_CASE("Courier: descansa con la bolsa vacia, rechaza pedidos y avisa al terminar",
+          "[courier][break]") {
+    const infra::Config cfg = makeOneWayLine();
+    auto network = core::StreetNetwork::build(cfg.nodes, cfg.streets);
+    concurrency::ShutdownToken stop;
+    concurrency::ChangeSignal freed;
+    sim::SimClock clock(5000.0);
+    const sim::PickupDeskMap desks = makeDesks();
+    const sim::CourierSettings settings{1, 30.0, 0.0, 0, false, 0, 1, 2'000'000};
+    sim::Courier courier(core::CourierId("c0"), makeEnvironment(network, clock, stop, freed, desks),
+                         settings, core::NodeId("n0"));
+    std::thread worker([&courier] { courier.run(); });
+
+    core::Order first = makeOrder("o1", "n1", "n2", 0);
+    REQUIRE(courier.tryAssign(first));
+
+    const auto limit = std::chrono::steady_clock::now() + 5s;
+    while (!courier.isOnBreak() && std::chrono::steady_clock::now() < limit) {
+        std::this_thread::sleep_for(1ms);
+    }
+    REQUIRE(courier.isOnBreak());
+    REQUIRE(courier.deliveredCount() == 1);
+    REQUIRE_FALSE(courier.isAvailable());
+
+    std::this_thread::sleep_for(20ms);
+    REQUIRE(courier.isOnBreak());
+    const std::uint64_t versionDuringBreak = freed.version();
+    core::Order second = makeOrder("o2", "n2", "n3", 0);
+    REQUIRE_FALSE(courier.tryAssign(second));
+
+    REQUIRE(freed.waitForChange(versionDuringBreak, std::chrono::steady_clock::now() + 5s, stop));
+    waitUntilFree(courier);
+    REQUIRE_FALSE(courier.isOnBreak());
+    REQUIRE(courier.tryAssign(second));
+
+    stopCourier(stop, clock, courier, worker);
+}
+
+TEST_CASE("Courier: el descanso se corta al pedir el apagado", "[courier][break][shutdown]") {
+    const infra::Config cfg = makeOneWayLine();
+    auto network = core::StreetNetwork::build(cfg.nodes, cfg.streets);
+    concurrency::ShutdownToken stop;
+    concurrency::ChangeSignal freed;
+    sim::SimClock clock(5000.0);
+    const sim::PickupDeskMap desks = makeDesks();
+    const sim::CourierSettings settings{1, 30.0, 0.0, 0, false, 0, 1, 2'000'000'000};
+    sim::Courier courier(core::CourierId("c0"), makeEnvironment(network, clock, stop, freed, desks),
+                         settings, core::NodeId("n0"));
+    std::thread worker([&courier] { courier.run(); });
+
+    core::Order order = makeOrder("o1", "n1", "n2", 0);
+    REQUIRE(courier.tryAssign(order));
+    const auto limit = std::chrono::steady_clock::now() + 5s;
+    while (!courier.isOnBreak() && std::chrono::steady_clock::now() < limit) {
+        std::this_thread::sleep_for(1ms);
+    }
+    REQUIRE(courier.isOnBreak());
+
+    const auto before = std::chrono::steady_clock::now();
+    stopCourier(stop, clock, courier, worker);
+    REQUIRE(std::chrono::steady_clock::now() - before < 2s);
 }
 
 TEST_CASE("ChangeSignal: notify despierta a quien espera un cambio",

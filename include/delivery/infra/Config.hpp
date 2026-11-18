@@ -21,6 +21,8 @@ struct FleetConfig {
     int bagCapacity = 1;
     double speedKmh = 0.0;
     delivery::core::NodeId startNode;
+    int breakAfterDeliveries = 0;
+    std::int64_t breakMs = 0;
 };
 
 struct OrdersConfig {
@@ -28,6 +30,8 @@ struct OrdersConfig {
     int burstMax = 1;
     int maxPending = 0;
     std::uint64_t seed = 0;
+    double urgentProbability = 0.0;
+    std::int64_t agingMs = 0;
 };
 
 struct DispatchConfig {
@@ -44,6 +48,21 @@ struct SimulationConfig {
     double timeScale = 1.0;
 };
 
+struct ReinforcementsConfig {
+    int max = 0;
+    int threshold = 1;
+    std::int64_t idleMs = 1;
+
+    bool enabled() const noexcept { return max > 0; }
+};
+
+struct KitchenConfig {
+    std::int64_t pauseEveryMs = 0;
+    std::int64_t pauseMs = 0;
+
+    bool enabled() const noexcept { return pauseEveryMs > 0 && pauseMs > 0; }
+};
+
 struct Config {
     MapConfig map;
     std::vector<delivery::core::Node> nodes;
@@ -54,6 +73,8 @@ struct Config {
     DispatchConfig dispatch;
     IncidentsConfig incidents;
     SimulationConfig simulation;
+    ReinforcementsConfig reinforcements;
+    KitchenConfig kitchen;
 
     std::unordered_map<delivery::core::NodeId,
                        std::size_t,

@@ -8,6 +8,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <optional>
 #include <set>
 #include <thread>
 #include <vector>
@@ -257,4 +258,61 @@ TEST_CASE("OrderBook: estres con muchos productores y consumidores",
     const std::uint64_t total = kProducers * kPerProducer;
     REQUIRE(accepted + rejected == total);
     REQUIRE(accepted == consumed + book.size());
+}
+
+TEST_CASE("OrderBook: popNext saca urgentes primero y respeta el envejecimiento",
+          "[orderbook][urgent]") {
+    concurrency::OrderBook book(10);
+
+    core::Order normal = makeOrder("o1");
+    normal.createdAtMs = 0;
+    core::Order urgent = makeOrder("o2");
+    urgent.createdAtMs = 500;
+    urgent.urgent = true;
+    REQUIRE(book.tryPush(std::move(normal)));
+    REQUIRE(book.tryPush(std::move(urgent)));
+
+    auto first = book.popNext(600, 1000);
+    REQUIRE(first.has_value());
+    REQUIRE(first->id == core::OrderId("o2"));
+    book.putBack(std::move(*first));
+
+    auto aged = book.popNext(1200, 1000);
+    REQUIRE(aged.has_value());
+    REQUIRE(aged->id == core::OrderId("o1"));
+
+    auto last = book.popNext(1200, 1000);
+    REQUIRE(last.has_value());
+    REQUIRE(last->id == core::OrderId("o2"));
+    REQUIRE_FALSE(book.popNext(1200, 1000).has_value());
+}
+
+TEST_CASE("OrderBook: popNext desempata por id cuando tienen la misma hora",
+          "[orderbook][urgent]") {
+    concurrency::OrderBook book(10);
+    REQUIRE(book.tryPush(makeOrder("o10")));
+    REQUIRE(book.tryPush(makeOrder("o9")));
+
+    auto first = book.popNext(0, 0);
+    REQUIRE(first.has_value());
+    REQUIRE(first->id == core::OrderId("o9"));
+}
+
+TEST_CASE("OrderBook: removeExpired y nextDeadlineMs", "[orderbook][urgent]") {
+    concurrency::OrderBook book(10);
+    core::Order old = makeOrder("o1");
+    old.createdAtMs = 0;
+    core::Order recent = makeOrder("o2");
+    recent.createdAtMs = 800;
+    REQUIRE(book.tryPush(std::move(old)));
+    REQUIRE(book.tryPush(std::move(recent)));
+
+    REQUIRE(book.nextDeadlineMs(900, 1000, 500) == std::optional<std::int64_t>(1000));
+
+    const std::vector<core::OrderId> expired = book.removeExpired(1000, 1000);
+    REQUIRE(expired.size() == 1);
+    REQUIRE(expired[0] == core::OrderId("o1"));
+    REQUIRE(book.size() == 1);
+
+    REQUIRE(book.nextDeadlineMs(1000, 1000, 500) == std::optional<std::int64_t>(1300));
 }

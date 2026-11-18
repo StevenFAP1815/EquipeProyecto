@@ -69,6 +69,10 @@ struct CourierSettings {
     double speedKmh = 30.0;
     double breakdownProbability = 0.0;
     std::uint64_t seed = 0;
+    bool isReinforcement = false;
+    std::int64_t idleMs = 0;
+    int breakAfterDeliveries = 0;
+    std::int64_t breakMs = 0;
 };
 
 class Courier {
@@ -106,6 +110,9 @@ public:
     std::uint64_t breakdownCount() const;
     std::uint64_t reassignedCount() const;
     std::int64_t lastIdleMs() const;
+    bool isRetired() const;
+    bool isOnBreak() const;
+    bool isReinforcement() const noexcept { return settings_.isReinforcement; }
 
 private:
     struct RescueRequest {
@@ -114,6 +121,7 @@ private:
     };
 
     bool canAcceptLocked(const core::RestaurantId& restaurant) const;
+    bool waitForWorkOrRetire(std::unique_lock<std::mutex>& lock);
     std::int64_t latestReadyAtLocked() const;
     bool pickUpAtDesk(const core::RestaurantId& restaurant);
     bool waitUntilBagIsReady();
@@ -123,6 +131,8 @@ private:
     void performRescue(RescueRequest request);
     void failWholeBag();
     void becomeIdle();
+    void startBreakIfDueLocked();
+    bool finishBreakIfNeeded();
     bool travel(const core::NodeId& from, const core::NodeId& to);
     bool travelHalfway(const core::NodeId& from, const core::NodeId& to);
     bool doMovement(const core::RouteResult& route);
@@ -146,11 +156,16 @@ private:
     core::RestaurantId bagRestaurant_;
     bool collecting_ = false;
     bool atDesk_ = false;
+    std::int64_t queuedAtMs_ = 0;
     std::optional<RescueRequest> rescueRequest_;
     std::uint64_t delivered_ = 0;
     std::uint64_t failed_ = 0;
     std::uint64_t breakdowns_ = 0;
     std::uint64_t reassigned_ = 0;
     std::int64_t lastIdleMs_ = 0;
+    bool retired_ = false;
+    int deliveriesSinceBreak_ = 0;
+    bool onBreak_ = false;
+    std::int64_t breakEndMs_ = 0;
 };
 }

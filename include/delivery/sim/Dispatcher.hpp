@@ -54,7 +54,7 @@ public:
 
 private:
     bool isReachable(const core::Order& order) const;
-    void dispatch(core::Order& order);
+    bool tryToAssign(core::Order& order);
     Courier* chooseCourier(const QuoteRequest& request);
     std::vector<Courier*> nearestCandidates(const QuoteRequest& request) const;
     std::int64_t estimateDeliveryMs(const Courier& courier, QuoteRequest request) const;

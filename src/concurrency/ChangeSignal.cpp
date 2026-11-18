@@ -23,6 +23,13 @@ bool ChangeSignal::waitForChange(std::uint64_t seenVersion,
     });
 }
 
+void ChangeSignal::waitForChange(std::uint64_t seenVersion, ShutdownToken& stop) {
+    std::unique_lock<std::mutex> lock(mutex_);
+    cv_.wait(lock, [&] {
+        return version_ != seenVersion || stop.stopRequested();
+    });
+}
+
 void ChangeSignal::wakeAll() {
     {
         std::lock_guard<std::mutex> lock(mutex_);

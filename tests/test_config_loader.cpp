@@ -2,7 +2,10 @@
 
 #include <delivery/infra/ConfigLoader.hpp>
 
+#include <nlohmann/json.hpp>
+
 #include <filesystem>
+#include <fstream>
 #include <string>
 
 using namespace delivery::infra;
@@ -10,6 +13,11 @@ using namespace delivery::infra;
 namespace {
 std::filesystem::path dataPath(const std::string& filename) {
     return std::filesystem::path(TESTS_DATA_DIR) / filename;
+}
+
+nlohmann::json loadBaseJson() {
+    std::ifstream in(dataPath("equipetrol.json"));
+    return nlohmann::json::parse(in);
 }
 }
 
@@ -108,4 +116,64 @@ TEST_CASE("ConfigLoader: mensaje de duplicado menciona el id",
         const std::string msg = e.what();
         REQUIRE(msg.find("n0") != std::string::npos);
     }
+}
+
+TEST_CASE("ConfigLoader: kitchen es opcional y se lee cuando esta",
+          "[config_loader][kitchen]") {
+    nlohmann::json j = loadBaseJson();
+    REQUIRE_FALSE(parseConfig(j).kitchen.enabled());
+
+    j["kitchen"] = {{"pauseEveryMs", 900000}, {"pauseMs", 240000}};
+    const Config cfg = parseConfig(j);
+    REQUIRE(cfg.kitchen.pauseEveryMs == 900000);
+    REQUIRE(cfg.kitchen.pauseMs == 240000);
+    REQUIRE(cfg.kitchen.enabled());
+
+    j["kitchen"] = {{"pauseEveryMs", 1000}, {"pauseMs", 0}};
+    REQUIRE_FALSE(parseConfig(j).kitchen.enabled());
+}
+
+TEST_CASE("ConfigLoader: kitchen fuera de rango lanza ConfigSchemaError",
+          "[config_loader][kitchen][invalid]") {
+    nlohmann::json j = loadBaseJson();
+
+    j["kitchen"] = {{"pauseEveryMs", 1000}, {"pauseMs", 1000}};
+    REQUIRE_THROWS_AS(parseConfig(j), ConfigSchemaError);
+
+    j["kitchen"] = {{"pauseEveryMs", 0}, {"pauseMs", 0}};
+    REQUIRE_THROWS_AS(parseConfig(j), ConfigSchemaError);
+
+    j["kitchen"] = {{"pauseEveryMs", 1000}, {"pauseMs", -1}};
+    REQUIRE_THROWS_AS(parseConfig(j), ConfigSchemaError);
+
+    j["kitchen"] = {{"pauseEveryMs", 1000}};
+    REQUIRE_THROWS_AS(parseConfig(j), ConfigSchemaError);
+}
+
+TEST_CASE("ConfigLoader: descansos de la flota son opcionales y se leen",
+          "[config_loader][break]") {
+    nlohmann::json j = loadBaseJson();
+    REQUIRE(parseConfig(j).fleet.breakAfterDeliveries == 0);
+
+    j["fleet"]["breakAfterDeliveries"] = 2;
+    j["fleet"]["breakMs"] = 600000;
+    const Config cfg = parseConfig(j);
+    REQUIRE(cfg.fleet.breakAfterDeliveries == 2);
+    REQUIRE(cfg.fleet.breakMs == 600000);
+}
+
+TEST_CASE("ConfigLoader: descansos fuera de rango lanzan ConfigSchemaError",
+          "[config_loader][break][invalid]") {
+    nlohmann::json j = loadBaseJson();
+
+    j["fleet"]["breakAfterDeliveries"] = -1;
+    j["fleet"]["breakMs"] = 600000;
+    REQUIRE_THROWS_AS(parseConfig(j), ConfigSchemaError);
+
+    j["fleet"]["breakAfterDeliveries"] = 2;
+    j["fleet"]["breakMs"] = 0;
+    REQUIRE_THROWS_AS(parseConfig(j), ConfigSchemaError);
+
+    j["fleet"].erase("breakMs");
+    REQUIRE_THROWS_AS(parseConfig(j), ConfigSchemaError);
 }

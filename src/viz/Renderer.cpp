@@ -10,6 +10,7 @@
 #include <shared_mutex>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace delivery::viz {
 namespace {
@@ -102,7 +103,8 @@ void Renderer::drawBackground() {
 
 void Renderer::drawCouriers(cv::Mat& frame) const {
     std::shared_lock<std::shared_mutex> snapshot(fleet_.transferMutex());
-    for (const auto& courier : fleet_.couriers()) {
+    const std::vector<sim::Courier*> active = fleet_.activeCouriers();
+    for (const sim::Courier* courier : active) {
         for (const core::NodeId& delivery : courier->deliveryNodesInBag()) {
             const core::Node& node = config_.nodes[config_.nodeIndex.at(delivery)];
             const cv::Point d = toScreen(node.lat, node.lon);
@@ -110,7 +112,7 @@ void Renderer::drawCouriers(cv::Mat& frame) const {
         }
     }
 
-    for (const auto& courier : fleet_.couriers()) {
+    for (const sim::Courier* courier : active) {
         const core::LatLon pos = courier->position();
         const cv::Point p = toScreen(pos.lat, pos.lon);
         cv::circle(frame, p, 7, colorFor(courier->state()), cv::FILLED, cv::LINE_AA);

@@ -12,12 +12,14 @@ constexpr double kBurstProbability = 0.05;
 
 OrderGenerator::OrderGenerator(const infra::Config& config,
                                concurrency::OrderBook& book,
+                               concurrency::ChangeSignal& freedSignal,
                                concurrency::ShutdownToken& stop,
                                SimClock& clock,
                                std::atomic<std::uint64_t>& orderIdCounter,
                                infra::EventLog& log)
     : config_(config),
       book_(book),
+      freedSignal_(freedSignal),
       stop_(stop),
       clock_(clock),
       orderIdCounter_(orderIdCounter),
@@ -30,7 +32,9 @@ OrderGenerator::OrderGenerator(const infra::Config& config,
       pickRestaurantDist_(0, config.restaurants.empty()
                                 ? 0
                                 : config.restaurants.size() - 1),
-      pickNodeDist_(0, config.nodes.empty() ? 0 : config.nodes.size() - 1) {}
+      pickNodeDist_(0, config.nodes.empty() ? 0 : config.nodes.size() - 1),
+      urgentRng_(core::deriveSeed(config.orders.seed, 1)),
+      urgentDist_(0.0, 1.0) {}
 
 core::OrderId OrderGenerator::nextOrderId() {
     const std::uint64_t n = orderIdCounter_.fetch_add(1, std::memory_order_relaxed);
@@ -55,6 +59,7 @@ std::optional<core::Order> OrderGenerator::generateOne(std::int64_t nowMs) {
     o.deliveryNode   = node.id;
     o.createdAtMs    = nowMs;
     o.readyAtMs      = nowMs + prepTimeDist(rng_);
+    o.urgent         = urgentDist_(urgentRng_) < config_.orders.urgentProbability;
     o.state          = core::OrderState::Created;
     return o;
 }
@@ -84,7 +89,9 @@ void OrderGenerator::run() {
             }
             const core::OrderId id = maybeOrder->id;
             log_.orderCreated(nextOrderMs, *maybeOrder);
-            if (!book_.tryPush(std::move(*maybeOrder))) {
+            if (book_.tryPush(std::move(*maybeOrder))) {
+                freedSignal_.notify();
+            } else {
                 log_.orderRejected(nextOrderMs, id, core::RejectReason::QueueFull);
             }
         }

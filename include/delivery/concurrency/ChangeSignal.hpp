@@ -23,6 +23,8 @@ public:
                        std::chrono::steady_clock::time_point deadline,
                        ShutdownToken& stop);
 
+    void waitForChange(std::uint64_t seenVersion, ShutdownToken& stop);
+
     void wakeAll();
 
 private:
