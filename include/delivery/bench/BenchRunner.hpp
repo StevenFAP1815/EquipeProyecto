@@ -27,6 +27,7 @@ struct BenchOptions {
     int repetitions = 10;
     bool warmup = true;
     std::string only;
+    std::string onlySize;
 };
 
 std::vector<unsigned> threadSweep(unsigned maxThreads);

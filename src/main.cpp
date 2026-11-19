@@ -78,6 +78,7 @@ struct Arguments {
     std::filesystem::path benchPath;
     bool benchOnce = false;
     std::string benchOnly;
+    std::string benchSize;
     bool cpuOnly = false;
 };
 
@@ -354,12 +355,16 @@ int runBenchmarks(const delivery::infra::Config& cfg, const Arguments& args) {
     }
     bench::BenchOptions options;
     options.only = args.benchOnly;
+    options.onlySize = args.benchSize;
     if (args.benchOnce) {
         options.repetitions = 1;
         options.warmup = false;
     }
     bench::BenchRunner runner(csv, options);
     for (const bench::BenchCase& benchCase : bench::allBenchCases(cfg)) {
+        if (!args.benchOnly.empty() && args.benchOnly != benchCase.application) {
+            continue;
+        }
         std::cerr << "bench: " << benchCase.application << std::endl;
         runner.run(benchCase);
     }
@@ -388,6 +393,8 @@ std::optional<Arguments> parseArguments(int argc, char** argv) {
             args.benchOnce = true;
         } else if (option == "--bench-only" && i + 1 < argc) {
             args.benchOnly = argv[++i];
+        } else if (option == "--bench-size" && i + 1 < argc) {
+            args.benchSize = argv[++i];
         } else {
             return std::nullopt;
         }
@@ -406,7 +413,7 @@ int main(int argc, char** argv) {
     if (!args) {
         std::cerr << "Usage: delivery_sim <config.json> [--log <path>] [--headless] [--cpu-only]\n"
                      "       delivery_sim <config.json> --headless --bench <results.csv>"
-                     " [--bench-once] [--bench-only <application>]\n";
+                     " [--bench-once] [--bench-only <application>] [--bench-size <size>]\n";
         return 1;
     }
 

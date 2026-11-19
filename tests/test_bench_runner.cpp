@@ -95,6 +95,21 @@ TEST_CASE("BenchRunner: --bench-only omite las demás aplicaciones") {
     REQUIRE(runner.rowsWritten() == 0);
 }
 
+TEST_CASE("BenchRunner: --bench-size mide solo el tamaño pedido") {
+    std::ostringstream csv;
+    std::vector<std::string> calls;
+    BenchOptions options;
+    options.repetitions = 1;
+    options.warmup = false;
+    options.onlySize = "large";
+    BenchRunner runner(csv, options);
+    runner.run(twoVersionCase(calls, true));
+
+    REQUIRE(runner.rowsWritten() == 2);
+    REQUIRE(csv.str().find("demo,small") == std::string::npos);
+    REQUIRE(csv.str().find("demo,large,cpu_1") != std::string::npos);
+}
+
 TEST_CASE("BenchRunner: el barrido de hilos duplica hasta el máximo") {
     REQUIRE(threadSweep(8) == std::vector<unsigned>{1, 2, 4, 8});
     REQUIRE(threadSweep(12) == std::vector<unsigned>{1, 2, 4, 8, 12});

@@ -23,6 +23,9 @@ void BenchRunner::run(const BenchCase& benchCase) {
         return;
     }
     for (std::size_t s = 0; s < benchCase.sizes.size(); ++s) {
+        if (!options_.onlySize.empty() && options_.onlySize != benchCase.sizes[s]) {
+            continue;
+        }
         const std::vector<Version> versions = benchCase.prepare(s);
         if (options_.warmup) {
             for (const Version& version : versions) {
