@@ -31,6 +31,8 @@ struct QuoteRequest {
     std::int64_t readyAtMs = 0;
 };
 
+enum class GpuDispatch { Measured, Always };
+
 class Dispatcher {
 public:
     using Estimator = std::function<std::int64_t(const Courier&, QuoteRequest)>;
@@ -56,9 +58,15 @@ public:
     static bool gpuEtaWorthIt(std::size_t orders, std::size_t couriers) {
         return orders * couriers >= kGpuEtaMinPairs;
     }
+    static bool gpuFilterWanted(GpuDispatch policy, std::size_t couriers) {
+        return policy == GpuDispatch::Always || gpuFilterWorthIt(couriers);
+    }
+    static bool gpuEtaWanted(GpuDispatch policy, std::size_t orders, std::size_t couriers) {
+        return policy == GpuDispatch::Always || gpuEtaWorthIt(orders, couriers);
+    }
 
     void useTravelTable(std::shared_ptr<const core::TravelTable> table);
-    void useGpu(concurrency::GpuWorker& worker);
+    void useGpu(concurrency::GpuWorker& worker, GpuDispatch policy = GpuDispatch::Measured);
     void useEtaEngine(gpu::EtaEngine* engine);
 
     void run();
@@ -92,6 +100,7 @@ private:
     std::shared_ptr<const core::StreetNetwork> network_;
     std::shared_ptr<const core::TravelTable> travelTable_;
     concurrency::GpuWorker* gpuWorker_ = nullptr;
+    GpuDispatch gpuPolicy_ = GpuDispatch::Measured;
     gpu::EtaEngine* etaEngine_ = nullptr;
     core::PlanarProjection projection_;
     concurrency::OrderBook& book_;

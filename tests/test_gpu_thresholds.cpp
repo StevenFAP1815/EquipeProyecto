@@ -17,3 +17,12 @@ TEST_CASE("Umbral GPU: la ETA de un solo pedido se queda en la CPU y un lote gra
     REQUIRE(Dispatcher::gpuEtaWorthIt(50, 200));
     REQUIRE(Dispatcher::gpuEtaWorthIt(1000, 5000));
 }
+
+TEST_CASE("Despacho GPU forzado: ignora los umbrales y el modo medido los respeta") {
+    using delivery::sim::GpuDispatch;
+    REQUIRE(Dispatcher::gpuFilterWanted(GpuDispatch::Always, 15));
+    REQUIRE(Dispatcher::gpuEtaWanted(GpuDispatch::Always, 1, 15));
+    REQUIRE_FALSE(Dispatcher::gpuFilterWanted(GpuDispatch::Measured, 3000));
+    REQUIRE_FALSE(Dispatcher::gpuEtaWanted(GpuDispatch::Measured, 1, 3000));
+    REQUIRE(Dispatcher::gpuEtaWanted(GpuDispatch::Measured, 1000, 5000));
+}

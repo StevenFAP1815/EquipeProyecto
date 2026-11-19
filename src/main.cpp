@@ -81,6 +81,7 @@ struct Arguments {
     std::string benchSize;
     bool cpuOnly = false;
     std::filesystem::path frameLogPath;
+    delivery::sim::GpuDispatch gpuDispatch = delivery::sim::GpuDispatch::Measured;
 };
 
 bool gpuCompiledIn() {
@@ -398,6 +399,13 @@ std::optional<Arguments> parseArguments(int argc, char** argv) {
             args.benchSize = argv[++i];
         } else if (option == "--frame-log" && i + 1 < argc) {
             args.frameLogPath = argv[++i];
+        } else if (option == "--gpu-dispatch" && i + 1 < argc) {
+            const std::string policy = argv[++i];
+            if (policy == "always") {
+                args.gpuDispatch = delivery::sim::GpuDispatch::Always;
+            } else if (policy != "measured") {
+                return std::nullopt;
+            }
         } else {
             return std::nullopt;
         }
@@ -415,7 +423,7 @@ int main(int argc, char** argv) {
     const std::optional<Arguments> args = parseArguments(argc, argv);
     if (!args) {
         std::cerr << "Usage: delivery_sim <config.json> [--log <path>] [--headless] [--cpu-only]"
-                     " [--frame-log <frames.csv>]\n"
+                     " [--frame-log <frames.csv>] [--gpu-dispatch measured|always]\n"
                      "       delivery_sim <config.json> --headless --bench <results.csv>"
                      " [--bench-once] [--bench-only <application>] [--bench-size <size>]\n";
         return 1;
@@ -447,7 +455,7 @@ int main(int argc, char** argv) {
         dispatcher.useTravelTable(travelTable);
         std::unique_ptr<gpu::EtaEngine> etaEngine;
         if (useGpu) {
-            dispatcher.useGpu(gpuWorker);
+            dispatcher.useGpu(gpuWorker, args->gpuDispatch);
             etaEngine = gpuWorker.submit([&travelTable] {
                 return std::make_unique<gpu::EtaEngine>(travelTable->size(), travelTable->data());
             }).get();

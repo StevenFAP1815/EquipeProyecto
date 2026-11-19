@@ -70,8 +70,8 @@ int Dispatcher::cmPerSecond(double speedKmh) {
 gpu::BestCourier Dispatcher::batchBest(const gpu::EtaOrders& orders,
                                        const gpu::EtaCouriers& couriers, long long nowMs) {
     if (etaEngine_ != nullptr && gpuWorker_ != nullptr &&
-        gpuEtaWorthIt(static_cast<std::size_t>(orders.size()),
-                      static_cast<std::size_t>(couriers.size()))) {
+        gpuEtaWanted(gpuPolicy_, static_cast<std::size_t>(orders.size()),
+                     static_cast<std::size_t>(couriers.size()))) {
         try {
             auto best = gpuWorker_->submit([engine = etaEngine_, orders, couriers, nowMs] {
                 return engine->bestPerOrder(orders, couriers, nowMs);
@@ -226,15 +226,16 @@ Courier* Dispatcher::chooseCourier(const QuoteRequest& request) {
     return best;
 }
 
-void Dispatcher::useGpu(concurrency::GpuWorker& worker) {
+void Dispatcher::useGpu(concurrency::GpuWorker& worker, GpuDispatch policy) {
     gpuWorker_ = &worker;
+    gpuPolicy_ = policy;
 }
 
 std::vector<int> Dispatcher::filterCandidates(const std::vector<std::int32_t>& xDm,
                                               const std::vector<std::int32_t>& yDm,
                                               const std::vector<std::uint8_t>& available,
                                               core::PlanarPoint center) const {
-    if (gpuWorker_ != nullptr && gpuFilterWorthIt(xDm.size())) {
+    if (gpuWorker_ != nullptr && gpuFilterWanted(gpuPolicy_, xDm.size())) {
         try {
             auto inside = gpuWorker_->submit([xDm, yDm, available, center] {
                 return gpu::filterWithinRadius(xDm, yDm, available, center.xDm, center.yDm,
