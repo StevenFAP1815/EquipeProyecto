@@ -55,6 +55,7 @@ public:
 
     Summary summary() const;
     std::vector<std::int64_t> deliveryDurationsMs() const;
+    std::vector<std::string> deliveryRestaurants() const;
 
 private:
     void writeLine(const std::string& line);
@@ -64,6 +65,8 @@ private:
     Summary counts_;
     std::int64_t totalDeliveryMs_ = 0;
     std::vector<std::int64_t> deliveryDurationsMs_;
+    std::vector<std::string> deliveryRestaurants_;
+    std::unordered_map<std::string, std::string> restaurantByOrder_;
     std::unordered_map<std::string, std::int64_t> createdAtByOrder_;
 };
 }

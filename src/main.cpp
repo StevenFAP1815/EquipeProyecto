@@ -12,6 +12,7 @@
 #include <delivery/gpu/DeviceInfo.hpp>
 #include <delivery/gpu/EtaBatch.hpp>
 #include <delivery/gpu/FloydWarshall.hpp>
+#include <delivery/gpu/GroupByKey.hpp>
 #include <delivery/gpu/RadixSort.hpp>
 #include <delivery/infra/ConfigLoader.hpp>
 #include <delivery/infra/EventLog.hpp>
@@ -33,6 +34,7 @@
 #include <iostream>
 #include <memory>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <thread>
 
@@ -87,7 +89,48 @@ unsigned cpuThreads() {
     return std::max(1u, std::thread::hardware_concurrency());
 }
 
-void reportDeliveryStatistics(const delivery::infra::EventLog& log,
+std::string describeGroups(const delivery::infra::Config& cfg,
+                           const delivery::gpu::Grouping& groups,
+                           const std::vector<long long>& durations) {
+    std::ostringstream out;
+    out << "Deliveries grouped by restaurant (" << cfg.restaurants.size() << " restaurants):";
+    int busiest = -1;
+    int slowest = -1;
+    int busiestCount = 0;
+    double slowestAverage = -1.0;
+    for (std::size_t r = 0; r + 1 < groups.offsets.size(); ++r) {
+        const int begin = groups.offsets[r];
+        const int end = groups.offsets[r + 1];
+        if (end == begin) {
+            continue;
+        }
+        long long total = 0;
+        for (int p = begin; p < end; ++p) {
+            total += durations[static_cast<std::size_t>(groups.order[static_cast<std::size_t>(p)])];
+        }
+        const double average = static_cast<double>(total) / (end - begin);
+        if (end - begin > busiestCount) {
+            busiestCount = end - begin;
+            busiest = static_cast<int>(r);
+        }
+        if (average > slowestAverage) {
+            slowestAverage = average;
+            slowest = static_cast<int>(r);
+        }
+    }
+    if (busiest < 0) {
+        out << " none";
+        return out.str();
+    }
+    out << " busiest " << cfg.restaurants[static_cast<std::size_t>(busiest)].id.str() << " ("
+        << busiestCount << " deliveries), slowest average "
+        << cfg.restaurants[static_cast<std::size_t>(slowest)].id.str() << " ("
+        << static_cast<long long>(slowestAverage) << " ms)";
+    return out.str();
+}
+
+void reportDeliveryStatistics(const delivery::infra::Config& cfg,
+                              const delivery::infra::EventLog& log,
                               delivery::concurrency::GpuWorker& worker, bool useGpu) {
     using namespace delivery;
     const auto raw = log.deliveryDurationsMs();
@@ -110,6 +153,30 @@ void reportDeliveryStatistics(const delivery::infra::EventLog& log,
     }
     std::cerr << gpu::describePercentiles(gpu::percentilesOfSorted(sorted), sorted.size())
               << std::endl;
+
+    const std::vector<std::string> restaurants = log.deliveryRestaurants();
+    std::vector<int> restaurantKeys;
+    std::vector<long long> keyedDurations;
+    for (std::size_t i = 0; i < restaurants.size() && i < durations.size(); ++i) {
+        const auto found = cfg.restaurantIndex.find(core::RestaurantId(restaurants[i]));
+        if (found != cfg.restaurantIndex.end()) {
+            restaurantKeys.push_back(static_cast<int>(found->second));
+            keyedDurations.push_back(durations[i]);
+        }
+    }
+    const int restaurantCount = static_cast<int>(cfg.restaurants.size());
+    if (restaurantCount == 0 || restaurantCount > gpu::kMaxGroupKeys) {
+        return;
+    }
+    gpu::Grouping groups;
+    if (useGpu) {
+        groups = worker.submit([&restaurantKeys, restaurantCount] {
+            return gpu::groupByKey(restaurantKeys, restaurantCount);
+        }).get();
+    } else {
+        groups = gpu::groupByKeyCpu(restaurantKeys, restaurantCount, cpuThreads());
+    }
+    std::cerr << describeGroups(cfg, groups, keyedDurations) << std::endl;
 }
 
 std::shared_ptr<const delivery::core::TravelTable> buildTravelTable(
@@ -279,7 +346,7 @@ int main(int argc, char** argv) {
         }
         fleet.join();
 
-        reportDeliveryStatistics(log, gpuWorker, useGpu);
+        reportDeliveryStatistics(cfg, log, gpuWorker, useGpu);
         gpuWorker.stop();
 
         const infra::Summary summary = log.summary();

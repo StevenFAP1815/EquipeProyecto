@@ -32,6 +32,7 @@ add_executable(delivery_tests
     test_argmin_reduction.cpp
     test_delivery_histogram.cpp
     test_radix_sort.cpp
+    test_group_by_key.cpp
 )
 
 target_link_libraries(delivery_tests PRIVATE

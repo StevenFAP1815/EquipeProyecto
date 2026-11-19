@@ -8,6 +8,7 @@
 #include <delivery/gpu/DeliveryHistogram.hpp>
 #include <delivery/gpu/EtaBatch.hpp>
 #include <delivery/gpu/FloydWarshall.hpp>
+#include <delivery/gpu/GroupByKey.hpp>
 #include <delivery/gpu/RadixSort.hpp>
 
 #include <memory>
@@ -384,6 +385,51 @@ BenchCase deliveryPercentilesCase() {
     return c;
 }
 
+BenchCase ordersByRestaurantCase() {
+    static const std::vector<int> counts = {10000, 100000, 300000, 1000000};
+    constexpr int kRestaurants = 60;
+    BenchCase c;
+    c.application = "orders_by_restaurant";
+    for (int count : counts) {
+        c.sizes.push_back(std::to_string(count));
+    }
+    c.prepare = [](std::size_t sizeIndex) {
+        auto keys = std::make_shared<std::vector<int>>();
+        std::mt19937_64 rng(kBenchSeed);
+        std::geometric_distribution<int> popularity(0.05);
+        for (int i = 0; i < counts[sizeIndex]; ++i) {
+            keys->push_back(popularity(rng) % kRestaurants);
+        }
+        auto reference =
+            std::make_shared<gpu::Grouping>(gpu::groupByKeyCpu(*keys, kRestaurants, 1));
+
+        std::vector<Version> versions;
+        for (unsigned threads : threadSweep(hardwareThreads())) {
+            versions.push_back({"cpu_t" + std::to_string(threads), [keys, reference, threads] {
+                                    Stopwatch watch;
+                                    const auto g = gpu::groupByKeyCpu(*keys, kRestaurants, threads);
+                                    const double ms = watch.elapsedMs();
+                                    return Measurement{ms, g == *reference};
+                                }});
+        }
+#ifdef DELIVERY_USE_CUDA
+        versions.push_back({"gpu_kernel", [keys, reference] {
+                                gpu::KernelTiming timing;
+                                const auto g = gpu::groupByKey(*keys, kRestaurants, &timing);
+                                return Measurement{timing.kernelMs, g == *reference};
+                            }});
+        versions.push_back({"gpu_e2e", [keys, reference] {
+                                Stopwatch watch;
+                                const auto g = gpu::groupByKey(*keys, kRestaurants);
+                                const double ms = watch.elapsedMs();
+                                return Measurement{ms, g == *reference};
+                            }});
+#endif
+        return versions;
+    };
+    return c;
+}
+
 std::vector<BenchCase> allBenchCases(const infra::Config&) {
     std::vector<BenchCase> cases;
     cases.push_back(travelTableCase());
@@ -392,6 +438,7 @@ std::vector<BenchCase> allBenchCases(const infra::Config&) {
     cases.push_back(dispatchArgminCase());
     cases.push_back(deliveryHistogramCase());
     cases.push_back(deliveryPercentilesCase());
+    cases.push_back(ordersByRestaurantCase());
     return cases;
 }
 }

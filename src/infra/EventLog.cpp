@@ -65,6 +65,7 @@ void EventLog::orderCreated(std::int64_t t, const core::Order& order) {
     writeLine(e.dump());
     ++counts_.created;
     createdAtByOrder_[order.id.str()] = order.createdAtMs;
+    restaurantByOrder_[order.id.str()] = order.restaurant.str();
 }
 
 void EventLog::orderAssigned(std::int64_t t, const core::OrderId& order,
@@ -119,6 +120,12 @@ void EventLog::orderDelivered(std::int64_t t, const core::OrderId& order,
         counts_.maxDeliveryMs = std::max(counts_.maxDeliveryMs, deliveryMs);
         deliveryDurationsMs_.push_back(deliveryMs);
         createdAtByOrder_.erase(created);
+        const auto restaurant = restaurantByOrder_.find(order.str());
+        deliveryRestaurants_.push_back(restaurant != restaurantByOrder_.end() ? restaurant->second
+                                                                              : std::string());
+        if (restaurant != restaurantByOrder_.end()) {
+            restaurantByOrder_.erase(restaurant);
+        }
     }
 }
 
@@ -139,6 +146,7 @@ void EventLog::orderRejected(std::int64_t t, const core::OrderId& order,
         ++counts_.noCourier;
     }
     createdAtByOrder_.erase(order.str());
+    restaurantByOrder_.erase(order.str());
 }
 
 void EventLog::courierBreakdown(std::int64_t t, const core::CourierId& courier) {
@@ -173,6 +181,11 @@ void EventLog::simulationStopping(std::int64_t t) {
 std::vector<std::int64_t> EventLog::deliveryDurationsMs() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return deliveryDurationsMs_;
+}
+
+std::vector<std::string> EventLog::deliveryRestaurants() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return deliveryRestaurants_;
 }
 
 Summary EventLog::summary() const {
