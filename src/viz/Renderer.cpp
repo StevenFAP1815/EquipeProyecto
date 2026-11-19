@@ -38,6 +38,7 @@ constexpr std::size_t kHeatRecentOrders = 1000;
 constexpr auto kHeatRefresh = std::chrono::milliseconds(1000);
 constexpr double kHeatAlpha = 0.45;
 constexpr int kHeatMinLevel = 12;
+constexpr std::size_t kDenseFleet = 200;
 
 const cv::Scalar kStreetColor(200, 120, 40);
 const cv::Scalar kRestaurantColor(40, 40, 200);
@@ -130,17 +131,25 @@ void Renderer::drawBackground() {
 
 void Renderer::drawCouriers(cv::Mat& frame) const {
     std::shared_lock<std::shared_mutex> snapshot(fleet_.transferMutex());
+    const bool dense = fleet_.couriers().size() > kDenseFleet;
+    const int markerSize = dense ? 5 : 14;
+    const int markerThickness = dense ? 1 : 3;
     for (const auto& courier : fleet_.couriers()) {
         for (const core::NodeId& delivery : courier->deliveryNodesInBag()) {
             const core::Node& node = config_.nodes[config_.nodeIndex.at(delivery)];
             const cv::Point d = toScreen(node.lat, node.lon);
-            cv::drawMarker(frame, d, kDeliveryColor, cv::MARKER_TILTED_CROSS, 14, 3);
+            cv::drawMarker(frame, d, kDeliveryColor, cv::MARKER_TILTED_CROSS, markerSize,
+                           markerThickness);
         }
     }
 
     for (const auto& courier : fleet_.couriers()) {
         const core::LatLon pos = courier->position();
         const cv::Point p = toScreen(pos.lat, pos.lon);
+        if (dense) {
+            cv::circle(frame, p, 2, colorFor(courier->state()), cv::FILLED, cv::LINE_8);
+            continue;
+        }
         cv::circle(frame, p, 7, colorFor(courier->state()), cv::FILLED, cv::LINE_AA);
         cv::circle(frame, p, 7, cv::Scalar(0, 0, 0), 1, cv::LINE_AA);
     }
