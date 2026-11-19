@@ -1,5 +1,7 @@
 #include <delivery/viz/Renderer.hpp>
 
+#include <delivery/core/GridBinning.hpp>
+#include <delivery/gpu/DemandHeatmap.hpp>
 #include <delivery/viz/FrameStats.hpp>
 
 #include <opencv2/highgui.hpp>
@@ -30,6 +32,12 @@ constexpr int kMaxWindowWidth = 900;
 constexpr int kMaxWindowHeight = 600;
 constexpr int kFrameMs = 33;
 constexpr int kEscKey = 27;
+constexpr int kHeatmapKey = 'h';
+constexpr int kHeatCells = 64;
+constexpr std::size_t kHeatRecentOrders = 1000;
+constexpr auto kHeatRefresh = std::chrono::milliseconds(1000);
+constexpr double kHeatAlpha = 0.45;
+constexpr int kHeatMinLevel = 12;
 
 const cv::Scalar kStreetColor(200, 120, 40);
 const cv::Scalar kRestaurantColor(40, 40, 200);
@@ -61,14 +69,18 @@ Renderer::Renderer(const infra::Config& config,
                    const infra::EventLog& log,
                    sim::SimClock& clock,
                    concurrency::ShutdownToken& stop,
-                   std::filesystem::path frameLogPath)
+                   std::filesystem::path frameLogPath,
+                   concurrency::GpuWorker* gpuWorker,
+                   bool showHeatmap)
     : config_(config),
       fleet_(fleet),
       book_(book),
       log_(log),
       clock_(clock),
       stop_(stop),
-      frameLogPath_(std::move(frameLogPath)) {
+      frameLogPath_(std::move(frameLogPath)),
+      gpuWorker_(gpuWorker),
+      showHeatmap_(showHeatmap) {
     const cv::Mat original = cv::imread(imagePath.string());
     if (original.empty()) {
         throw std::runtime_error("cannot load map image: " + imagePath.string());
@@ -133,7 +145,7 @@ void Renderer::drawCouriers(cv::Mat& frame) const {
 }
 
 void Renderer::drawPanel(cv::Mat& frame) const {
-    cv::rectangle(frame, cv::Point(0, 0), cv::Point(250, 338), kPanelColor, cv::FILLED);
+    cv::rectangle(frame, cv::Point(0, 0), cv::Point(250, 360), kPanelColor, cv::FILLED);
 
     const infra::Summary s = log_.summary();
     const std::int64_t simSeconds = clock_.nowMs() / 1000;
@@ -160,6 +172,79 @@ void Renderer::drawPanel(cv::Mat& frame) const {
         drawLabel(frame, sim::toString(state), {32, y});
         y += 20;
     }
+    drawLabel(frame, std::string("Mapa de calor [h]: ") +
+                         (showHeatmap_ ? (gpuWorker_ != nullptr ? "GPU" : "CPU") : "oculto"),
+              {10, y});
+}
+
+std::vector<int> Renderer::recentDemand() const {
+    const std::vector<std::string> nodes = log_.createdDeliveryNodes();
+    const std::size_t first = nodes.size() > kHeatRecentOrders ? nodes.size() - kHeatRecentOrders : 0;
+    std::vector<core::LatLon> points;
+    for (std::size_t i = first; i < nodes.size(); ++i) {
+        const auto found = config_.nodeIndex.find(core::NodeId(nodes[i]));
+        if (found != config_.nodeIndex.end()) {
+            const core::Node& node = config_.nodes[found->second];
+            points.push_back({node.lat, node.lon});
+        }
+    }
+    return core::binPoints(points, config_.map.bounds, kHeatCells);
+}
+
+void Renderer::setHeatmap(const std::vector<int>& smoothed) {
+    const int peak = *std::max_element(smoothed.begin(), smoothed.end());
+    if (peak <= 0) {
+        heatColor_.release();
+        heatMask_.release();
+        return;
+    }
+    cv::Mat levels(kHeatCells, kHeatCells, CV_8UC1);
+    for (int i = 0; i < kHeatCells * kHeatCells; ++i) {
+        levels.data[i] = static_cast<uchar>(255LL * smoothed[static_cast<std::size_t>(i)] / peak);
+    }
+    cv::Mat scaled;
+    cv::resize(levels, scaled, background_.size(), 0, 0, cv::INTER_LINEAR);
+    cv::applyColorMap(scaled, heatColor_, cv::COLORMAP_JET);
+    heatMask_ = scaled > kHeatMinLevel;
+}
+
+void Renderer::updateHeatmap() {
+    if (pendingHeat_ &&
+        pendingHeat_->wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+        try {
+            setHeatmap(pendingHeat_->get());
+        } catch (const std::exception&) {
+            gpuWorker_ = nullptr;
+        }
+        pendingHeat_.reset();
+    }
+    const auto now = Clock::now();
+    if (pendingHeat_ || now - lastHeatRequest_ < kHeatRefresh) {
+        return;
+    }
+    lastHeatRequest_ = now;
+    std::vector<int> counts = recentDemand();
+    if (gpuWorker_ != nullptr) {
+        try {
+            pendingHeat_ = gpuWorker_->submit([counts = std::move(counts)] {
+                return gpu::smoothDemand(counts, kHeatCells, kHeatCells);
+            });
+            return;
+        } catch (const std::exception&) {
+            gpuWorker_ = nullptr;
+            counts = recentDemand();
+        }
+    }
+    setHeatmap(gpu::smoothDemandCpu(counts, kHeatCells, kHeatCells, 1));
+}
+
+void Renderer::drawHeatmap(cv::Mat& frame) const {
+    if (heatColor_.empty()) {
+        return;
+    }
+    cv::Mat blended;
+    cv::addWeighted(frame, 1.0 - kHeatAlpha, heatColor_, kHeatAlpha, 0.0, blended);
+    blended.copyTo(frame, heatMask_);
 }
 
 bool Renderer::windowClosed() const {
@@ -175,6 +260,10 @@ void Renderer::run() {
     while (!stop_.stopRequested()) {
         const Clock::time_point drawStart = Clock::now();
         cv::Mat frame = background_.clone();
+        if (showHeatmap_) {
+            updateHeatmap();
+            drawHeatmap(frame);
+        }
         drawCouriers(frame);
         drawPanel(frame);
         cv::imshow(kWindowName, frame);
@@ -190,6 +279,9 @@ void Renderer::run() {
                                millisecondsBetween(drawStart, drawEnd), clock_.nowMs()});
         }
         previous = frameEnd;
+        if (key == kHeatmapKey) {
+            showHeatmap_ = !showHeatmap_;
+        }
         if (key == kEscKey || windowClosed()) {
             stop_.requestStop();
             clock_.wakeAll();

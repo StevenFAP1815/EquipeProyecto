@@ -6,6 +6,7 @@
 #include <delivery/concurrency/OrderBook.hpp>
 #include <delivery/concurrency/ShutdownToken.hpp>
 #include <delivery/core/CsrGraph.hpp>
+#include <delivery/core/GridBinning.hpp>
 #include <delivery/core/StreetNetwork.hpp>
 #include <delivery/core/TravelTable.hpp>
 #include <delivery/gpu/CoverageField.hpp>
@@ -82,6 +83,7 @@ struct Arguments {
     bool cpuOnly = false;
     std::filesystem::path frameLogPath;
     delivery::sim::GpuDispatch gpuDispatch = delivery::sim::GpuDispatch::Measured;
+    bool showHeatmap = false;
 };
 
 bool gpuCompiledIn() {
@@ -189,20 +191,14 @@ void reportDemandHeatmap(const delivery::infra::Config& cfg,
     using namespace delivery;
     constexpr int kCells = 64;
     const auto& bounds = cfg.map.bounds;
-    std::vector<int> counts(static_cast<std::size_t>(kCells) * kCells, 0);
-    int orders = 0;
+    std::vector<core::LatLon> points;
     for (const std::string& node : log.createdDeliveryNodes()) {
-        const auto position = network.nodeLatLon(core::NodeId(node));
-        if (!position) {
-            continue;
+        if (const auto position = network.nodeLatLon(core::NodeId(node))) {
+            points.push_back(*position);
         }
-        const double fx = (position->lon - bounds.west()) / (bounds.east() - bounds.west());
-        const double fy = (bounds.north() - position->lat) / (bounds.north() - bounds.south());
-        const int cx = std::clamp(static_cast<int>(fx * kCells), 0, kCells - 1);
-        const int cy = std::clamp(static_cast<int>(fy * kCells), 0, kCells - 1);
-        ++counts[static_cast<std::size_t>(cy) * kCells + cx];
-        ++orders;
     }
+    const std::vector<int> counts = core::binPoints(points, bounds, kCells);
+    const auto orders = points.size();
 
     std::vector<int> smoothed;
     if (useGpu) {
@@ -233,12 +229,7 @@ void reportCoverage(const delivery::infra::Config& cfg, const delivery::sim::Fle
     const auto& bounds = cfg.map.bounds;
     std::vector<float> density(static_cast<std::size_t>(kCells) * kCells, 0.0f);
     for (const auto& courier : fleet.couriers()) {
-        const core::LatLon position = courier->position();
-        const double fx = (position.lon - bounds.west()) / (bounds.east() - bounds.west());
-        const double fy = (bounds.north() - position.lat) / (bounds.north() - bounds.south());
-        const int cx = std::clamp(static_cast<int>(fx * kCells), 0, kCells - 1);
-        const int cy = std::clamp(static_cast<int>(fy * kCells), 0, kCells - 1);
-        density[static_cast<std::size_t>(cy) * kCells + cx] += 1.0f;
+        density[static_cast<std::size_t>(core::cellIndex(courier->position(), bounds, kCells))] += 1.0f;
     }
 
     std::vector<float> field;
@@ -399,6 +390,8 @@ std::optional<Arguments> parseArguments(int argc, char** argv) {
             args.benchSize = argv[++i];
         } else if (option == "--frame-log" && i + 1 < argc) {
             args.frameLogPath = argv[++i];
+        } else if (option == "--heatmap") {
+            args.showHeatmap = true;
         } else if (option == "--gpu-dispatch" && i + 1 < argc) {
             const std::string policy = argv[++i];
             if (policy == "always") {
@@ -423,7 +416,7 @@ int main(int argc, char** argv) {
     const std::optional<Arguments> args = parseArguments(argc, argv);
     if (!args) {
         std::cerr << "Usage: delivery_sim <config.json> [--log <path>] [--headless] [--cpu-only]"
-                     " [--frame-log <frames.csv>] [--gpu-dispatch measured|always]\n"
+                     " [--frame-log <frames.csv>] [--gpu-dispatch measured|always] [--heatmap]\n"
                      "       delivery_sim <config.json> --headless --bench <results.csv>"
                      " [--bench-once] [--bench-only <application>] [--bench-size <size>]\n";
         return 1;
@@ -466,7 +459,8 @@ int main(int argc, char** argv) {
         if (!args->headless) {
             const std::filesystem::path imagePath =
                 args->configPath.parent_path() / cfg.map.imagePath;
-            renderer.emplace(cfg, imagePath, fleet, book, log, clock, stop, args->frameLogPath);
+            renderer.emplace(cfg, imagePath, fleet, book, log, clock, stop, args->frameLogPath,
+                             useGpu ? &gpuWorker : nullptr, args->showHeatmap);
         }
 #endif
 

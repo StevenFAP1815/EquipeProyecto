@@ -38,6 +38,7 @@ add_executable(delivery_tests
     test_coverage_field.cpp
     test_gpu_thresholds.cpp
     test_frame_stats.cpp
+    test_grid_binning.cpp
 )
 
 target_link_libraries(delivery_tests PRIVATE

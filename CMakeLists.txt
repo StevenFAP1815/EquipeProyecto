@@ -116,6 +116,7 @@ add_library(delivery_core STATIC
     src/core/TravelTable.cpp
     src/core/PlanarProjection.cpp
     src/core/CandidateFilter.cpp
+    src/core/GridBinning.cpp
     src/infra/ConfigLoader.cpp
     src/infra/EventLog.cpp
     src/concurrency/ShutdownToken.cpp

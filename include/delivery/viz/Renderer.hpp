@@ -1,5 +1,6 @@
 #pragma once
 
+#include <delivery/concurrency/GpuWorker.hpp>
 #include <delivery/concurrency/OrderBook.hpp>
 #include <delivery/concurrency/ShutdownToken.hpp>
 #include <delivery/infra/Config.hpp>
@@ -10,8 +11,12 @@
 #include <opencv2/core.hpp>
 
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <filesystem>
+#include <future>
+#include <optional>
+#include <vector>
 
 namespace delivery::viz {
 class Renderer {
@@ -23,7 +28,9 @@ public:
              const infra::EventLog& log,
              sim::SimClock& clock,
              concurrency::ShutdownToken& stop,
-             std::filesystem::path frameLogPath = {});
+             std::filesystem::path frameLogPath = {},
+             concurrency::GpuWorker* gpuWorker = nullptr,
+             bool showHeatmap = false);
 
     Renderer(const Renderer&) = delete;
     Renderer& operator=(const Renderer&) = delete;
@@ -36,6 +43,10 @@ private:
     void drawCouriers(cv::Mat& frame) const;
     void drawPanel(cv::Mat& frame) const;
     bool windowClosed() const;
+    std::vector<int> recentDemand() const;
+    void updateHeatmap();
+    void setHeatmap(const std::vector<int>& smoothed);
+    void drawHeatmap(cv::Mat& frame) const;
 
     const infra::Config& config_;
     const sim::Fleet& fleet_;
@@ -44,7 +55,13 @@ private:
     sim::SimClock& clock_;
     concurrency::ShutdownToken& stop_;
     std::filesystem::path frameLogPath_;
+    concurrency::GpuWorker* gpuWorker_;
 
     cv::Mat background_;
+    bool showHeatmap_ = false;
+    cv::Mat heatColor_;
+    cv::Mat heatMask_;
+    std::optional<std::future<std::vector<int>>> pendingHeat_;
+    std::chrono::steady_clock::time_point lastHeatRequest_;
 };
 }
