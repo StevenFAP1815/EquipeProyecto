@@ -9,6 +9,7 @@
 #include <delivery/core/StreetNetwork.hpp>
 #include <delivery/core/TravelTable.hpp>
 #include <delivery/gpu/DeliveryHistogram.hpp>
+#include <delivery/gpu/DemandHeatmap.hpp>
 #include <delivery/gpu/DeviceInfo.hpp>
 #include <delivery/gpu/EtaBatch.hpp>
 #include <delivery/gpu/FloydWarshall.hpp>
@@ -175,6 +176,49 @@ std::string describeTimeline(const delivery::gpu::Timeline& merged, int couriers
         << "): busiest 10-minute window starts at " << bestStart << " ms with " << bestCount
         << " deliveries";
     return out.str();
+}
+
+void reportDemandHeatmap(const delivery::infra::Config& cfg,
+                         const delivery::core::StreetNetwork& network,
+                         const delivery::infra::EventLog& log,
+                         delivery::concurrency::GpuWorker& worker, bool useGpu) {
+    using namespace delivery;
+    constexpr int kCells = 64;
+    const auto& bounds = cfg.map.bounds;
+    std::vector<int> counts(static_cast<std::size_t>(kCells) * kCells, 0);
+    int orders = 0;
+    for (const std::string& node : log.createdDeliveryNodes()) {
+        const auto position = network.nodeLatLon(core::NodeId(node));
+        if (!position) {
+            continue;
+        }
+        const double fx = (position->lon - bounds.west()) / (bounds.east() - bounds.west());
+        const double fy = (bounds.north() - position->lat) / (bounds.north() - bounds.south());
+        const int cx = std::clamp(static_cast<int>(fx * kCells), 0, kCells - 1);
+        const int cy = std::clamp(static_cast<int>(fy * kCells), 0, kCells - 1);
+        ++counts[static_cast<std::size_t>(cy) * kCells + cx];
+        ++orders;
+    }
+
+    std::vector<int> smoothed;
+    if (useGpu) {
+        smoothed = worker.submit([&counts] {
+            return gpu::smoothDemand(counts, kCells, kCells);
+        }).get();
+    } else {
+        smoothed = gpu::smoothDemandCpu(counts, kCells, kCells, cpuThreads());
+    }
+
+    const auto hottest = std::max_element(smoothed.begin(), smoothed.end());
+    const auto index = static_cast<int>(hottest - smoothed.begin());
+    const int cx = index % kCells;
+    const int cy = index / kCells;
+    const double lat = bounds.north() - (cy + 0.5) / kCells * (bounds.north() - bounds.south());
+    const double lon = bounds.west() + (cx + 0.5) / kCells * (bounds.east() - bounds.west());
+    std::cerr << "Demand heatmap (" << kCells << "x" << kCells << " cells, " << gpu::kHeatWidth
+              << "x" << gpu::kHeatWidth << " Gaussian, " << orders << " orders): hottest cell ("
+              << cx << "," << cy << ") near " << lat << "," << lon << " with smoothed demand "
+              << static_cast<double>(*hottest) / gpu::kHeatWeightSum << std::endl;
 }
 
 void reportDeliveryStatistics(const delivery::infra::Config& cfg,
@@ -407,6 +451,7 @@ int main(int argc, char** argv) {
         fleet.join();
 
         reportDeliveryStatistics(cfg, log, gpuWorker, useGpu);
+        reportDemandHeatmap(cfg, *network, log, gpuWorker, useGpu);
         gpuWorker.stop();
 
         const infra::Summary summary = log.summary();

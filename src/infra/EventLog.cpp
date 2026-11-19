@@ -66,6 +66,7 @@ void EventLog::orderCreated(std::int64_t t, const core::Order& order) {
     ++counts_.created;
     createdAtByOrder_[order.id.str()] = order.createdAtMs;
     restaurantByOrder_[order.id.str()] = order.restaurant.str();
+    createdDeliveryNodes_.push_back(order.deliveryNode.str());
 }
 
 void EventLog::orderAssigned(std::int64_t t, const core::OrderId& order,
@@ -182,6 +183,11 @@ void EventLog::simulationStopping(std::int64_t t) {
 std::vector<std::int64_t> EventLog::deliveryDurationsMs() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return deliveryDurationsMs_;
+}
+
+std::vector<std::string> EventLog::createdDeliveryNodes() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return createdDeliveryNodes_;
 }
 
 std::vector<DeliveryStamp> EventLog::deliveryStamps() const {

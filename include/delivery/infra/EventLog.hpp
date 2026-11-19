@@ -62,6 +62,7 @@ public:
     std::vector<std::int64_t> deliveryDurationsMs() const;
     std::vector<std::string> deliveryRestaurants() const;
     std::vector<DeliveryStamp> deliveryStamps() const;
+    std::vector<std::string> createdDeliveryNodes() const;
 
 private:
     void writeLine(const std::string& line);
@@ -73,6 +74,7 @@ private:
     std::vector<std::int64_t> deliveryDurationsMs_;
     std::vector<std::string> deliveryRestaurants_;
     std::vector<DeliveryStamp> deliveredAt_;
+    std::vector<std::string> createdDeliveryNodes_;
     std::unordered_map<std::string, std::string> restaurantByOrder_;
     std::unordered_map<std::string, std::int64_t> createdAtByOrder_;
 };

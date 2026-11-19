@@ -90,6 +90,7 @@ set(DELIVERY_GPU_SOURCES
     src/gpu/RadixSort.cu
     src/gpu/GroupByKey.cu
     src/gpu/SegmentMerge.cu
+    src/gpu/DemandHeatmap.cu
 )
 
 add_library(delivery_gpu STATIC ${DELIVERY_GPU_SOURCES})

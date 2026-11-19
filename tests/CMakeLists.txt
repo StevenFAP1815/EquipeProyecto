@@ -34,6 +34,7 @@ add_executable(delivery_tests
     test_radix_sort.cpp
     test_group_by_key.cpp
     test_segment_merge.cpp
+    test_demand_heatmap.cpp
 )
 
 target_link_libraries(delivery_tests PRIVATE

@@ -6,6 +6,7 @@
 #include <delivery/core/TravelTable.hpp>
 #include <delivery/gpu/CandidateFilter.hpp>
 #include <delivery/gpu/DeliveryHistogram.hpp>
+#include <delivery/gpu/DemandHeatmap.hpp>
 #include <delivery/gpu/EtaBatch.hpp>
 #include <delivery/gpu/FloydWarshall.hpp>
 #include <delivery/gpu/GroupByKey.hpp>
@@ -501,6 +502,56 @@ BenchCase courierLogMergeCase() {
     return c;
 }
 
+std::vector<int> randomDemandGrid(int side, std::uint64_t seed) {
+    std::mt19937_64 rng(seed);
+    std::poisson_distribution<int> orders(0.8);
+    std::vector<int> grid(static_cast<std::size_t>(side) * side);
+    for (int& cell : grid) {
+        cell = orders(rng);
+    }
+    return grid;
+}
+
+BenchCase demandHeatmapCase() {
+    static const std::vector<int> sides = {64, 256, 512, 1024, 2048};
+    BenchCase c;
+    c.application = "demand_heatmap";
+    for (int side : sides) {
+        c.sizes.push_back(std::to_string(side) + "x" + std::to_string(side));
+    }
+    c.prepare = [](std::size_t sizeIndex) {
+        const int side = sides[sizeIndex];
+        auto grid = std::make_shared<std::vector<int>>(randomDemandGrid(side, kBenchSeed));
+        auto reference =
+            std::make_shared<std::vector<int>>(gpu::smoothDemandCpu(*grid, side, side, 1));
+
+        std::vector<Version> versions;
+        for (unsigned threads : threadSweep(hardwareThreads())) {
+            versions.push_back({"cpu_t" + std::to_string(threads), [grid, reference, side, threads] {
+                                    Stopwatch watch;
+                                    const auto out = gpu::smoothDemandCpu(*grid, side, side, threads);
+                                    const double ms = watch.elapsedMs();
+                                    return Measurement{ms, out == *reference};
+                                }});
+        }
+#ifdef DELIVERY_USE_CUDA
+        versions.push_back({"gpu_kernel", [grid, reference, side] {
+                                gpu::KernelTiming timing;
+                                const auto out = gpu::smoothDemand(*grid, side, side, &timing);
+                                return Measurement{timing.kernelMs, out == *reference};
+                            }});
+        versions.push_back({"gpu_e2e", [grid, reference, side] {
+                                Stopwatch watch;
+                                const auto out = gpu::smoothDemand(*grid, side, side);
+                                const double ms = watch.elapsedMs();
+                                return Measurement{ms, out == *reference};
+                            }});
+#endif
+        return versions;
+    };
+    return c;
+}
+
 std::vector<BenchCase> allBenchCases(const infra::Config&) {
     std::vector<BenchCase> cases;
     cases.push_back(travelTableCase());
@@ -511,6 +562,7 @@ std::vector<BenchCase> allBenchCases(const infra::Config&) {
     cases.push_back(deliveryPercentilesCase());
     cases.push_back(ordersByRestaurantCase());
     cases.push_back(courierLogMergeCase());
+    cases.push_back(demandHeatmapCase());
     return cases;
 }
 }
