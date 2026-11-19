@@ -5,6 +5,7 @@
 #include <delivery/core/CsrGraph.hpp>
 #include <delivery/core/TravelTable.hpp>
 #include <delivery/gpu/CandidateFilter.hpp>
+#include <delivery/gpu/CoverageField.hpp>
 #include <delivery/gpu/DeliveryHistogram.hpp>
 #include <delivery/gpu/DemandHeatmap.hpp>
 #include <delivery/gpu/EtaBatch.hpp>
@@ -552,6 +553,53 @@ BenchCase demandHeatmapCase() {
     return c;
 }
 
+BenchCase coverageFieldCase() {
+    static const std::vector<int> sides = {32, 128, 256, 512, 1024};
+    constexpr int kSweeps = 100;
+    BenchCase c;
+    c.application = "coverage_field";
+    for (int side : sides) {
+        c.sizes.push_back(std::to_string(side) + "x" + std::to_string(side));
+    }
+    c.prepare = [](std::size_t sizeIndex) {
+        const int side = sides[sizeIndex];
+        auto density = std::make_shared<std::vector<float>>();
+        for (int cell : randomDemandGrid(side, kBenchSeed + 1)) {
+            density->push_back(static_cast<float>(cell));
+        }
+        auto reference = std::make_shared<std::vector<float>>(
+            gpu::coverageFieldCpu(*density, side, side, kSweeps, 1));
+
+        std::vector<Version> versions;
+        for (unsigned threads : threadSweep(hardwareThreads())) {
+            versions.push_back({"cpu_t" + std::to_string(threads),
+                                [density, reference, side, threads] {
+                                    Stopwatch watch;
+                                    const auto field =
+                                        gpu::coverageFieldCpu(*density, side, side, kSweeps, threads);
+                                    const double ms = watch.elapsedMs();
+                                    return Measurement{ms, field == *reference};
+                                }});
+        }
+#ifdef DELIVERY_USE_CUDA
+        versions.push_back({"gpu_kernel", [density, reference, side] {
+                                gpu::KernelTiming timing;
+                                const auto field =
+                                    gpu::coverageField(*density, side, side, kSweeps, &timing);
+                                return Measurement{timing.kernelMs, field == *reference};
+                            }});
+        versions.push_back({"gpu_e2e", [density, reference, side] {
+                                Stopwatch watch;
+                                const auto field = gpu::coverageField(*density, side, side, kSweeps);
+                                const double ms = watch.elapsedMs();
+                                return Measurement{ms, field == *reference};
+                            }});
+#endif
+        return versions;
+    };
+    return c;
+}
+
 std::vector<BenchCase> allBenchCases(const infra::Config&) {
     std::vector<BenchCase> cases;
     cases.push_back(travelTableCase());
@@ -563,6 +611,7 @@ std::vector<BenchCase> allBenchCases(const infra::Config&) {
     cases.push_back(ordersByRestaurantCase());
     cases.push_back(courierLogMergeCase());
     cases.push_back(demandHeatmapCase());
+    cases.push_back(coverageFieldCase());
     return cases;
 }
 }

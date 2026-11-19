@@ -8,6 +8,7 @@
 #include <delivery/core/CsrGraph.hpp>
 #include <delivery/core/StreetNetwork.hpp>
 #include <delivery/core/TravelTable.hpp>
+#include <delivery/gpu/CoverageField.hpp>
 #include <delivery/gpu/DeliveryHistogram.hpp>
 #include <delivery/gpu/DemandHeatmap.hpp>
 #include <delivery/gpu/DeviceInfo.hpp>
@@ -219,6 +220,45 @@ void reportDemandHeatmap(const delivery::infra::Config& cfg,
               << "x" << gpu::kHeatWidth << " Gaussian, " << orders << " orders): hottest cell ("
               << cx << "," << cy << ") near " << lat << "," << lon << " with smoothed demand "
               << static_cast<double>(*hottest) / gpu::kHeatWeightSum << std::endl;
+}
+
+void reportCoverage(const delivery::infra::Config& cfg, const delivery::sim::Fleet& fleet,
+                    delivery::concurrency::GpuWorker& worker, bool useGpu) {
+    using namespace delivery;
+    constexpr int kCells = 64;
+    constexpr int kSweeps = 200;
+    const auto& bounds = cfg.map.bounds;
+    std::vector<float> density(static_cast<std::size_t>(kCells) * kCells, 0.0f);
+    for (const auto& courier : fleet.couriers()) {
+        const core::LatLon position = courier->position();
+        const double fx = (position.lon - bounds.west()) / (bounds.east() - bounds.west());
+        const double fy = (bounds.north() - position.lat) / (bounds.north() - bounds.south());
+        const int cx = std::clamp(static_cast<int>(fx * kCells), 0, kCells - 1);
+        const int cy = std::clamp(static_cast<int>(fy * kCells), 0, kCells - 1);
+        density[static_cast<std::size_t>(cy) * kCells + cx] += 1.0f;
+    }
+
+    std::vector<float> field;
+    if (useGpu) {
+        field = worker.submit([&density] {
+            return gpu::coverageField(density, kCells, kCells, kSweeps);
+        }).get();
+    } else {
+        field = gpu::coverageFieldCpu(density, kCells, kCells, kSweeps, cpuThreads());
+    }
+    const int least = gpu::leastCoveredInteriorCell(field, kCells, kCells);
+    if (least < 0) {
+        return;
+    }
+    const int cx = least % kCells;
+    const int cy = least / kCells;
+    const double lat = bounds.north() - (cy + 0.5) / kCells * (bounds.north() - bounds.south());
+    const double lon = bounds.west() + (cx + 0.5) / kCells * (bounds.east() - bounds.west());
+    std::cerr << "Coverage field (" << kCells << "x" << kCells << " cells, " << kSweeps
+              << " Jacobi sweeps, " << fleet.couriers().size()
+              << " couriers): least covered cell (" << cx << "," << cy << ") near " << lat << ","
+              << lon << " with coverage " << field[static_cast<std::size_t>(least)]
+              << ", where idle couriers should wait" << std::endl;
 }
 
 void reportDeliveryStatistics(const delivery::infra::Config& cfg,
@@ -452,6 +492,7 @@ int main(int argc, char** argv) {
 
         reportDeliveryStatistics(cfg, log, gpuWorker, useGpu);
         reportDemandHeatmap(cfg, *network, log, gpuWorker, useGpu);
+        reportCoverage(cfg, fleet, gpuWorker, useGpu);
         gpuWorker.stop();
 
         const infra::Summary summary = log.summary();
