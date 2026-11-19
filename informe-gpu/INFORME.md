@@ -4,6 +4,16 @@ Este informe resume las diez aplicaciones GPU añadidas al simulador de reparto 
 
 Todas las tablas y figuras se generan con `tools/gpu_report.py` a partir de dos archivos CSV, uno del portátil y otro de Colab. Esos CSV los escribe el propio simulador en modo `--bench`, y sus copias están en `datos/`.
 
+**Índice de figuras:**
+
+| Figura | Qué muestra | Apartado |
+|---|---|---|
+| `thread_sweep.png` | Speedup de la CPU con 1, 2, 4 y 8 hilos en el portátil | 2.3 |
+| `<aplicación>_time.png` (10) | Tiempo frente a tamaño de las 4 versiones, log–log, con el cruce marcado | 3.1–3.10 |
+| `<aplicación>_copy_share.png` (10) | Parte del tiempo de GPU en copias frente a kernels, por tamaño | 3.1–3.10 |
+| `ventana_equipetrol_heatmap.png` | La ventana de la simulación con la capa del mapa de calor | 3.3 |
+| `roofline.png` | Roofline de la T4 con los kernels principales | 4.1 |
+
 ---
 
 ## 1. Resumen
@@ -72,6 +82,13 @@ Los tamaños del bench se generan con semilla fija (`kBenchSeed = 2026`) dentro 
   - "GPU kernel": eventos CUDA (`gpu::EventTimer`) alrededor de los kernels.
   - CPU y "GPU e2e": `steady_clock` (`bench::Stopwatch`). La medición e2e incluye `cudaMalloc`, las copias de ida y vuelta, los kernels y `cudaFree`.
 - **Las mediciones en emulación** (`cuda_compat.h`) **no se usan nunca** para medir tiempos. Solo sirven para que los tests comprueben la lógica en el portátil.
+- **Barrido de hilos** en el portátil (1, 2, 4 y 8 hilos, tamaño mayor de cada aplicación). La "CPU N" de cada tabla es la mejor de este barrido.
+
+![barrido de hilos](figuras/thread_sweep.png)
+
+  - **Ninguna aplicación escala de forma ideal.** Con 8 hilos, la mejor es el histograma (4,6×), seguida de la tabla de viajes (4,3×) y el filtro (3,1×). La mayoría se queda entre 1,7× y 2,8×, y la mezcla apenas llega a 1,2×.
+  - **De 4 a 8 hilos casi no se gana:** el i5-1135G7 tiene 4 núcleos físicos, y los 4 hilos extra son *hyperthreading*, que comparten las unidades de cálculo y la caché de cada núcleo.
+  - **Las aplicaciones que mueven muchos datos por operación** (convolución, stencil, agrupación, ETA) se estancan pronto, probablemente porque todos los hilos comparten el mismo ancho de banda de memoria (en el stencil lo agrava además la barrera de hilos de cada barrido). Esa es la referencia de CPU que la GPU tiene que superar.
 
 ### 2.4 Cómo reproducir cada número
 
@@ -105,6 +122,7 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DUSE_CUDA=ON -DENABLE_VIEWER=ON 
 xvfb-run -a -s "-screen 0 1280x800x24" ./build/delivery_sim config/city.json \
     [--cpu-only | --gpu-dispatch measured | --gpu-dispatch always] --log sim.log --frame-log frames.csv
 python3 tools/sim_effect.py cpu=sim_cpu.log measured=sim_measured.log always=sim_always.log
+python3 tools/fps_report.py --data datos/fps --out figuras/fps_frames.png
 ncu --metrics gpu__time_duration.sum,dram__bytes_read.sum,dram__bytes_write.sum,lts__t_bytes.sum,\
 l1tex__t_requests_pipe_lsu_mem_global_op_ld.sum,l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum,\
 l1tex__t_bytes_pipe_lsu_mem_global_op_ld.sum -k regex:etaKernelSoA -c 1 \
@@ -243,6 +261,16 @@ Cada celda de salida es independiente.
 | 2.048 × 2.048 | 49,2 | 21,9 (N=8) | 0,824 | 11,6 | 26,6× / 1,89× | sí |
 
 ![tiempo](figuras/demand_heatmap_time.png) ![copias](figuras/demand_heatmap_copy_share.png)
+
+**En la ventana (capa del mapa de calor):**
+- Con la tecla `h` (o con `--heatmap` desde el inicio), la ventana dibuja el mapa de calor encima del mapa. Por defecto está oculto, para no alterar las mediciones de FPS del apartado 5.2.
+- Cada segundo, el hilo de la ventana cuenta los **últimos 1.000 pedidos creados** en la rejilla de 64 × 64 (`core::binPoints`) y **envía** el suavizado al hilo dueño de la GPU. **No espera el resultado:** en cada cuadro consulta el `future` con `wait_for(0)` y, cuando está listo, cambia la capa. Sin GPU (o con `--cpu-only`), suaviza en la CPU.
+- La rejilla suavizada se normaliza a 0–255, se colorea (`COLORMAP_JET`), se escala al tamaño del mapa y se mezcla con transparencia del 45 % solo donde hay demanda.
+- **Coste medido en el portátil** (`datos/fps/frames_summary.txt`): en Equipetrol el dibujo pasa de 1,0 a 1,6–1,7 ms por cuadro (27,7–27,8 FPS frente a 28,4). En la ciudad, dos ejecuciones con la capa dieron 7,3 y 9,8 FPS frente a 9,9 sin ella: la diferencia está dentro de la variabilidad de esa escala.
+
+![ventana con el mapa de calor](figuras/ventana_equipetrol_heatmap.png)
+
+*Último cuadro de una simulación de Equipetrol (1 hora simulada) con la capa activada (`--heatmap --screenshot`). Las zonas rojas y amarillas concentran los destinos de los pedidos recientes.*
 
 **Análisis:**
 - **`ncu`** (2.048²): **L1/memoria compartida 91 %, DRAM 18 %, SM 47 %**.
@@ -604,7 +632,7 @@ Para comprobar el efecto de la GPU cuando de verdad trabaja en cada pedido, la o
 - **Emulación:** los tiempos de `cuda_compat.h` no se usaron para ninguna conclusión. Solo validan resultados en los tests.
 
 ### Evidencia de correctitud (resumen)
-- **137 tests** pasan en el portátil (emulación); 133 pasaron en la T4 en la medición del paso 17. Los 4 nuevos (estadísticas de cuadros y despacho forzado) no tocan código de GPU.
+- **140 tests** pasan en el portátil (emulación); 133 pasaron en la T4 en la medición del paso 17. Los 7 nuevos (estadísticas de cuadros, despacho forzado y reparto en celdas) no tocan código de GPU.
 - `compute-sanitizer --tool memcheck`: **0 errores**, también repetido con la versión que incluye la ventana y `--gpu-dispatch`. `--tool racecheck`: **0 riesgos de carrera**, en la suite completa.
 - **ThreadSanitizer** (portátil): 0 avisos en los tests del `GpuWorker`, ETA, argmin y cobertura, y en la simulación `--headless`.
 - `tools/check_event_log.py` valida el registro de eventos de cada simulación: ningún pedido perdido, duplicado ni asignado a dos repartidores.

@@ -46,7 +46,7 @@ cmake -DENABLE_TSAN=ON .. && make   # ThreadSanitizer (mismo target delivery_sim
 cmake -DENABLE_ASAN=ON .. && make   # AddressSanitizer + LeakSanitizer
 ```
 
-**Tests:** `cd build && ctest --output-on-failure` (137 tests).
+**Tests:** `cd build && ctest --output-on-failure` (140 tests).
 
 **GPU (CUDA):** las funciones GPU están en `src/gpu/*.cu`. Sin opciones, los `.cu` se compilan como C++ a través de `include/delivery/gpu/cuda_compat.h` y el simulador usa las versiones de CPU. Con una GPU NVIDIA:
 
@@ -56,6 +56,7 @@ cmake -DUSE_CUDA=ON -DENABLE_VIEWER=OFF .. && make
 ./delivery_sim ../config/city.json --headless --cpu-only   # misma simulación, solo CPU
 ./delivery_sim ../config/city.json --gpu-dispatch always   # GPU en cada pedido, sin umbrales
 ./delivery_sim ../config/city.json --frame-log frames.csv  # con ventana: tiempos por cuadro en CSV
+./delivery_sim ../config/equipetrol.json --heatmap --screenshot ventana.png   # capa del mapa de calor (tecla h)
 ./delivery_sim ../config/city.json --headless --bench results.csv [--bench-once] [--bench-only <app>] [--bench-size <tamaño>]
 ```
 
