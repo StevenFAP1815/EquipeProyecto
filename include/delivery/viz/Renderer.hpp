@@ -30,7 +30,8 @@ public:
              concurrency::ShutdownToken& stop,
              std::filesystem::path frameLogPath = {},
              concurrency::GpuWorker* gpuWorker = nullptr,
-             bool showHeatmap = false);
+             bool showHeatmap = false,
+             std::filesystem::path screenshotPath = {});
 
     Renderer(const Renderer&) = delete;
     Renderer& operator=(const Renderer&) = delete;
@@ -56,6 +57,7 @@ private:
     concurrency::ShutdownToken& stop_;
     std::filesystem::path frameLogPath_;
     concurrency::GpuWorker* gpuWorker_;
+    std::filesystem::path screenshotPath_;
 
     cv::Mat background_;
     bool showHeatmap_ = false;

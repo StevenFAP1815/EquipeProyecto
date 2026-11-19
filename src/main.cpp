@@ -84,6 +84,7 @@ struct Arguments {
     std::filesystem::path frameLogPath;
     delivery::sim::GpuDispatch gpuDispatch = delivery::sim::GpuDispatch::Measured;
     bool showHeatmap = false;
+    std::filesystem::path screenshotPath;
 };
 
 bool gpuCompiledIn() {
@@ -390,6 +391,8 @@ std::optional<Arguments> parseArguments(int argc, char** argv) {
             args.benchSize = argv[++i];
         } else if (option == "--frame-log" && i + 1 < argc) {
             args.frameLogPath = argv[++i];
+        } else if (option == "--screenshot" && i + 1 < argc) {
+            args.screenshotPath = argv[++i];
         } else if (option == "--heatmap") {
             args.showHeatmap = true;
         } else if (option == "--gpu-dispatch" && i + 1 < argc) {
@@ -416,7 +419,8 @@ int main(int argc, char** argv) {
     const std::optional<Arguments> args = parseArguments(argc, argv);
     if (!args) {
         std::cerr << "Usage: delivery_sim <config.json> [--log <path>] [--headless] [--cpu-only]"
-                     " [--frame-log <frames.csv>] [--gpu-dispatch measured|always] [--heatmap]\n"
+                     " [--frame-log <frames.csv>] [--gpu-dispatch measured|always] [--heatmap]"
+                     " [--screenshot <frame.png>]\n"
                      "       delivery_sim <config.json> --headless --bench <results.csv>"
                      " [--bench-once] [--bench-only <application>] [--bench-size <size>]\n";
         return 1;
@@ -460,7 +464,8 @@ int main(int argc, char** argv) {
             const std::filesystem::path imagePath =
                 args->configPath.parent_path() / cfg.map.imagePath;
             renderer.emplace(cfg, imagePath, fleet, book, log, clock, stop, args->frameLogPath,
-                             useGpu ? &gpuWorker : nullptr, args->showHeatmap);
+                             useGpu ? &gpuWorker : nullptr, args->showHeatmap,
+                             args->screenshotPath);
         }
 #endif
 

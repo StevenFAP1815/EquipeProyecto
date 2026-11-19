@@ -71,7 +71,8 @@ Renderer::Renderer(const infra::Config& config,
                    concurrency::ShutdownToken& stop,
                    std::filesystem::path frameLogPath,
                    concurrency::GpuWorker* gpuWorker,
-                   bool showHeatmap)
+                   bool showHeatmap,
+                   std::filesystem::path screenshotPath)
     : config_(config),
       fleet_(fleet),
       book_(book),
@@ -80,6 +81,7 @@ Renderer::Renderer(const infra::Config& config,
       stop_(stop),
       frameLogPath_(std::move(frameLogPath)),
       gpuWorker_(gpuWorker),
+      screenshotPath_(std::move(screenshotPath)),
       showHeatmap_(showHeatmap) {
     const cv::Mat original = cv::imread(imagePath.string());
     if (original.empty()) {
@@ -256,10 +258,11 @@ void Renderer::run() {
     bool firstFrame = true;
     std::vector<FrameSample> samples;
     Clock::time_point previous;
+    cv::Mat frame;
 
     while (!stop_.stopRequested()) {
         const Clock::time_point drawStart = Clock::now();
-        cv::Mat frame = background_.clone();
+        frame = background_.clone();
         if (showHeatmap_) {
             updateHeatmap();
             drawHeatmap(frame);
@@ -289,6 +292,9 @@ void Renderer::run() {
     }
 
     cv::destroyAllWindows();
+    if (!screenshotPath_.empty() && !frame.empty() && !cv::imwrite(screenshotPath_.string(), frame)) {
+        std::cerr << "cannot write screenshot: " << screenshotPath_.string() << std::endl;
+    }
     std::cerr << describeFrames(summarizeFrames(samples)) << std::endl;
     if (!frameLogPath_.empty()) {
         writeFrameLog(frameLogPath_, samples);
