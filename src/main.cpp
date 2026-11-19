@@ -80,6 +80,7 @@ struct Arguments {
     std::string benchOnly;
     std::string benchSize;
     bool cpuOnly = false;
+    std::filesystem::path frameLogPath;
 };
 
 bool gpuCompiledIn() {
@@ -395,6 +396,8 @@ std::optional<Arguments> parseArguments(int argc, char** argv) {
             args.benchOnly = argv[++i];
         } else if (option == "--bench-size" && i + 1 < argc) {
             args.benchSize = argv[++i];
+        } else if (option == "--frame-log" && i + 1 < argc) {
+            args.frameLogPath = argv[++i];
         } else {
             return std::nullopt;
         }
@@ -411,7 +414,8 @@ int main(int argc, char** argv) {
 
     const std::optional<Arguments> args = parseArguments(argc, argv);
     if (!args) {
-        std::cerr << "Usage: delivery_sim <config.json> [--log <path>] [--headless] [--cpu-only]\n"
+        std::cerr << "Usage: delivery_sim <config.json> [--log <path>] [--headless] [--cpu-only]"
+                     " [--frame-log <frames.csv>]\n"
                      "       delivery_sim <config.json> --headless --bench <results.csv>"
                      " [--bench-once] [--bench-only <application>] [--bench-size <size>]\n";
         return 1;
@@ -454,7 +458,7 @@ int main(int argc, char** argv) {
         if (!args->headless) {
             const std::filesystem::path imagePath =
                 args->configPath.parent_path() / cfg.map.imagePath;
-            renderer.emplace(cfg, imagePath, fleet, book, log, clock, stop);
+            renderer.emplace(cfg, imagePath, fleet, book, log, clock, stop, args->frameLogPath);
         }
 #endif
 

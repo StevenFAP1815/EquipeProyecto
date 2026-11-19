@@ -22,7 +22,8 @@ public:
              const concurrency::OrderBook& book,
              const infra::EventLog& log,
              sim::SimClock& clock,
-             concurrency::ShutdownToken& stop);
+             concurrency::ShutdownToken& stop,
+             std::filesystem::path frameLogPath = {});
 
     Renderer(const Renderer&) = delete;
     Renderer& operator=(const Renderer&) = delete;
@@ -42,6 +43,7 @@ private:
     const infra::EventLog& log_;
     sim::SimClock& clock_;
     concurrency::ShutdownToken& stop_;
+    std::filesystem::path frameLogPath_;
 
     cv::Mat background_;
 };

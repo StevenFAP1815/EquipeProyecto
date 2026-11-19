@@ -37,6 +37,7 @@ add_executable(delivery_tests
     test_demand_heatmap.cpp
     test_coverage_field.cpp
     test_gpu_thresholds.cpp
+    test_frame_stats.cpp
 )
 
 target_link_libraries(delivery_tests PRIVATE

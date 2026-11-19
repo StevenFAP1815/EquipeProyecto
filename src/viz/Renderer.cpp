@@ -1,18 +1,30 @@
 #include <delivery/viz/Renderer.hpp>
 
+#include <delivery/viz/FrameStats.hpp>
+
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 
 #include <algorithm>
+#include <chrono>
+#include <iostream>
 #include <map>
 #include <mutex>
 #include <shared_mutex>
 #include <stdexcept>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace delivery::viz {
 namespace {
+using Clock = std::chrono::steady_clock;
+
+double millisecondsBetween(Clock::time_point from, Clock::time_point to) {
+    return std::chrono::duration<double, std::milli>(to - from).count();
+}
+
 const char* const kWindowName = "Equipetrol Delivery";
 constexpr int kMaxWindowWidth = 900;
 constexpr int kMaxWindowHeight = 600;
@@ -48,13 +60,15 @@ Renderer::Renderer(const infra::Config& config,
                    const concurrency::OrderBook& book,
                    const infra::EventLog& log,
                    sim::SimClock& clock,
-                   concurrency::ShutdownToken& stop)
+                   concurrency::ShutdownToken& stop,
+                   std::filesystem::path frameLogPath)
     : config_(config),
       fleet_(fleet),
       book_(book),
       log_(log),
       clock_(clock),
-      stop_(stop) {
+      stop_(stop),
+      frameLogPath_(std::move(frameLogPath)) {
     const cv::Mat original = cv::imread(imagePath.string());
     if (original.empty()) {
         throw std::runtime_error("cannot load map image: " + imagePath.string());
@@ -155,18 +169,27 @@ bool Renderer::windowClosed() const {
 void Renderer::run() {
     cv::namedWindow(kWindowName, cv::WINDOW_AUTOSIZE | cv::WINDOW_GUI_NORMAL);
     bool firstFrame = true;
+    std::vector<FrameSample> samples;
+    Clock::time_point previous;
 
     while (!stop_.stopRequested()) {
+        const Clock::time_point drawStart = Clock::now();
         cv::Mat frame = background_.clone();
         drawCouriers(frame);
         drawPanel(frame);
         cv::imshow(kWindowName, frame);
+        const Clock::time_point drawEnd = Clock::now();
 
         const int key = cv::waitKey(kFrameMs);
+        const Clock::time_point frameEnd = Clock::now();
         if (firstFrame) {
             cv::moveWindow(kWindowName, 0, 0);
             firstFrame = false;
+        } else {
+            samples.push_back({millisecondsBetween(previous, frameEnd),
+                               millisecondsBetween(drawStart, drawEnd), clock_.nowMs()});
         }
+        previous = frameEnd;
         if (key == kEscKey || windowClosed()) {
             stop_.requestStop();
             clock_.wakeAll();
@@ -174,5 +197,9 @@ void Renderer::run() {
     }
 
     cv::destroyAllWindows();
+    std::cerr << describeFrames(summarizeFrames(samples)) << std::endl;
+    if (!frameLogPath_.empty()) {
+        writeFrameLog(frameLogPath_, samples);
+    }
 }
 }

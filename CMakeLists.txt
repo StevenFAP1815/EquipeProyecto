@@ -130,6 +130,7 @@ add_library(delivery_core STATIC
     src/sim/Dispatcher.cpp
     src/bench/BenchRunner.cpp
     src/bench/Applications.cpp
+    src/viz/FrameStats.cpp
 )
 target_include_directories(delivery_core PUBLIC include)
 target_link_libraries(delivery_core PUBLIC
