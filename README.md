@@ -46,7 +46,18 @@ cmake -DENABLE_TSAN=ON .. && make   # ThreadSanitizer (mismo target delivery_sim
 cmake -DENABLE_ASAN=ON .. && make   # AddressSanitizer + LeakSanitizer
 ```
 
-**Tests:** `cd build && ctest --output-on-failure` (70 tests).
+**Tests:** `cd build && ctest --output-on-failure` (133 tests).
+
+**GPU (CUDA):** las funciones GPU están en `src/gpu/*.cu`. Sin opciones, los `.cu` se compilan como C++ a través de `include/delivery/gpu/cuda_compat.h` y el simulador usa las versiones de CPU. Con una GPU NVIDIA:
+
+```bash
+cmake -DUSE_CUDA=ON -DENABLE_VIEWER=OFF .. && make
+./delivery_sim ../config/city.json --headless              # GPU por encima de los umbrales medidos
+./delivery_sim ../config/city.json --headless --cpu-only   # misma simulación, solo CPU
+./delivery_sim ../config/city.json --headless --bench results.csv [--bench-once] [--bench-only <app>] [--bench-size <tamaño>]
+```
+
+El informe de rendimiento (diez aplicaciones, mediciones en portátil y en una Tesla T4, roofline, ocupación y efecto en la simulación) está en [`informe-gpu/INFORME.md`](informe-gpu/INFORME.md); sus tablas y figuras se regeneran con `python3 tools/gpu_report.py --laptop <csv> --colab <csv> --out <dir>`.
 
 ## Ejecución
 

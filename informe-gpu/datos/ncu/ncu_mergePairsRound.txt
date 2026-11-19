@@ -1,0 +1,71 @@
+==PROF== Connected to process 18135 (/content/eq/build/delivery_sim)
+Compute backend: GPU (nvcc) | Tesla T4 | 40 SMs | 1024 threads/SM | warp 32
+bench: courier_log_merge
+==PROF== Profiling "mergePairsRound": 0%....50%....100% - 8 passes
+bench: 4 rows, 0 incorrect, written to /tmp/ncu.csv
+==PROF== Disconnected from process 18135
+[18135] delivery_sim@127.0.0.1
+  unnamed>::mergePairsRound(const long long *, const int *, const int *, int, int, long long *, int *) (1954, 1, 1)x(256, 1, 1), Context 1, Stream 7, Device 0, CC 7.5
+    Section: GPU Speed Of Light Throughput
+    ----------------------- ----------- ------------
+    Metric Name             Metric Unit Metric Value
+    ----------------------- ----------- ------------
+    DRAM Frequency                  Ghz         5.00
+    SM Frequency                    Mhz       584.98
+    Elapsed Cycles                cycle      756,969
+    Memory Throughput                 %        51.83
+    DRAM Throughput                   %        51.83
+    Duration                         ms         1.29
+    L1/TEX Cache Throughput           %        91.40
+    L2 Cache Throughput               %        49.44
+    SM Active Cycles              cycle   721,099.80
+    Compute (SM) Throughput           %        14.52
+    ----------------------- ----------- ------------
+
+    OPT   This workload exhibits low compute throughput and memory bandwidth utilization relative to the peak           
+          performance of this device. Achieved compute throughput and/or memory bandwidth below 60.0% of peak           
+          typically indicate latency issues. Look at Scheduler Statistics and Warp State Statistics for potential       
+          reasons.                                                                                                      
+
+    Section: Launch Statistics
+    -------------------------------- --------------- ---------------
+    Metric Name                          Metric Unit    Metric Value
+    -------------------------------- --------------- ---------------
+    Block Size                                                   256
+    Function Cache Configuration                     CachePreferNone
+    Grid Size                                                  1,954
+    Registers Per Thread             register/thread              34
+    Shared Memory Configuration Size           Kbyte           32.77
+    Driver Shared Memory Per Block        byte/block               0
+    Dynamic Shared Memory Per Block       byte/block               0
+    Static Shared Memory Per Block        byte/block               0
+    # SMs                                         SM              40
+    Stack Size                                                 1,024
+    Threads                                   thread         500,224
+    # TPCs                                                        20
+    Enabled TPC IDs                                              all
+    Uses Green Context                                             0
+    Waves Per SM                                               12.21
+    -------------------------------- --------------- ---------------
+
+    Section: Occupancy
+    ------------------------------- ----------- ------------
+    Metric Name                     Metric Unit Metric Value
+    ------------------------------- ----------- ------------
+    Block Limit SM                        block           16
+    Block Limit Registers                 block            6
+    Block Limit Shared Mem                block           16
+    Block Limit Warps                     block            4
+    Theoretical Active Warps per SM        warp           32
+    Theoretical Occupancy                     %          100
+    Achieved Occupancy                        %        83.33
+    Achieved Active Warps Per SM           warp        26.66
+    ------------------------------- ----------- ------------
+
+    OPT   Est. Local Speedup: 16.67%                                                                                    
+          The difference between calculated theoretical (100.0%) and measured achieved occupancy (83.3%) can be the     
+          result of warp scheduling overheads or workload imbalances during the kernel execution. Load imbalances can   
+          occur between warps within a block as well as across blocks of the same kernel. See the CUDA Best Practices   
+          Guide (https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#occupancy) for more details on     
+          optimizing occupancy.                                                                                         
+

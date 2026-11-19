@@ -1,0 +1,42 @@
+Compiling entry function '_ZN8delivery3gpu51_GLOBAL__N__a7a00b8b_18_CandidateFilter_cu_7c32477013scatterInsideEPKiS3_PKhiiixS3_Pi' for 'sm_75'
+Used 18 registers, used 1 barriers, 1024 bytes smem, 416 bytes cmem[0]
+Compiling entry function '_ZN8delivery3gpu51_GLOBAL__N__a7a00b8b_18_CandidateFilter_cu_7c32477024exclusiveScanBlockCountsEPiiS2_' for 'sm_75'
+Used 22 registers, used 0 barriers, 376 bytes cmem[0]
+Compiling entry function '_ZN8delivery3gpu51_GLOBAL__N__a7a00b8b_18_CandidateFilter_cu_7c32477019countInsidePerBlockEPKiS3_PKhiiixPi' for 'sm_75'
+Used 14 registers, used 1 barriers, 4 bytes smem, 408 bytes cmem[0]
+Compiling entry function '_ZN8delivery3gpu49_GLOBAL__N__a4e8d4fb_16_FloydWarshall_cu_d18b4f8e18fwIndependentPhaseEPiii' for 'sm_75'
+Used 30 registers, used 1 barriers, 8192 bytes smem, 368 bytes cmem[0]
+Compiling entry function '_ZN8delivery3gpu49_GLOBAL__N__a4e8d4fb_16_FloydWarshall_cu_d18b4f8e21fwPivotRowColumnPhaseEPiii' for 'sm_75'
+Used 15 registers, used 1 barriers, 8192 bytes smem, 368 bytes cmem[0]
+Compiling entry function '_ZN8delivery3gpu49_GLOBAL__N__a4e8d4fb_16_FloydWarshall_cu_d18b4f8e16fwDependentPhaseEPiii' for 'sm_75'
+Used 12 registers, used 1 barriers, 4096 bytes smem, 368 bytes cmem[0]
+Compiling entry function '_ZN8delivery3gpu51_GLOBAL__N__a99e9a12_18_ArgminReduction_cu_5deb48c915rowArgminKernelEPKxiPNS0_11BestCourierE' for 'sm_75'
+Used 64 registers, used 1 barriers, 3072 bytes smem, 376 bytes cmem[0]
+Compiling entry function '_ZN8delivery3gpu44_GLOBAL__N__43aa007f_11_EtaBatch_cu_938a626012etaKernelAoSEPKiiS3_S3_PKxPKNS1_13CourierRecordEixPx' for 'sm_75'
+Used 30 registers, used 0 barriers, 424 bytes cmem[0]
+Compiling entry function '_ZN8delivery3gpu44_GLOBAL__N__43aa007f_11_EtaBatch_cu_938a626012etaKernelSoAEPKiiS3_S3_PKxS3_S3_S5_S3_ixPx' for 'sm_75'
+Used 30 registers, used 0 barriers, 448 bytes cmem[0]
+Compiling entry function '_ZN8delivery3gpu53_GLOBAL__N__abf91d04_20_DeliveryHistogram_cu_86ae471119privatizedHistogramEPKxiPj' for 'sm_75'
+Used 22 registers, used 1 barriers, 512 bytes smem, 376 bytes cmem[0]
+Compiling entry function '_ZN8delivery3gpu45_GLOBAL__N__872e319b_12_RadixSort_cu_69d1373f10splitByBitEPKjPjiiPKiS6_' for 'sm_75'
+Used 14 registers, used 1 barriers, 1024 bytes smem, 392 bytes cmem[0]
+Compiling entry function '_ZN8delivery3gpu45_GLOBAL__N__872e319b_12_RadixSort_cu_69d1373f14scanBlockZerosEPiiS2_' for 'sm_75'
+Used 22 registers, used 0 barriers, 376 bytes cmem[0]
+Compiling entry function '_ZN8delivery3gpu45_GLOBAL__N__872e319b_12_RadixSort_cu_69d1373f18countZerosPerBlockEPKjiiPi' for 'sm_75'
+Used 10 registers, used 1 barriers, 4 bytes smem, 376 bytes cmem[0]
+Compiling entry function '_ZN8delivery3gpu46_GLOBAL__N__1a188c75_13_GroupByKey_cu_afb6568617extractKeyOffsetsEPKiiiiPi' for 'sm_75'
+Used 8 registers, used 0 barriers, 384 bytes cmem[0]
+Compiling entry function '_ZN8delivery3gpu46_GLOBAL__N__1a188c75_13_GroupByKey_cu_afb6568612scatterByKeyEPKiiiS3_Pi' for 'sm_75'
+Used 22 registers, used 1 barriers, 1024 bytes smem, 384 bytes cmem[0]
+Compiling entry function '_ZN8delivery3gpu46_GLOBAL__N__1a188c75_13_GroupByKey_cu_afb6568615addChunkOffsetsEPiiPKi' for 'sm_75'
+Used 10 registers, used 0 barriers, 376 bytes cmem[0]
+Compiling entry function '_ZN8delivery3gpu46_GLOBAL__N__1a188c75_13_GroupByKey_cu_afb6568619exclusiveScanChunksEPiiS2_' for 'sm_75'
+Used 12 registers, used 1 barriers, 2048 bytes smem, 376 bytes cmem[0]
+Compiling entry function '_ZN8delivery3gpu46_GLOBAL__N__1a188c75_13_GroupByKey_cu_afb6568617countKeysPerBlockEPKiiiiPi' for 'sm_75'
+Used 64 registers, used 1 barriers, 4096 bytes smem, 384 bytes cmem[0]
+Compiling entry function '_ZN8delivery3gpu49_GLOBAL__N__717bb932_16_DemandHeatmap_cu_b8b5c52111smoothTiledEPKiiiPi' for 'sm_75'
+Used 33 registers, used 1 barriers, 1600 bytes smem, 376 bytes cmem[0]
+Compiling entry function '_ZN8delivery3gpu48_GLOBAL__N__c310e216_15_SegmentMerge_cu_fbc5d88215mergePairsRoundEPKxPKiS5_iiPxPi' for 'sm_75'
+Used 34 registers, used 0 barriers, 400 bytes cmem[0]
+Compiling entry function '_ZN8delivery3gpu49_GLOBAL__N__faaf1571_16_CoverageField_cu_1c26fb3d16jacobiSweepTiledEPKfS3_iiPf' for 'sm_75'
+Used 36 registers, used 1 barriers, 1296 bytes smem, 384 bytes cmem[0]
