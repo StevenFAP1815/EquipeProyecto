@@ -69,7 +69,9 @@ int Dispatcher::cmPerSecond(double speedKmh) {
 
 gpu::BestCourier Dispatcher::batchBest(const gpu::EtaOrders& orders,
                                        const gpu::EtaCouriers& couriers, long long nowMs) {
-    if (etaEngine_ != nullptr && gpuWorker_ != nullptr) {
+    if (etaEngine_ != nullptr && gpuWorker_ != nullptr &&
+        gpuEtaWorthIt(static_cast<std::size_t>(orders.size()),
+                      static_cast<std::size_t>(couriers.size()))) {
         try {
             auto best = gpuWorker_->submit([engine = etaEngine_, orders, couriers, nowMs] {
                 return engine->bestPerOrder(orders, couriers, nowMs);
@@ -232,7 +234,7 @@ std::vector<int> Dispatcher::filterCandidates(const std::vector<std::int32_t>& x
                                               const std::vector<std::int32_t>& yDm,
                                               const std::vector<std::uint8_t>& available,
                                               core::PlanarPoint center) const {
-    if (gpuWorker_ != nullptr) {
+    if (gpuWorker_ != nullptr && gpuFilterWorthIt(xDm.size())) {
         try {
             auto inside = gpuWorker_->submit([xDm, yDm, available, center] {
                 return gpu::filterWithinRadius(xDm, yDm, available, center.xDm, center.yDm,

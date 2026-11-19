@@ -49,6 +49,13 @@ public:
     Dispatcher& operator=(const Dispatcher&) = delete;
 
     static constexpr std::int32_t kCandidateRadiusDm = 20000;
+    static constexpr std::size_t kGpuFilterMinCouriers = 64000;
+    static constexpr std::size_t kGpuEtaMinPairs = 10000;
+
+    static bool gpuFilterWorthIt(std::size_t couriers) { return couriers >= kGpuFilterMinCouriers; }
+    static bool gpuEtaWorthIt(std::size_t orders, std::size_t couriers) {
+        return orders * couriers >= kGpuEtaMinPairs;
+    }
 
     void useTravelTable(std::shared_ptr<const core::TravelTable> table);
     void useGpu(concurrency::GpuWorker& worker);
