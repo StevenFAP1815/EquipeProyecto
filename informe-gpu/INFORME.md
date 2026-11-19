@@ -96,6 +96,20 @@ compute-sanitizer --tool racecheck ./build/tests/delivery_tests
 python3 tools/sim_effect.py gpu=sim_gpu.log cpu=sim_cpu.log
 python3 tools/gpu_report.py --laptop laptop_results.csv --colab colab_results.csv --out figuras
 
+# Frecuencia de cuadros con ventana (portátil, WSL2 con WSLg)
+cmake -S . -B build-viewer -DCMAKE_BUILD_TYPE=Release -DENABLE_VIEWER=ON && cmake --build build-viewer -j
+./build-viewer/delivery_sim config/city.json --log sim.log --frame-log frames_laptop_city.csv
+
+# Colab (T4): notebook 18-fps-aos-soa, ventana sobre la pantalla virtual Xvfb
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DUSE_CUDA=ON -DENABLE_VIEWER=ON && cmake --build build -j
+xvfb-run -a -s "-screen 0 1280x800x24" ./build/delivery_sim config/city.json \
+    [--cpu-only | --gpu-dispatch measured | --gpu-dispatch always] --log sim.log --frame-log frames.csv
+python3 tools/sim_effect.py cpu=sim_cpu.log measured=sim_measured.log always=sim_always.log
+ncu --metrics gpu__time_duration.sum,dram__bytes_read.sum,dram__bytes_write.sum,lts__t_bytes.sum,\
+l1tex__t_requests_pipe_lsu_mem_global_op_ld.sum,l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum,\
+l1tex__t_bytes_pipe_lsu_mem_global_op_ld.sum -k regex:etaKernelSoA -c 1 \
+    ./build/delivery_sim config/city.json --headless --bench x.csv --bench-once --bench-only eta_batch --bench-size 1000x5000
+
 # ThreadSanitizer (portátil, WSL2)
 cmake -S . -B build-tsan -DENABLE_TSAN=ON -DENABLE_VIEWER=OFF && cmake --build build-tsan -j
 ./build-tsan/tests/delivery_tests && ./build-tsan/delivery_sim config/equipetrol.json --headless
@@ -181,11 +195,20 @@ En la misma máquina (Colab), la CPU con 2 hilos tarda 1.041 ms con 4.096 nodos 
 
 ![tiempo](figuras/eta_batch_time.png) ![copias](figuras/eta_batch_copy_share.png)
 
-**AoS frente a SoA:**
-- El kernel AoS tarda 3,21 ms y el SoA 3,16 ms: **casi empatan**.
-- `ncu` explica por qué: los dos tienen **DRAM ~71–72 %** y **SM ~10 %**, es decir, están limitados por la memoria. El AoS mueve más datos por la L1 (57 % frente a 45 %), porque cada warp lee estructuras de 32 B para usar 4 B. Pero los 5.000 repartidores (160 KB) **caben en la L2**, y esas lecturas no llegan a la DRAM.
-- El coste dominante son las **lecturas dispersas de la tabla** (`table[nodo·n + restaurante]`), que ninguna de las dos organizaciones puede hacer coalescidas.
-- **Conclusión:** SoA es la organización correcta, pero aquí el cuello de botella son esos accesos dispersos.
+**AoS frente a SoA: bytes movidos y ancho de banda efectivo** (`ncu --metrics`, un lanzamiento por kernel; datos en `datos/ncu/ncu_bytes_*.txt`):
+
+| Pares | Organización | Kernel (ms) | DRAM leído + escrito (MB) | Ancho de banda DRAM efectivo | Tráfico L2 (MB) | Bytes cargados en L1 (MB) | Sectores por petición de lectura |
+|---|---|---|---|---|---|---|---|
+| 200 × 1.000 | SoA | 0,187 | 40,5 + 3,0 = 43,5 | 232 GB/s | 25,3 | 27,5 | **8,96** |
+| 200 × 1.000 | AoS | 0,185 | 40,5 + 3,0 = 43,6 | 236 GB/s | 30,0 | 56,8 | **18,48** |
+| 1.000 × 5.000 | SoA | 3,17 | 680,3 + 50,2 = 730,5 | 230 GB/s | 683,6 | 674,6 | **8,95** |
+| 1.000 × 5.000 | AoS | 3,21 | 683,6 + 50,2 = 733,9 | 229 GB/s | 886,1 | 1.400 | **18,57** |
+
+- **Ancho de banda efectivo** = bytes de DRAM (lectura + escritura) / tiempo del kernel. Los dos kernels trabajan al **~72 % de los 320 GB/s** de la T4.
+- **La coalescencia sí cambia:** con AoS cada petición de lectura de un warp toca **el doble de sectores de 32 B** (18,5 frente a 9,0), y por la L1 pasan **2,1 veces más bytes** (1,40 GB frente a 0,67 GB). La L2 recibe un 30 % más de tráfico. Es justo lo que predice la teoría: los 32 hilos de un warp leen campos de 4 B separados por estructuras de 32 B (`CourierRecord`), en lugar de 32 enteros contiguos.
+- **Pero el tiempo no cambia,** porque los bytes que llegan a la DRAM son prácticamente los mismos (730 frente a 734 MB). Los datos de la flota ocupan 5.000 × 32 B = 160 KB y **caben en la L2** (4 MB). Tras la primera lectura, el exceso de sectores del AoS se sirve desde la caché.
+- **El tráfico de DRAM lo dominan las lecturas dispersas de la tabla de distancias** (`table[nodo·n + restaurante]`; la tabla ocupa 4.096² × 4 B = 64 MB y no cabe en la L2). Cada lectura trae un sector de 32 B para usar 4 B, y ninguna de las dos organizaciones puede hacerla coalescida. Lo único que se escribe es la matriz de salida: 5 millones × 8 B = 40 MB (1,25 millones de sectores de escritura).
+- **Conclusión:** SoA es la organización correcta, porque reduce a la mitad las transacciones de L1 y ahorra un 23 % de tráfico de L2. Aquí, sin embargo, el límite está en los accesos dispersos a la tabla. Para ver la ganancia del SoA en tiempo haría falta una flota que no cupiera en la L2 (más de unos 130.000 repartidores) o un kernel que no leyera la tabla.
 
 **Análisis:**
 - **Ocupación:** 30 registros por hilo, sin memoria compartida. Límite por warps, ocupación lograda del **90 %**.
@@ -504,7 +527,55 @@ Los techos de la T4 son 320 GB/s de memoria y unas 8,1·10¹² operaciones por s
    - Las copias suman 45 ms en total, frente a 312 ms de kernels.
    - Las 656 llamadas a `cudaLaunchKernel` costaron 4,6 ms.
    - Las estadísticas finales (histograma, percentiles, agrupación, mezcla, mapa de calor y cobertura) suman **menos de 1,5 ms de GPU**.
-5. **Frecuencia de cuadros de la ventana:** la ventana corre en su propio hilo y nunca espera a la GPU, porque el `GpuWorker` es asíncrono. No se pudo medir "ventana + GPU" en la misma máquina: Colab no tiene pantalla y el portátil no tiene GPU (ver amenazas a la validez).
+5. **Frecuencia de cuadros de la ventana:** medida en los apartados 5.2 y 5.3.
+
+### 5.1 Despacho forzado en la GPU (`--gpu-dispatch always`)
+
+Para comprobar el efecto de la GPU cuando de verdad trabaja en cada pedido, la opción `--gpu-dispatch always` ignora los umbrales: el filtro y la ETA + argmin de **cada** pedido van a la GPU. Se ejecutó 1 hora simulada en Colab con la ventana activa, en tres modos: `--cpu-only`, `measured` (los umbrales, la opción por defecto) y `always` (`datos/fps/sim_effect_*_modes.md`).
+
+| Ciudad (3.000 repartidores) | `--cpu-only` | `measured` | `always` |
+|---|---|---|---|
+| Asignados por hora simulada | 15.805 | 16.274 | **11.583** |
+| Entregados por hora simulada | 9.666 | 9.790 | 8.978 |
+| Rechazados (cola llena) | 1.781 | 1.718 | **5.490** |
+| Latencia de despacho, mediana (s simulados) | 6,5 | 24,5 | **242,6** |
+| Latencia de despacho, p90 (s simulados) | 254 | 285 | **520** |
+
+| Equipetrol (15 repartidores) | `--cpu-only` | `measured` | `always` |
+|---|---|---|---|
+| Asignados / entregados | 99 / 82 | 99 / 82 | 99 / 82 |
+| Latencia de despacho, mediana (ms simulados) | 9 | 9 | **65** |
+
+**Lectura:**
+- **Forzar la GPU en cada pedido empeora la simulación de la ciudad:** un 29 % menos de asignaciones, el triple de rechazos y una latencia mediana 10 veces mayor. Cada pedido hace dos viajes a la GPU (filtro y ETA + argmin), cada uno con su reserva, sus copias y su lanzamiento, y todos pasan **en fila** por el único hilo dueño de la GPU. El despachador espera ese resultado y la cola de pedidos se llena.
+- **En Equipetrol** el viaje a la GPU es visible en la latencia: 56 ms simulados más por pedido, que con `timeScale = 60` son **~0,9 ms reales**, el coste fijo de dos viajes (unos 0,3–0,45 ms cada uno). No cambia el resultado porque hay pocos pedidos.
+- La diferencia de mediana entre `--cpu-only` y `measured` (6,5 frente a 24,5 s) es **variabilidad de ejecución**: con los umbrales, los dos modos despachan en la CPU, y 3.000 hilos compiten por 2 vCPU (en el paso anterior, la misma comparación dio 54 frente a 55 s). El efecto de `always` (10×) está muy por encima de ese ruido.
+- **Esto confirma con la simulación real el veredicto de la ETA:** un pedido con ~300 candidatos está por debajo del cruce, y los umbrales evitan la GPU donde no compensa.
+- `tools/check_event_log.py` valida los seis registros: ningún pedido perdido, duplicado ni asignado a dos repartidores, también en el modo `always`.
+
+### 5.2 Frecuencia de cuadros de la ventana
+
+**Cómo se mide:** el hilo de la ventana (`viz::Renderer`) registra con `steady_clock`, en cada cuadro, el **intervalo** desde el cuadro anterior y el **tiempo de dibujo** (componer la imagen e `imshow`), sin contar la espera de `waitKey`. Al cerrar escribe un resumen y, con `--frame-log`, un CSV con una fila por cuadro (`datos/fps/`). El bucle espera 33 ms por cuadro (`waitKey(33)`), así que el **techo es de unos 29–30 FPS**.
+
+- **Portátil:** ventana real (WSLg), sin GPU.
+- **Colab:** la ventana se dibuja en una pantalla virtual (**Xvfb**), que hace el mismo trabajo de dibujo que una pantalla física, pero sin mostrarlo.
+
+| Máquina | Escenario | Modo | FPS | Intervalo p50 / p95 / máx (ms) | Dibujo p50 / p95 (ms) |
+|---|---|---|---|---|---|
+| Portátil | Equipetrol | sin GPU | 28,4 | 35,4 / 36,9 / 38,8 | 1,0 / 1,5 |
+| Colab | Equipetrol | `--cpu-only` | 28,6 | 34,8 / 36,8 / 39,4 | 0,9 / 1,3 |
+| Colab | Equipetrol | `measured` | 28,6 | 34,7 / 36,5 / 39,7 | 0,9 / 1,3 |
+| Colab | Equipetrol | `always` | 28,6 | 34,8 / 36,8 / 39,4 | 0,9 / 1,3 |
+| Portátil | Ciudad | sin GPU | 9,9 | 102 / 178 / 572 | 67,7 / 142 |
+| Colab | Ciudad | `--cpu-only` | 4,2 | 148 / 509 / 4.909 | 115 / 472 |
+| Colab | Ciudad | `measured` | 4,1 | 140 / 464 / 6.016 | 106 / 422 |
+| Colab | Ciudad | `always` | 4,8 | 156 / 542 / 2.816 | 120 / 507 |
+
+**Lectura:**
+- **La GPU no afecta a la ventana.** En Equipetrol los tres modos dan **28,6 FPS**, con intervalos idénticos a la décima de milisegundo, incluso con la GPU trabajando en cada pedido. Es lo esperado por el diseño: la ventana corre en su propio hilo y nunca espera a la GPU; quien espera el `future` del `GpuWorker` es el despachador.
+- **A escala de ciudad la ventana no mantiene la frecuencia en ningún modo, tampoco sin GPU.** El límite es **el propio dibujo**: 68 ms por cuadro en el portátil y 105–120 ms en Colab para pintar 3.000 repartidores y sus pedidos, mientras 3.000 hilos de repartidores compiten por 8 (portátil) o 2 (Colab) hilos de CPU. Los congelones de varios segundos (máximos de 2,8 a 6 s) aparecen en los tres modos de Colab: son planificación de la CPU, no la GPU.
+- Las diferencias entre modos en la ciudad (4,1 a 4,8 FPS) están dentro de la variabilidad. El modo `always` dibuja algo más rápido probablemente porque asigna menos pedidos y hay menos marcas de entrega que pintar.
+- **Veredicto:** la GPU no degrada la frecuencia de cuadros. Para mantener ~30 FPS a escala de ciudad habría que abaratar el dibujo (por ejemplo, dibujar sin antialiasing o solo los repartidores que cambian), no cambiar el reparto CPU/GPU.
 
 ---
 
@@ -520,7 +591,8 @@ Los techos de la T4 son 320 GB/s de memoria y unas 8,1·10¹² operaciones por s
 - **No compensa cuando el trabajo es de una pasada y los datos viven en la CPU** (filtro, histograma, agrupación y argmin por separado): el kernel es entre 10 y 30 veces más rápido, pero **las copias por PCIe suponen entre el 90 y el 98 % del tiempo**.
 - **No compensa cuando la GPU ejecuta un algoritmo peor:** Floyd–Warshall `O(n³)` frente a Dijkstra en un grafo con pocas aristas.
 - **A la escala del enunciado** (Equipetrol) ninguna tarea supera su cruce: **la respuesta es mantener la CPU**.
-- **A escala de ciudad**, la respuesta correcta es **usar la GPU solo por encima de un umbral**, y el despachador ya está implementado así.
+- **A escala de ciudad**, la respuesta correcta es **usar la GPU solo por encima de un umbral**, y el despachador ya está implementado así. Forzar la GPU en cada pedido (`--gpu-dispatch always`) reduce las asignaciones un 29 % y multiplica por 10 la latencia de despacho.
+- **La GPU no degrada la ventana:** 28,6 FPS en los tres modos en Equipetrol. A escala de ciudad la ventana baja a 4–10 FPS incluso sin GPU, porque el límite es dibujar 3.000 repartidores.
 
 ### Amenazas a la validez
 - **Dos máquinas distintas:** la CPU del portátil (i5-1135G7, 8 hilos) se compara con la GPU de Colab. Para cubrirlo se incluye la comparación en la misma máquina (Colab: CPU de 2 vCPU frente a la T4), en la que la GPU gana en más casos porque la CPU es más débil.
@@ -528,11 +600,11 @@ Los techos de la T4 son 320 GB/s de memoria y unas 8,1·10¹² operaciones por s
 - **WSL2:** las barreras y los cambios de contexto de hilos son más caros que en Linux nativo, y eso penaliza las versiones multihilo con mucha sincronización (el stencil).
 - **Calor del portátil:** se mitigó intercalando versiones y con el plan "Máximo rendimiento", pero no se controló la temperatura.
 - **Modelos de *roofline* derivados del código:** cuentan operaciones enteras y bytes de forma aproximada (por ejemplo, 32 B por cada lectura dispersa de la tabla). Las conclusiones (qué kernels están limitados por la memoria) coinciden con los porcentajes de DRAM, L1 y SM que mide `ncu`.
-- **Frecuencia de cuadros no medida** con GPU, por falta de una máquina con pantalla y GPU NVIDIA.
+- **Frecuencia de cuadros con pantalla virtual:** la combinación "ventana + GPU" se midió en Colab con Xvfb, porque ninguna máquina disponible tiene a la vez pantalla y GPU NVIDIA. Xvfb dibuja por software igual que con una pantalla real, pero no mide el coste de presentar la imagen en un monitor. Los FPS de Colab y del portátil no son comparables entre sí (2 frente a 8 hilos de CPU); la comparación entre modos se hace siempre en la misma máquina.
 - **Emulación:** los tiempos de `cuda_compat.h` no se usaron para ninguna conclusión. Solo validan resultados en los tests.
 
 ### Evidencia de correctitud (resumen)
-- **133 tests** pasan en el portátil (emulación) y en la T4.
-- `compute-sanitizer --tool memcheck`: **0 errores**. `--tool racecheck`: **0 riesgos de carrera**, en la suite completa.
+- **137 tests** pasan en el portátil (emulación); 133 pasaron en la T4 en la medición del paso 17. Los 4 nuevos (estadísticas de cuadros y despacho forzado) no tocan código de GPU.
+- `compute-sanitizer --tool memcheck`: **0 errores**, también repetido con la versión que incluye la ventana y `--gpu-dispatch`. `--tool racecheck`: **0 riesgos de carrera**, en la suite completa.
 - **ThreadSanitizer** (portátil): 0 avisos en los tests del `GpuWorker`, ETA, argmin y cobertura, y en la simulación `--headless`.
 - `tools/check_event_log.py` valida el registro de eventos de cada simulación: ningún pedido perdido, duplicado ni asignado a dos repartidores.
