@@ -10,6 +10,7 @@
 #include <delivery/gpu/FloydWarshall.hpp>
 #include <delivery/gpu/GroupByKey.hpp>
 #include <delivery/gpu/RadixSort.hpp>
+#include <delivery/gpu/SegmentMerge.hpp>
 
 #include <memory>
 #include <random>
@@ -430,6 +431,76 @@ BenchCase ordersByRestaurantCase() {
     return c;
 }
 
+struct SegmentedLog {
+    gpu::Timeline segments;
+    std::vector<int> offsets;
+};
+
+SegmentedLog randomCourierLogs(int events, int couriers, std::uint64_t seed) {
+    std::mt19937_64 rng(seed);
+    std::uniform_int_distribution<int> owner(0, couriers - 1);
+    std::uniform_int_distribution<long long> gap(1000, 600000);
+    std::vector<int> perCourier(static_cast<std::size_t>(couriers), 0);
+    for (int e = 0; e < events; ++e) {
+        ++perCourier[static_cast<std::size_t>(owner(rng))];
+    }
+    SegmentedLog log;
+    log.offsets.push_back(0);
+    for (int c = 0; c < couriers; ++c) {
+        long long t = 0;
+        for (int k = 0; k < perCourier[static_cast<std::size_t>(c)]; ++k) {
+            t += gap(rng) / 1000 * 1000;
+            log.segments.t.push_back(t);
+            log.segments.source.push_back(c);
+        }
+        log.offsets.push_back(static_cast<int>(log.segments.t.size()));
+    }
+    return log;
+}
+
+BenchCase courierLogMergeCase() {
+    static const std::vector<int> counts = {10000, 100000, 1000000, 4000000};
+    constexpr int kCouriers = 3000;
+    BenchCase c;
+    c.application = "courier_log_merge";
+    for (int count : counts) {
+        c.sizes.push_back(std::to_string(count));
+    }
+    c.prepare = [](std::size_t sizeIndex) {
+        auto log = std::make_shared<SegmentedLog>(
+            randomCourierLogs(counts[sizeIndex], kCouriers, kBenchSeed));
+        auto reference = std::make_shared<gpu::Timeline>(
+            gpu::mergeSegmentsReference(log->segments, log->offsets));
+
+        std::vector<Version> versions;
+        for (unsigned threads : threadSweep(hardwareThreads())) {
+            versions.push_back({"cpu_t" + std::to_string(threads), [log, reference, threads] {
+                                    Stopwatch watch;
+                                    const auto merged =
+                                        gpu::mergeSegmentsCpu(log->segments, log->offsets, threads);
+                                    const double ms = watch.elapsedMs();
+                                    return Measurement{ms, merged == *reference};
+                                }});
+        }
+#ifdef DELIVERY_USE_CUDA
+        versions.push_back({"gpu_kernel", [log, reference] {
+                                gpu::KernelTiming timing;
+                                const auto merged =
+                                    gpu::mergeSegments(log->segments, log->offsets, &timing);
+                                return Measurement{timing.kernelMs, merged == *reference};
+                            }});
+        versions.push_back({"gpu_e2e", [log, reference] {
+                                Stopwatch watch;
+                                const auto merged = gpu::mergeSegments(log->segments, log->offsets);
+                                const double ms = watch.elapsedMs();
+                                return Measurement{ms, merged == *reference};
+                            }});
+#endif
+        return versions;
+    };
+    return c;
+}
+
 std::vector<BenchCase> allBenchCases(const infra::Config&) {
     std::vector<BenchCase> cases;
     cases.push_back(travelTableCase());
@@ -439,6 +510,7 @@ std::vector<BenchCase> allBenchCases(const infra::Config&) {
     cases.push_back(deliveryHistogramCase());
     cases.push_back(deliveryPercentilesCase());
     cases.push_back(ordersByRestaurantCase());
+    cases.push_back(courierLogMergeCase());
     return cases;
 }
 }

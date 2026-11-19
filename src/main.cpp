@@ -14,6 +14,7 @@
 #include <delivery/gpu/FloydWarshall.hpp>
 #include <delivery/gpu/GroupByKey.hpp>
 #include <delivery/gpu/RadixSort.hpp>
+#include <delivery/gpu/SegmentMerge.hpp>
 #include <delivery/infra/ConfigLoader.hpp>
 #include <delivery/infra/EventLog.hpp>
 #include <delivery/sim/Dispatcher.hpp>
@@ -32,6 +33,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <memory>
 #include <optional>
 #include <sstream>
@@ -129,6 +131,52 @@ std::string describeGroups(const delivery::infra::Config& cfg,
     return out.str();
 }
 
+delivery::gpu::Timeline timelineByCourier(const std::vector<delivery::infra::DeliveryStamp>& stamps,
+                                          std::vector<int>& offsets) {
+    std::map<std::string, int> courierIndex;
+    std::vector<std::vector<long long>> perCourier;
+    for (const auto& stamp : stamps) {
+        const auto [it, inserted] =
+            courierIndex.emplace(stamp.courier, static_cast<int>(perCourier.size()));
+        if (inserted) {
+            perCourier.emplace_back();
+        }
+        perCourier[static_cast<std::size_t>(it->second)].push_back(stamp.t);
+    }
+    delivery::gpu::Timeline segments;
+    offsets.assign(1, 0);
+    for (std::size_t c = 0; c < perCourier.size(); ++c) {
+        for (long long t : perCourier[c]) {
+            segments.t.push_back(t);
+            segments.source.push_back(static_cast<int>(c));
+        }
+        offsets.push_back(static_cast<int>(segments.t.size()));
+    }
+    return segments;
+}
+
+std::string describeTimeline(const delivery::gpu::Timeline& merged, int couriers) {
+    constexpr long long kWindowMs = 10 * 60 * 1000;
+    std::size_t bestCount = 0;
+    long long bestStart = 0;
+    std::size_t begin = 0;
+    for (std::size_t end = 0; end < merged.t.size(); ++end) {
+        while (merged.t[end] - merged.t[begin] >= kWindowMs) {
+            ++begin;
+        }
+        if (end - begin + 1 > bestCount) {
+            bestCount = end - begin + 1;
+            bestStart = merged.t[begin];
+        }
+    }
+    std::ostringstream out;
+    out << "Merged delivery timeline (" << merged.t.size() << " deliveries from " << couriers
+        << " couriers, ordered=" << (std::is_sorted(merged.t.begin(), merged.t.end()) ? "yes" : "no")
+        << "): busiest 10-minute window starts at " << bestStart << " ms with " << bestCount
+        << " deliveries";
+    return out.str();
+}
+
 void reportDeliveryStatistics(const delivery::infra::Config& cfg,
                               const delivery::infra::EventLog& log,
                               delivery::concurrency::GpuWorker& worker, bool useGpu) {
@@ -177,6 +225,18 @@ void reportDeliveryStatistics(const delivery::infra::Config& cfg,
         groups = gpu::groupByKeyCpu(restaurantKeys, restaurantCount, cpuThreads());
     }
     std::cerr << describeGroups(cfg, groups, keyedDurations) << std::endl;
+
+    std::vector<int> offsets;
+    const gpu::Timeline perCourier = timelineByCourier(log.deliveryStamps(), offsets);
+    gpu::Timeline merged;
+    if (useGpu) {
+        merged = worker.submit([&perCourier, &offsets] {
+            return gpu::mergeSegments(perCourier, offsets);
+        }).get();
+    } else {
+        merged = gpu::mergeSegmentsCpu(perCourier, offsets, cpuThreads());
+    }
+    std::cerr << describeTimeline(merged, static_cast<int>(offsets.size()) - 1) << std::endl;
 }
 
 std::shared_ptr<const delivery::core::TravelTable> buildTravelTable(

@@ -112,6 +112,7 @@ void EventLog::orderDelivered(std::int64_t t, const core::OrderId& order,
     writeLine(e.dump());
     ++counts_.delivered;
     ++counts_.deliveredPerCourier[courier.str()];
+    deliveredAt_.push_back(DeliveryStamp{t, courier.str()});
 
     const auto created = createdAtByOrder_.find(order.str());
     if (created != createdAtByOrder_.end()) {
@@ -181,6 +182,11 @@ void EventLog::simulationStopping(std::int64_t t) {
 std::vector<std::int64_t> EventLog::deliveryDurationsMs() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return deliveryDurationsMs_;
+}
+
+std::vector<DeliveryStamp> EventLog::deliveryStamps() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return deliveredAt_;
 }
 
 std::vector<std::string> EventLog::deliveryRestaurants() const {
