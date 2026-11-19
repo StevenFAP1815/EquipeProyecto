@@ -10,3 +10,6 @@ laptop equipetrol --heatmap: Window: 1644 frames in 59.4 s, 27.7 FPS; frame inte
 laptop city --heatmap: Window: 430 frames in 59.1 s, 7.3 FPS; frame interval p50 108.1 ms, p95 303.4 ms, max 2430.5 ms; drawing p50 72.8 ms, p95 265.5 ms
 laptop equipetrol --heatmap (repeticion, con --screenshot): Window: 1653 frames in 59.4 s, 27.8 FPS; frame interval p50 35.9 ms, p95 37.5 ms, max 40.8 ms; drawing p50 1.6 ms, p95 2.6 ms
 laptop city --heatmap (repeticion, con --screenshot): Window: 580 frames in 59.2 s, 9.8 FPS; frame interval p50 100.7 ms, p95 177.6 ms, max 296.2 ms; drawing p50 67.2 ms, p95 142.6 ms
+laptop city, dibujo simplificado (ejecucion 1): Window: 1088 frames in 58.6 s, 18.6 FPS; frame interval p50 51.2 ms, p95 80.3 ms, max 279.3 ms; drawing p50 16.0 ms, p95 41.0 ms
+laptop city, dibujo simplificado (ejecucion 2): Window: 1122 frames in 59.0 s, 19.0 FPS; frame interval p50 48.4 ms, p95 80.8 ms, max 359.0 ms; drawing p50 14.4 ms, p95 42.7 ms
+laptop equipetrol, tras el cambio de dibujo (sin cambios esperados): Window: 1682 frames in 59.6 s, 28.2 FPS; frame interval p50 35.6 ms, p95 37.2 ms, max 38.6 ms; drawing p50 1.1 ms, p95 1.8 ms

@@ -12,7 +12,9 @@ Todas las tablas y figuras se generan con `tools/gpu_report.py` a partir de dos 
 | `<aplicación>_time.png` (10) | Tiempo frente a tamaño de las 4 versiones, log–log, con el cruce marcado | 3.1–3.10 |
 | `<aplicación>_copy_share.png` (10) | Parte del tiempo de GPU en copias frente a kernels, por tamaño | 3.1–3.10 |
 | `ventana_equipetrol_heatmap.png` | La ventana de la simulación con la capa del mapa de calor | 3.3 |
+| `ventana_ciudad.png` | La ventana de la ciudad con el dibujo simplificado | 5.2 |
 | `roofline.png` | Roofline de la T4 con los kernels principales | 4.1 |
+| `fps_frames.png` | FPS por ejecución y distribución del intervalo entre cuadros (`tools/fps_report.py`) | 5.2 |
 
 ---
 
@@ -526,6 +528,28 @@ Los techos de la T4 son 320 GB/s de memoria y unas 8,1·10¹² operaciones por s
   - `mergePairsRound`: las búsquedas binarias del *co-rank* tardan distinto según el hilo.
 - **Nota:** `ncu` fija el reloj de los SM en unos 585 MHz para que las mediciones sean repetibles. Por eso sus duraciones no coinciden exactamente con las del bench.
 
+### 4.3 Configuración de lanzamiento de cada kernel y por qué
+
+**Cómo se lanza:** todos los kernels se lanzan con `launch(kernel, grid, block, args...)` (`include/delivery/gpu/cuda_compat.h`). Con `USE_CUDA=ON` equivale a `kernel<<<grid, block>>>(args...)`; sin CUDA, el mismo `.cu` se ejecuta en la CPU (emulación), y así los tests comprueban la lógica de cada kernel en el portátil. Después de cada lanzamiento se llama a `cudaGetLastError()` (dentro de `CHECK`), y los tiempos se toman con eventos CUDA (`EventTimer`).
+
+**Criterios comunes:**
+- **Bloques de 256 hilos** (o 16 × 16 en 2D) salvo que el algoritmo pida otra cosa: es múltiplo de 32 (warps completos), y 4 bloques por SM llenan los 1.024 hilos de un SM de la T4 (ocupación teórica del 100 %, apartado 4.2). Además deja margen de registros (hasta 64 por hilo) y de memoria compartida.
+- **Rejilla = ⌈n / hilos por bloque⌉**, con un `if (i < n)` en el kernel para el último bloque, salvo en el histograma, que usa una rejilla fija con bucle de paso fijo.
+- **Índice → dato:** `threadIdx.x` recorre siempre la dimensión contigua en memoria, para que los accesos de un warp sean coalescidos.
+
+| Kernel (archivo) | Bloque | Rejilla | Por qué |
+|---|---|---|---|
+| `fwDependentPhase`, `fwPivotRowColumnPhase`, `fwIndependentPhase` (`FloydWarshall.cu`) | 32 × 32 (1.024) | 1; (bloques, 2); (bloques, bloques), 3 lanzamientos por cada bloque pivote | Un hilo por celda de un bloque de 32 × 32 de la tabla. Una fila del bloque es un warp: lectura coalescida. Dos bloques de 4 KB en memoria compartida. Las fases dependen unas de otras, así que la sincronización entre ellas la da el fin de cada kernel. |
+| `etaKernelSoA` / `etaKernelAoS` (`EtaBatch.cu`) | 256 | (⌈repartidores / 256⌉, pedidos) | `x` = repartidor: hilos vecinos leen campos vecinos del SoA (coalescido). `y` = pedido: todos los hilos de un bloque usan el mismo pedido, que se lee una vez y se difunde. |
+| `rowArgminKernel` (`ArgminReduction.cu`) | 256 | pedidos (un bloque por fila) | Cada bloque reduce una fila: cada hilo recorre su parte en saltos de 256 (*coarsening*) y luego hay una reducción en árbol en memoria compartida con la clave `(eta, courierId)`. Un bloque por fila evita atómicos entre bloques. |
+| `privatizedHistogram` (`DeliveryHistogram.cu`) | 256 | **160 fija** (4 por SM × 40 SMs) | Cada bloque acumula un histograma privado de 128 intervalos en memoria compartida. Con una rejilla fija y bucle de paso fijo, el número de volcados al histograma global queda acotado (160 × 128) sea cual sea el tamaño, y 4 bloques por SM bastan para llenar la GPU. |
+| `countInsidePerBlock` → `exclusiveScanBlockCounts` → `scatterInside` (`CandidateFilter.cu`) | 256 → **1** → 256 | ⌈n / 256⌉ → **1** → ⌈n / 256⌉ | Contar por bloque, *scan* de los conteos y escritura estable con un *scan* de Kogge–Stone dentro del bloque. El *scan* de los conteos lo hace **un solo hilo**: son n / 256 valores (unos 3.900 con 1 millón), y su coste es pequeño frente a las copias. Es una simplificación consciente: un *scan* jerárquico como el de la agrupación lo eliminaría. |
+| `countZerosPerBlock` → `scanBlockZeros` → `splitByBit` (`RadixSort.cu`) | 256 → **1** → 256 | igual que el filtro, una vez por bit (22 pasadas) | Cada pasada es una partición estable por un bit (un filtro de ceros y unos), con el mismo esquema y la misma simplificación del *scan* de un hilo. |
+| `countKeysPerBlock`, `exclusiveScanChunks`, `addChunkOffsets`, `scatterByKey`, `extractKeyOffsets` (`GroupByKey.cu`) | 256 / 512 | ⌈n / 256⌉ y trozos de 512 | *Scan* **jerárquico**: Kogge–Stone en trozos de 512 elementos, *scan* de las sumas de los trozos con un bloque y suma de los desplazamientos. Aquí sí hacía falta, porque la matriz de conteos (bloques × restaurantes) es mucho mayor. |
+| `mergePairsRound` (`SegmentMerge.cu`) | 256 | ⌈(total / 8) / 256⌉ por ronda | Cada hilo produce 8 elementos de salida y busca con *co-rank* dónde empieza su parte en las dos listas. Un lanzamiento por ronda (⌈log₂ segmentos⌉ rondas) con dos búferes que se alternan. |
+| `smoothTiled` (`DemandHeatmap.cu`) | 16 × 16 | ⌈ancho / 16⌉ × ⌈alto / 16⌉ | Un hilo por celda de salida. El bloque carga 20 × 20 celdas (halo de 2) en memoria compartida y el filtro está en memoria constante. Un bloque de 16 × 16 deja el halo en el 56 % extra; uno de 32 × 32 lo bajaría al 27 %, pero con 1.024 hilos por bloque solo cabría uno por SM. |
+| `jacobiSweepTiled` (`CoverageField.cu`) | 16 × 16 | ⌈ancho / 16⌉ × ⌈alto / 16⌉, **un lanzamiento por barrido** | El halo es de 1 celda (18 × 18 en memoria compartida). Cada barrido necesita el resultado completo del anterior, y la única barrera global entre bloques es el final del kernel; por eso hay un lanzamiento por barrido, con dos búferes que se alternan. |
+
 ---
 
 ## 5. Efecto en la simulación completa
@@ -599,11 +623,32 @@ Para comprobar el efecto de la GPU cuando de verdad trabaja en cada pedido, la o
 | Colab | Ciudad | `measured` | 4,1 | 140 / 464 / 6.016 | 106 / 422 |
 | Colab | Ciudad | `always` | 4,8 | 156 / 542 / 2.816 | 120 / 507 |
 
+![FPS por ejecución](figuras/fps_frames.png)
+
+*Izquierda: FPS medio de cada ejecución; la línea discontinua es el techo del bucle de la ventana. Derecha: distribución acumulada del intervalo entre cuadros (eje logarítmico). Las curvas de Equipetrol son verticales en ~35 ms: todos los cuadros tardan lo mismo. Las de la ciudad se extienden hasta varios segundos.*
+
 **Lectura:**
 - **La GPU no afecta a la ventana.** En Equipetrol los tres modos dan **28,6 FPS**, con intervalos idénticos a la décima de milisegundo, incluso con la GPU trabajando en cada pedido. Es lo esperado por el diseño: la ventana corre en su propio hilo y nunca espera a la GPU; quien espera el `future` del `GpuWorker` es el despachador.
 - **A escala de ciudad la ventana no mantiene la frecuencia en ningún modo, tampoco sin GPU.** El límite es **el propio dibujo**: 68 ms por cuadro en el portátil y 105–120 ms en Colab para pintar 3.000 repartidores y sus pedidos, mientras 3.000 hilos de repartidores compiten por 8 (portátil) o 2 (Colab) hilos de CPU. Los congelones de varios segundos (máximos de 2,8 a 6 s) aparecen en los tres modos de Colab: son planificación de la CPU, no la GPU.
 - Las diferencias entre modos en la ciudad (4,1 a 4,8 FPS) están dentro de la variabilidad. El modo `always` dibuja algo más rápido probablemente porque asigna menos pedidos y hay menos marcas de entrega que pintar.
-- **Veredicto:** la GPU no degrada la frecuencia de cuadros. Para mantener ~30 FPS a escala de ciudad habría que abaratar el dibujo (por ejemplo, dibujar sin antialiasing o solo los repartidores que cambian), no cambiar el reparto CPU/GPU.
+- **Veredicto:** la GPU no degrada la frecuencia de cuadros. Lo que limita la ventana a escala de ciudad es el dibujo, así que la solución es abaratar el dibujo, no cambiar el reparto CPU/GPU.
+
+**Optimización aplicada al dibujo** (commit `5bced90`): con más de 200 repartidores, cada uno se dibuja como un punto de 2 px sin *antialiasing* (`LINE_8`) ni contorno, y las marcas de entrega se reducen. Con flotas pequeñas (Equipetrol) el dibujo no cambia.
+
+| Portátil, ciudad, sin GPU | FPS | Intervalo p50 / p95 / máx (ms) | Dibujo p50 / p95 (ms) |
+|---|---|---|---|
+| Dibujo original | 9,9 | 102 / 178 / 572 | 67,7 / 142 |
+| Dibujo simplificado (ejecución 1) | **18,6** | 51 / 80 / 279 | **16,0** / 41 |
+| Dibujo simplificado (ejecución 2) | **19,0** | 48 / 81 / 359 | **14,4** / 43 |
+| Equipetrol tras el cambio (control) | 28,2 | 35,6 / 37,2 / 38,6 | 1,1 / 1,8 |
+
+- El dibujo por cuadro baja **de 68 a 15 ms (4,5 veces menos)** y la frecuencia **se duplica**. El suavizado de bordes de 3.000 círculos con contorno era la mayor parte del coste.
+- La ventana sigue por debajo del techo (~29 FPS) porque los 3.000 hilos de repartidores compiten por 8 hilos de CPU: el p95 del intervalo (80 ms) dobla al del dibujo (41 ms).
+- Las mediciones de Colab de la tabla anterior se hicieron con el dibujo original; la comparación entre modos de despacho sigue siendo válida, porque los tres modos usaban el mismo dibujo.
+
+![ventana de la ciudad](figuras/ventana_ciudad.png)
+
+*La ventana de la ciudad (4.096 nodos, 3.000 repartidores) al final de 1 hora simulada, con el dibujo simplificado: cada punto es un repartidor y los cuadrados rojos son los 60 restaurantes.*
 
 ---
 
