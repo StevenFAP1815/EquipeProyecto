@@ -240,6 +240,28 @@ Misma máquina (Colab):
 | 512x512 | 83.2 | 113.3 | 2.860 | 4.326 |
 | 1024x1024 | 347.8 | 463.8 | 12.3 | 16.7 |
 
+### route_arrivals
+
+Cruce (GPU e2e < mejor CPU del portátil): no se alcanza
+
+| Tamaño | CPU 1 hilo (ms) | CPU N hilos (ms) | GPU kernel (ms) | GPU e2e (ms) | Speedup vs mejor CPU (kernel / e2e) | ¿Correcto? |
+|---|---|---|---|---|---|---|
+| 10000 | 0.046 | 0.046 (N=1) | 0.019 | 0.324 | 2.4x / 0.14x | sí |
+| 100000 | 0.475 | 0.405 (N=4) | 0.025 | 0.796 | 16.0x / 0.51x | sí |
+| 1000000 | 5.146 | 2.487 (N=8) | 0.161 | 4.914 | 15.4x / 0.51x | sí |
+| 4000000 | 20.5 | 7.900 (N=8) | 0.582 | 19.0 | 13.6x / 0.42x | sí |
+| 16000000 | 112.9 | 54.5 (N=8) | 4.924 | 99.0 | 11.1x / 0.55x | sí |
+
+Misma máquina (Colab):
+
+| Tamaño | cpu_t1 | cpu_t2 | gpu_kernel | gpu_e2e |
+|---|---|---|---|---|
+| 10000 | 0.114 | 0.158 | 0.019 | 0.324 |
+| 100000 | 0.734 | 0.775 | 0.025 | 0.796 |
+| 1000000 | 7.665 | 4.948 | 0.161 | 4.914 |
+| 4000000 | 30.1 | 19.3 | 0.582 | 19.0 |
+| 16000000 | 160.7 | 108.5 | 4.924 | 99.0 |
+
 ### response_histogram
 
 Cruce (GPU e2e < mejor CPU del portátil): 128x128
@@ -277,3 +299,4 @@ Misma máquina (Colab):
 | demand_heatmap | convolución 5x5 | 2048x2048 | 4.88 | 254.5 |
 | coverage_field | Jacobi 5 puntos x100 | 1024x1024 | 0.38 | 41.6 |
 | response_map | min-plus 5 puntos x100 | 1024x1024 | 0.46 | 51.1 |
+| route_arrivals | scan segmentado (3 kernels) | 16000000 | 1.30 | 97.5 |

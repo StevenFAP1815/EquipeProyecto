@@ -44,3 +44,9 @@ Compiling entry function '_ZN8delivery3gpu47_GLOBAL__N__c97d74ab_14_ResponseMap_
 Used 36 registers, used 1 barriers, 1296 bytes smem, 384 bytes cmem[0]
 Compiling entry function '_ZN8delivery3gpu47_GLOBAL__N__c97d74ab_14_ResponseMap_cu_173e975427privatizedResponseHistogramEPKiPKhiPj' for 'sm_75'
 Used 22 registers, used 1 barriers, 516 bytes smem, 384 bytes cmem[0]
+Compiling entry function '_ZN8delivery3gpu49_GLOBAL__N__b7b5bfa7_16_RouteArrivals_cu_f08e22ad24applyCarriesAndCountLateEPiPKhPKiS6_iS2_' for 'sm_75'
+Used 16 registers, used 1 barriers, 4 bytes smem, 400 bytes cmem[0]
+Compiling entry function '_ZN8delivery3gpu49_GLOBAL__N__b7b5bfa7_16_RouteArrivals_cu_f08e22ad16scanBlockCarriesEPKiS3_iPi' for 'sm_75'
+Used 18 registers, used 1 barriers, 2052 bytes smem, 384 bytes cmem[0]
+Compiling entry function '_ZN8delivery3gpu49_GLOBAL__N__b7b5bfa7_16_RouteArrivals_cu_f08e22ad19segmentedScanBlocksEPKiPKhiPiPhS6_S6_' for 'sm_75'
+Used 14 registers, used 1 barriers, 4096 bytes smem, 408 bytes cmem[0]

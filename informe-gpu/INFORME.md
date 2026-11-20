@@ -1,6 +1,6 @@
 # Equipetrol Delivery en GPU: aplicaciones por concepto e informe de rendimiento
 
-Este informe resume las doce aplicaciones GPU añadidas al simulador de reparto: una por cada concepto, de `03_memory_tiling` a `12_sorting`, y segundas de `06_stencil` y `07_histogram`. Para cada una responde con mediciones a tres preguntas: **¿conviene la GPU para esta tarea?, ¿a partir de qué tamaño? y ¿por qué?**
+Este informe resume las trece aplicaciones GPU añadidas al simulador de reparto: una por cada concepto, de `03_memory_tiling` a `12_sorting`, y segundas de `06_stencil`, `07_histogram` y `09_scan`. Para cada una responde con mediciones a tres preguntas: **¿conviene la GPU para esta tarea?, ¿a partir de qué tamaño? y ¿por qué?**
 
 Todas las tablas y figuras se generan con `tools/gpu_report.py` a partir de dos archivos CSV, uno del portátil y otro de Colab. Esos CSV los escribe el propio simulador en modo `--bench`, y sus copias están en `datos/`.
 
@@ -9,8 +9,8 @@ Todas las tablas y figuras se generan con `tools/gpu_report.py` a partir de dos 
 | Figura | Qué muestra | Apartado |
 |---|---|---|
 | `thread_sweep.png` | Speedup de la CPU con 1, 2, 4 y 8 hilos en el portátil | 2.3 |
-| `<aplicación>_time.png` (12) | Tiempo frente a tamaño de las 4 versiones, log–log, con el cruce marcado | 3.1–3.12 |
-| `<aplicación>_copy_share.png` (12) | Parte del tiempo de GPU en copias frente a kernels, por tamaño | 3.1–3.12 |
+| `<aplicación>_time.png` (13) | Tiempo frente a tamaño de las 4 versiones, log–log, con el cruce marcado | 3.1–3.13 |
+| `<aplicación>_copy_share.png` (13) | Parte del tiempo de GPU en copias frente a kernels, por tamaño | 3.1–3.13 |
 | `ventana_equipetrol_heatmap.png` | La ventana de la simulación con la capa del mapa de calor | 3.3 |
 | `histograma_entregas_ciudad.png` | El histograma de tiempos de entrega y los percentiles calculados en la T4 (`tools/histogram_plot.py`) | 3.5 |
 | `ventana_ciudad.png` | La ventana de la ciudad con el dibujo simplificado | 5.2 |
@@ -37,6 +37,7 @@ Las líneas de texto citadas están en `datos/sim/resultados_gpu_ciudad.txt` y `
 | 10 | Ordenación | Texto: `Delivery-time percentiles` (línea 4). **Imagen:** las líneas p50, p90 y p99 de `histograma_entregas_ciudad.png` | `delivery_percentiles_*` | 3.10 |
 | 11 | Mapa de tiempo de respuesta | Texto: `Response time map … worst served cell` (`datos/sim/resultados_mapa_respuesta_t4.txt`), la zona más lejana del repartidor más cercano | `response_map_*` | 3.11 |
 | 12 | Perfil del tiempo de respuesta | Texto: `Response time profile … 90% within … min` (`datos/sim/resultados_mapa_respuesta_t4.txt`), cuántas zonas hay en cada intervalo de 15 s | `response_histogram_*` | 3.12 |
+| 13 | Horas de llegada por ruta | Texto: `Route arrivals … deliveries at risk of arriving late` (`datos/sim/resultados_llegadas_t4.txt`), cuántos pedidos en ruta llegarían después de lo prometido | `route_arrivals_*` | 3.13 |
 
 ---
 
@@ -60,10 +61,11 @@ Las líneas de texto citadas están en `datos/sim/resultados_gpu_ciudad.txt` y `
 | 10 | Percentiles p50, p90 y p99 (radix sort) | `12_sorting` | 1.ª | 100.000 entregas | 2,37× | Usar la GPU desde 100.000 entregas | 1 |
 | 11 | Mapa de tiempo de respuesta (stencil min-plus) | `06_stencil` | 2.ª | 128 × 128 celdas | 17,6× | Usar la GPU desde 128² | 1 |
 | 12 | Perfil del tiempo de respuesta, encadenado tras el stencil | `07_histogram` | 2.ª | 128 × 128 celdas | 14,8× (27 % menos que copiando el mapa) | Usar la GPU desde 128², sin sacar el mapa de la GPU | 1 |
+| 13 | Horas de llegada por ruta (scan segmentado) | `09_scan` | 2.ª | no se alcanza | 0,55× | Mantener la CPU | 1 |
 
-**Puntos solicitados:** 12, con un mínimo cumplido en cada concepto.
+**Puntos solicitados:** 13, con un mínimo cumplido en cada concepto.
 
-**Marcador de extremo a extremo frente a la mejor CPU del portátil:** **la GPU gana en 7** aplicaciones por encima de su cruce (los dos stencils, el perfil de respuesta, ETA, mezcla, ordenación y convolución) y **la CPU gana en 5** (histograma de entregas, agrupación, filtro, argmin por separado y Floyd–Warshall a escala de ciudad). Contando solo el kernel, la GPU gana en las 12, entre 10 y 36 veces.
+**Marcador de extremo a extremo frente a la mejor CPU del portátil:** **la GPU gana en 7** aplicaciones por encima de su cruce (los dos stencils, el perfil de respuesta, ETA, mezcla, ordenación y convolución) y **la CPU gana en 6** (histograma de entregas, agrupación, filtro, llegadas por ruta, argmin por separado y Floyd–Warshall a escala de ciudad). Contando solo el kernel, la GPU gana en las 13, entre 10 y 36 veces en el tamaño mayor.
 
 **El mismo patrón cambia de veredicto según dónde estén los datos:** el histograma de tiempos de entrega (3.5) pierde porque sus datos vienen de la CPU y copiarlos es más del 98 % del tiempo. El perfil de respuesta (3.12) usa el mismo kernel privatizado, pero sobre un mapa que ya está en la GPU, y gana.
 
@@ -632,6 +634,60 @@ Misma máquina (CPU de Colab, 2 vCPU): 1 hilo 0,51 / 7,65 / 30,1 / 123 / 503 ms;
 - **Comparación con 3.5:** el kernel de histograma privatizado es el mismo patrón, pero aquí no hay que subir los datos a la GPU. En 3.5, las copias eran más del 98 % del tiempo; aquí, el histograma solo añade 48 µs.
 - **Veredicto:** **usar la GPU desde 128², y contar en la GPU sin sacar el mapa desde 256²**. En la simulación (64 × 64) cualquiera de las dos versiones tarda menos de 1 ms.
 
+### 3.13 Scan, segunda aplicación: horas de llegada por ruta y entregas en riesgo (`09_scan`)
+
+**Tarea:** para cada repartidor que lleva pedidos, calcular a qué hora llega a cada parada de su ruta y contar cuántas entregas llegarían después de la hora prometida (creación del pedido + 30 minutos).
+- **La ruta:** si el repartidor todavía no ha recogido, la primera etapa es ir al restaurante, con su espera hasta que la comida esté lista y sin hora prometida. Después vienen las entregas de la bolsa, en orden. Cada etapa dura el tiempo de la tabla de viajes (3.1) a la velocidad del repartidor, igual que en la ETA del despachador.
+- **Por qué es un scan:** la hora de llegada a cada parada es la **suma acumulada** de las etapas anteriores de su ruta. Con todas las rutas puestas una detrás de otra en un solo arreglo, es un **scan segmentado**: una suma prefija que vuelve a empezar al principio de cada ruta.
+- **Por qué es data-paralelo:** la operación `(inicio₁, v₁) ⊕ (inicio₂, v₂) = (inicio₁ ∨ inicio₂, inicio₂ ? v₂ : v₁ + v₂)` es asociativa, así que el scan se calcula en log₂ n pasos en paralelo, aunque cada valor dependa del anterior.
+- **Diferencia con la agrupación por restaurante (3.7):** allí el *scan* exclusivo da **posiciones** (dónde empieza cada grupo) y no tiene segmentos. Aquí se acumulan **tiempos** y el scan se reinicia en cada ruta.
+
+**Diseño** (tres kernels, *scan* jerárquico):
+
+| Kernel | Bloque × rejilla | Qué hace |
+|---|---|---|
+| `segmentedScanBlocks` | 512 × ⌈n / 512⌉ | Kogge–Stone de pares (inicio de ruta, tiempo) en memoria compartida: 9 pasos con dos barreras cada uno. Guarda el total de cada bloque y, por elemento, si ya empezó una ruta dentro del bloque. |
+| `scanBlockCarries` | 256 × **1** | Un solo bloque recorre los totales de todos los bloques en trozos de 256, con un acumulado entre trozos, y obtiene lo que arrastra cada bloque desde los anteriores. |
+| `applyCarriesAndCountLate` | 512 × ⌈n / 512⌉ | Suma el arrastre a los elementos cuya ruta empezó en un bloque anterior y cuenta las entregas tardías con un contador privado por bloque en memoria compartida: un solo `atomicAdd` global por bloque. |
+
+**Correctitud** (`tests/test_route_arrivals.cpp`):
+- Un ejemplo calculado a mano (2 rutas, 2 entregas tardías). Llegar justo a la hora prometida no es tarde.
+- CPU multihilo, GPU y CPU de 1 hilo coinciden en 7 tamaños, incluidos **511, 512 y 513**, en el borde de un bloque.
+- Una ruta que **cruza tres bloques** recibe el arrastre de todos.
+- Con **más bloques que hilos** en el kernel de arrastres (276 bloques), el bucle por trozos da el mismo resultado.
+- `compute-sanitizer` en la T4: **memcheck 0 errores** y **racecheck 0 avisos**.
+
+| Etapas | CPU 1 | CPU N | GPU kernel | GPU e2e | Speedup (kernel / e2e) | ¿Correcto? |
+|---|---|---|---|---|---|---|
+| 10.000 | 0,046 | 0,046 (N=1) | 0,019 | 0,324 | 2,4× / 0,14× | sí |
+| 100.000 | 0,475 | 0,405 (N=4) | 0,025 | 0,796 | 16,0× / 0,51× | sí |
+| 1.000.000 | 5,15 | 2,49 (N=8) | 0,161 | 4,91 | 15,4× / 0,51× | sí |
+| 4.000.000 | 20,5 | 7,90 (N=8) | 0,582 | 19,0 | 13,6× / 0,42× | sí |
+| 16.000.000 | 113 | 54,5 (N=8) | 4,92 | 99,0 | 11,1× / **0,55×** | sí |
+
+CPU del portátil: mediana de 30 repeticiones en 3 rondas, con una variación entre rondas menor del 10 %. Misma máquina (Colab, 2 vCPU): 1 hilo 0,11 / 0,73 / 7,67 / 30,1 / 161 ms y 2 hilos 0,16 / 0,78 / 4,95 / 19,3 / 109 ms. Frente a esa CPU, la GPU **empata** desde 1 millón (4,91 frente a 4,95 ms) y gana por poco con 16 millones (99 frente a 109 ms).
+
+![tiempo](figuras/route_arrivals_time.png) ![copias](figuras/route_arrivals_copy_share.png)
+
+**En la simulación** (T4, `datos/sim/resultados_llegadas_t4.txt`):
+- **Ciudad:** 2.983 repartidores llevan 5.685 pedidos (6.521 etapas). **2.680 entregas (el 47 %) llegarían después de los 30 minutos prometidos**, y la última, dentro de 62 minutos. Cuadra con una flota saturada que además rechaza pedidos por cola llena.
+- **Equipetrol:** 17 pedidos en ruta y ninguno en riesgo. La última entrega llega en 9,5 minutos.
+
+**Análisis:**
+- **`ncu`** (16 millones, reloj fijado por `ncu`):
+  - `segmentedScanBlocks`: 3,13 ms, **SM 81 %**, DRAM 20 %, ocupación lograda del 94 %. Lo limitan las 19 barreras (una inicial y dos por cada uno de los 9 pasos de Kogge–Stone) y los accesos a memoria compartida, no la memoria global.
+  - `scanBlockCarries`: 0,47 ms (10 % del tiempo de los kernels). Es **un solo bloque en un solo SM**: usa 1 de los 40 SMs y recorre 122 trozos uno tras otro.
+  - `applyCarriesAndCountLate`: 1,29 ms, DRAM 59 %: una pasada limitada por la memoria.
+- **Intensidad:** unas 30 operaciones por 23 B (1,3 op/B), limitada por la memoria según el *roofline*.
+- **Sobrecostes:** cada etapa sube 9 B (tiempo, inicio y hora prometida) y baja 4 B (la llegada), con una sola pasada de trabajo. **Copias y reservas son el 95 % del tiempo e2e** con 16 millones.
+- **Lo que no se explica:** de 4 a 16 millones el tiempo de los kernels crece 8,5 veces, el doble que los datos. Con `ncu` solo se perfiló el tamaño de 16 millones, así que no se sabe qué kernel crece más de la cuenta.
+- **Mejoras posibles:**
+  - Un *scan* de Blelloch haría O(n) operaciones en lugar de O(n log n) y aliviaría el primer kernel.
+  - Un *scan* de los arrastres con varios bloques eliminaría el kernel de un solo SM.
+  - Ninguna de las dos cambiaría el veredicto: aunque los kernels costaran cero, las copias seguirían superando a la CPU.
+  - Lo que sí lo cambiaría es que **los tiempos de cada etapa se calcularan en la GPU** a partir de la tabla de viajes, que ya está en la GPU para la ETA. Entonces solo se subirían los nodos de cada ruta, como en 3.12.
+- **Veredicto:** **mantener la CPU**. Es una sola pasada sobre datos que viven en la CPU: la misma situación que el histograma de entregas, el filtro y la agrupación. En la simulación son unas 6.500 etapas, y la CPU tarda menos de 0,05 ms.
+
 ---
 
 ## 4. Roofline y ocupación
@@ -649,6 +705,7 @@ Los techos de la T4 son 320 GB/s de memoria y unas 8,1·10¹² operaciones por s
 | Convolución 5 × 5 | 2.048² | 4,88 | 255 | Memoria compartida/L1 (91 %) |
 | Histograma privatizado | 16 M | 0,38 | 86 | DRAM (91 %) |
 | Filtro estable | 1 M | 0,55 | 68 | Memoria compartida/L1 (82 %) |
+| Scan segmentado (3 kernels) | 16 M | 1,30 | 98 | Barreras y memoria compartida del primer kernel (SM 81 %) |
 | Min-plus 5 puntos (mapa de respuesta) | 1.024² | 0,46 | 51 | Latencia (DRAM 41 %) |
 | Jacobi 5 puntos | 1.024² | 0,38 | 42 | Latencia (DRAM 41 %) |
 | ETA SoA | 1.000 × 5.000 | 0,12 | 32 | DRAM (72 %), lecturas dispersas |
@@ -657,7 +714,7 @@ Los techos de la T4 son 320 GB/s de memoria y unas 8,1·10¹² operaciones por s
 | Mezcla por rondas | 4 M | 0,25 | 13 | Latencia de las búsquedas binarias |
 
 **Conclusiones:**
-- **Ocho de los once kernels** están a la izquierda del punto de quiebre del *roofline* (unas 25 operaciones por byte), es decir, **limitados por la memoria**.
+- **Nueve de los doce kernels** están a la izquierda del punto de quiebre del *roofline* (unas 25 operaciones por byte), es decir, **limitados por la memoria**.
 - Los tres que más se acercan a su techo son los que **reutilizan datos en memoria compartida**: tiling, convolución con halo y agrupación.
 - Argmin e histograma están **en** el techo de DRAM: no se pueden acelerar más sin mover menos bytes.
 
@@ -678,6 +735,9 @@ Los techos de la T4 son 320 GB/s de memoria y unas 8,1·10¹² operaciones por s
 | `jacobiSweepTiled` | 256 | 36 | 1,3 KB | 6 / 21 / **4** | 100 % / 94,6 % |
 | `minPlusSweepTiled` | 256 | 36 | 1,3 KB | 6 / 21 / **4** | 100 % / 93,8 % |
 | `privatizedResponseHistogram` | 256 | 22 | 516 B | 10 / 42 / **4** | 100 % / no fiable (kernel de 48 µs) |
+| `segmentedScanBlocks` | 512 | 14 | 4 KB | 8 / 8 / **2** | 100 % / 94,3 % |
+| `scanBlockCarries` | 256 | 18 | 2 KB | 10 / 14 / 4 | un solo bloque: 25 % de un SM |
+| `applyCarriesAndCountLate` | 512 | 16 | 4 B | 8 / 128 / **2** | 100 % / 88,1 % |
 
 - En todos los kernels el límite efectivo es el **número de warps** (1.024 hilos por SM), no los registros ni la memoria compartida. Por eso no hizo falta reducir registros.
 - Los dos kernels con menor ocupación lograda pierden por **desequilibrio de carga**, no por recursos:
@@ -708,6 +768,7 @@ Los techos de la T4 son 320 GB/s de memoria y unas 8,1·10¹² operaciones por s
 | `jacobiSweepTiled` (`CoverageField.cu`) | 16 × 16 | ⌈ancho / 16⌉ × ⌈alto / 16⌉, **un lanzamiento por barrido** | El halo es de 1 celda (18 × 18 en memoria compartida). Cada barrido necesita el resultado completo del anterior, y la única barrera global entre bloques es el final del kernel; por eso hay un lanzamiento por barrido, con dos búferes que se alternan. |
 | `minPlusSweepTiled` (`ResponseMap.cu`) | 16 × 16 | ⌈ancho / 16⌉ × ⌈alto / 16⌉, **un lanzamiento por barrido** | Mismo esquema que el campo de cobertura: halo de 1 (18 × 18 enteros en memoria compartida) y dos búferes. El halo de fuera de la rejilla se rellena con "inalcanzable" para que el borde no necesite un caso aparte. `threadIdx.x` recorre la columna, que es la dimensión contigua, así que la carga del bloque es coalescida. |
 | `privatizedResponseHistogram` (`ResponseMap.cu`) | 256 | **160 fija** (4 por SM × 40 SMs) | Igual que el histograma de entregas: rejilla fija con bucle de paso fijo y 129 contadores privados por bloque en memoria compartida. Se lanza sobre el búfer que deja el último barrido del stencil, sin copiarlo, así que no hace falta ningún paso intermedio por la CPU. |
+| `segmentedScanBlocks` → `scanBlockCarries` → `applyCarriesAndCountLate` (`RouteArrivals.cu`) | 512 → 256 → 512 | ⌈n / 512⌉ → **1** → ⌈n / 512⌉ | *Scan* jerárquico como el de la agrupación. Bloques de 512, porque un Kogge–Stone de 512 elementos con un elemento por hilo cabe en 4 KB de memoria compartida y 2 bloques llenan un SM. Los arrastres los calcula **un solo bloque** que recorre los totales en trozos de 256: es una simplificación (0,47 ms de 4,9 con 16 millones) que un *scan* de arrastres con varios bloques eliminaría. |
 
 ---
 
@@ -880,7 +941,7 @@ Para comprobar el efecto de la GPU cuando de verdad trabaja en cada pedido, la o
 - **Emulación:** los tiempos de `cuda_compat.h` no se usaron para ninguna conclusión. Solo validan resultados en los tests.
 
 ### Evidencia de correctitud (resumen)
-- **149 tests** pasan en el portátil (emulación) y en la T4 (notebook `21-histograma-de-respuesta`).
+- **155 tests** pasan en el portátil (emulación) y en la T4 (notebook `22-llegadas-por-ruta`).
 - `compute-sanitizer --tool memcheck`: **0 errores**, también repetido con la versión que incluye la ventana y `--gpu-dispatch`. `--tool racecheck`: **0 riesgos de carrera**, en la suite completa.
 - **ThreadSanitizer** (portátil): 0 avisos en los tests del `GpuWorker`, ETA, argmin y cobertura, y en la simulación `--headless`.
 - `tools/check_event_log.py` valida el registro de eventos de cada simulación: ningún pedido perdido, duplicado ni asignado a dos repartidores.

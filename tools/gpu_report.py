@@ -26,6 +26,7 @@ ROOFLINE_MODELS = {
                        lambda c: 100 * 13.1 * c),
     "response_map": ("min-plus 5 puntos x100", lambda c: 100 * 6.0 * c,
                      lambda c: 100 * 13.1 * c),
+    "route_arrivals": ("scan segmentado (3 kernels)", lambda n: 30.0 * n, lambda n: 23.0 * n),
 }
 CHAINED_APPS = ["response_histogram"]
 
