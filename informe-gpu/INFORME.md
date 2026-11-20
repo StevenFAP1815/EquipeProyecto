@@ -12,6 +12,7 @@ Todas las tablas y figuras se generan con `tools/gpu_report.py` a partir de dos 
 | `<aplicación>_time.png` (10) | Tiempo frente a tamaño de las 4 versiones, log–log, con el cruce marcado | 3.1–3.10 |
 | `<aplicación>_copy_share.png` (10) | Parte del tiempo de GPU en copias frente a kernels, por tamaño | 3.1–3.10 |
 | `ventana_equipetrol_heatmap.png` | La ventana de la simulación con la capa del mapa de calor | 3.3 |
+| `histograma_entregas_ciudad.png` | El histograma de tiempos de entrega y los percentiles calculados en la T4 (`tools/histogram_plot.py`) | 3.5 |
 | `ventana_ciudad.png` | La ventana de la ciudad con el dibujo simplificado | 5.2 |
 | `roofline.png` | Roofline de la T4 con los kernels principales | 4.1 |
 | `fps_frames.png` | FPS por ejecución y distribución del intervalo entre cuadros (`tools/fps_report.py`) | 5.2 |
@@ -342,6 +343,12 @@ Todas las celdas de un barrido son independientes.
 | 16.000.000 | 45,0 | 9,67 (N=8) | 0,558 | 36,0 | 17,3× / 0,27× | sí |
 
 ![tiempo](figuras/delivery_histogram_time.png) ![copias](figuras/delivery_histogram_copy_share.png)
+
+**El resultado en la simulación:** el simulador imprime al terminar el histograma calculado por `privatizedHistogram` y los percentiles calculados por el radix sort (`datos/sim/resultados_gpu_ciudad.txt`, ejecución de la ciudad en la T4). `tools/histogram_plot.py` los dibuja:
+
+![histograma de entregas](figuras/histograma_entregas_ciudad.png)
+
+*9.790 entregas en 1 hora simulada de la ciudad. La mediana es de 23 minutos y el 1 % más lento supera los 41 minutos. Los 128 intervalos de 1 minuto cubren de sobra el rango observado (4 a 50 minutos).*
 
 **Análisis:**
 - **`ncu`** (16 millones): **DRAM 91 %**, es decir, el kernel trabaja en el techo de ancho de banda.

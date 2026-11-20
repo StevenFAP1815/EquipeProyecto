@@ -1,0 +1,7 @@
+﻿Compute backend: GPU (nvcc) | Tesla T4 | 40 SMs | 1024 threads/SM | warp 32
+Travel table: 4096 nodes on GPU (tiled Floyd-Warshall) in 664.236 ms
+Delivery-time histogram (1-minute bins, 9790 deliveries): 4m=4 5m=7 6m=16 7m=32 8m=64 9m=98 10m=145 11m=206 12m=241 13m=289 14m=320 15m=335 16m=355 17m=394 18m=433 19m=463 20m=513 21m=506 22m=477 23m=541 24m=559 25m=516 26m=491 27m=433 28m=393 29m=356 30m=286 31m=241 32m=190 33m=190 34m=155 35m=123 36m=96 37m=73 38m=59 39m=42 40m=40 41m=30 42m=18 43m=19 44m=10 45m=6 46m=8 47m=9 48m=6 49m=1 50m=1
+Delivery-time percentiles (9790 deliveries): p50=1379342 ms, p90=1949323 ms, p99=2485707 ms
+Merged delivery timeline (9790 deliveries from 2974 couriers, ordered=yes): busiest 10-minute window starts at 2256164 ms with 2939 deliveries
+Demand heatmap (64x64 cells, 5x5 Gaussian, 18077 orders): hottest cell (21,14) near -17.7576,-63.1934 with smoothed demand 7.56641
+Coverage field (64x64 cells, 200 Jacobi sweeps, 3000 couriers): least covered cell (1,1) near -17.741,-63.219 with coverage 0.407893, where idle couriers should wait
