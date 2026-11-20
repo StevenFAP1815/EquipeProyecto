@@ -27,6 +27,7 @@ ROOFLINE_MODELS = {
     "response_map": ("min-plus 5 puntos x100", lambda c: 100 * 6.0 * c,
                      lambda c: 100 * 13.1 * c),
 }
+CHAINED_APPS = ["response_histogram"]
 
 
 def size_value(label):
@@ -222,7 +223,7 @@ def main():
     colab.to_csv(args.out / "colab_summary.csv", index=False)
 
     sections = []
-    for app in ROOFLINE_MODELS:
+    for app in list(ROOFLINE_MODELS) + CHAINED_APPS:
         if app not in set(colab.application):
             continue
         table, crossover = app_table(laptop, colab, app)

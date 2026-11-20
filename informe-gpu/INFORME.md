@@ -1,6 +1,6 @@
 # Equipetrol Delivery en GPU: aplicaciones por concepto e informe de rendimiento
 
-Este informe resume las once aplicaciones GPU añadidas al simulador de reparto: una por cada concepto, de `03_memory_tiling` a `12_sorting`, y una segunda de `06_stencil`. Para cada una responde con mediciones a tres preguntas: **¿conviene la GPU para esta tarea?, ¿a partir de qué tamaño? y ¿por qué?**
+Este informe resume las doce aplicaciones GPU añadidas al simulador de reparto: una por cada concepto, de `03_memory_tiling` a `12_sorting`, y segundas de `06_stencil` y `07_histogram`. Para cada una responde con mediciones a tres preguntas: **¿conviene la GPU para esta tarea?, ¿a partir de qué tamaño? y ¿por qué?**
 
 Todas las tablas y figuras se generan con `tools/gpu_report.py` a partir de dos archivos CSV, uno del portátil y otro de Colab. Esos CSV los escribe el propio simulador en modo `--bench`, y sus copias están en `datos/`.
 
@@ -9,8 +9,8 @@ Todas las tablas y figuras se generan con `tools/gpu_report.py` a partir de dos 
 | Figura | Qué muestra | Apartado |
 |---|---|---|
 | `thread_sweep.png` | Speedup de la CPU con 1, 2, 4 y 8 hilos en el portátil | 2.3 |
-| `<aplicación>_time.png` (11) | Tiempo frente a tamaño de las 4 versiones, log–log, con el cruce marcado | 3.1–3.11 |
-| `<aplicación>_copy_share.png` (11) | Parte del tiempo de GPU en copias frente a kernels, por tamaño | 3.1–3.11 |
+| `<aplicación>_time.png` (12) | Tiempo frente a tamaño de las 4 versiones, log–log, con el cruce marcado | 3.1–3.12 |
+| `<aplicación>_copy_share.png` (12) | Parte del tiempo de GPU en copias frente a kernels, por tamaño | 3.1–3.12 |
 | `ventana_equipetrol_heatmap.png` | La ventana de la simulación con la capa del mapa de calor | 3.3 |
 | `histograma_entregas_ciudad.png` | El histograma de tiempos de entrega y los percentiles calculados en la T4 (`tools/histogram_plot.py`) | 3.5 |
 | `ventana_ciudad.png` | La ventana de la ciudad con el dibujo simplificado | 5.2 |
@@ -36,6 +36,7 @@ Las líneas de texto citadas están en `datos/sim/resultados_gpu_ciudad.txt` y `
 | 9 | Mezcla (merge) | Texto: `Merged delivery timeline … busiest 10-minute window` (línea 5) | `courier_log_merge_*` | 3.9 |
 | 10 | Ordenación | Texto: `Delivery-time percentiles` (línea 4). **Imagen:** las líneas p50, p90 y p99 de `histograma_entregas_ciudad.png` | `delivery_percentiles_*` | 3.10 |
 | 11 | Mapa de tiempo de respuesta | Texto: `Response time map … worst served cell` (`datos/sim/resultados_mapa_respuesta_t4.txt`), la zona más lejana del repartidor más cercano | `response_map_*` | 3.11 |
+| 12 | Perfil del tiempo de respuesta | Texto: `Response time profile … 90% within … min` (`datos/sim/resultados_mapa_respuesta_t4.txt`), cuántas zonas hay en cada intervalo de 15 s | `response_histogram_*` | 3.12 |
 
 ---
 
@@ -57,11 +58,14 @@ Las líneas de texto citadas están en `datos/sim/resultados_gpu_ciudad.txt` y `
 | 8 | Filtro de candidatos por radio | `10_filter` | 1.ª | no se alcanza | 0,68× | Mantener la CPU | 1 |
 | 9 | Línea de tiempo a partir de los registros por repartidor | `11_merge` | 1.ª | 100.000 eventos | 3,82× | Usar la GPU desde 100.000 eventos | 1 |
 | 10 | Percentiles p50, p90 y p99 (radix sort) | `12_sorting` | 1.ª | 100.000 entregas | 2,37× | Usar la GPU desde 100.000 entregas | 1 |
-| 11 | Mapa de tiempo de respuesta (stencil min-plus) | `06_stencil` | 2.ª | 128 × 128 celdas | 15,0× | Usar la GPU desde 128² | 1 |
+| 11 | Mapa de tiempo de respuesta (stencil min-plus) | `06_stencil` | 2.ª | 128 × 128 celdas | 17,6× | Usar la GPU desde 128² | 1 |
+| 12 | Perfil del tiempo de respuesta, encadenado tras el stencil | `07_histogram` | 2.ª | 128 × 128 celdas | 14,8× (27 % menos que copiando el mapa) | Usar la GPU desde 128², sin sacar el mapa de la GPU | 1 |
 
-**Puntos solicitados:** 11, con un mínimo cumplido en cada concepto.
+**Puntos solicitados:** 12, con un mínimo cumplido en cada concepto.
 
-**Marcador de extremo a extremo frente a la mejor CPU del portátil:** **la GPU gana en 6** aplicaciones por encima de su cruce (los dos stencils, ETA, mezcla, ordenación y convolución) y **la CPU gana en 5** (histograma, agrupación, filtro, argmin por separado y Floyd–Warshall a escala de ciudad). Contando solo el kernel, la GPU gana en las 11, entre 10 y 31 veces.
+**Marcador de extremo a extremo frente a la mejor CPU del portátil:** **la GPU gana en 7** aplicaciones por encima de su cruce (los dos stencils, el perfil de respuesta, ETA, mezcla, ordenación y convolución) y **la CPU gana en 5** (histograma de entregas, agrupación, filtro, argmin por separado y Floyd–Warshall a escala de ciudad). Contando solo el kernel, la GPU gana en las 12, entre 10 y 36 veces.
+
+**El mismo patrón cambia de veredicto según dónde estén los datos:** el histograma de tiempos de entrega (3.5) pierde porque sus datos vienen de la CPU y copiarlos es más del 98 % del tiempo. El perfil de respuesta (3.12) usa el mismo kernel privatizado, pero sobre un mapa que ya está en la GPU, y gana.
 
 **La regla que lo explica:**
 - **La GPU gana** cuando hay mucho trabajo por cada byte copiado (100 barridos del stencil, 22 pasadas del radix sort) o cuando los datos se quedan en la GPU entre kernels (ETA → argmin: 15×).
@@ -549,11 +553,13 @@ Todas las celdas de un barrido son independientes.
 
 | Rejilla (100 barridos) | CPU 1 | CPU N | GPU kernel | GPU e2e | Speedup (kernel / e2e) | ¿Correcto? |
 |---|---|---|---|---|---|---|
-| 32 × 32 | 0,245 | 0,245 (N=1) | 0,290 | 0,524 | 0,8× / 0,47× | sí |
-| 128 × 128 | 3,68 | 3,68 (N=1) | 0,283 | 0,582 | 13,0× / 6,33× | sí |
-| 256 × 256 | 16,6 | 13,9 (N=4) | 0,447 | 0,925 | 31,0× / **15,0×** | sí |
-| 512 × 512 | 82,8 | 35,8 (N=4) | 2,86 | 4,33 | 12,5× / 8,26× | sí |
-| 1.024 × 1.024 | 381 | 135 (N=8) | 12,3 | 16,7 | 11,0× / 8,10× | sí |
+| 32 × 32 | 0,267 | 0,267 (N=1) | 0,290 | 0,524 | 0,9× / 0,51× | sí |
+| 128 × 128 | 4,40 | 4,40 (N=1) | 0,283 | 0,582 | 15,6× / 7,57× | sí |
+| 256 × 256 | 24,5 | 16,3 (N=4) | 0,447 | 0,925 | 36,4× / **17,6×** | sí |
+| 512 × 512 | 99,9 | 40,1 (N=4) | 2,86 | 4,33 | 14,0× / 9,27× | sí |
+| 1.024 × 1.024 | 405 | 130 (N=8) | 12,3 | 16,7 | 10,6× / 7,78× | sí |
+
+Las columnas de CPU son la mediana de 30 repeticiones en 3 rondas, alternadas con las de 3.12 (véanse las amenazas a la validez).
 
 Misma máquina (CPU de Colab, 2 vCPU): 1 hilo 0,35 / 5,25 / 20,7 / 83,2 / 348 ms, y con 2 hilos siempre más lento (1,14 a 464 ms), por la barrera de cada barrido.
 
@@ -569,8 +575,62 @@ Misma máquina (CPU de Colab, 2 vCPU): 1 hilo 0,35 / 5,25 / 20,7 / 83,2 / 348 ms
 - **Ocupación:** 36 registros y 1,3 KB de memoria compartida. El límite son los warps (4 bloques por SM), con ocupación teórica del 100 % y **lograda del 93,8 %**.
 - **Por qué el mejor caso es 256²:** el tiempo del kernel por celda y barrido pasa de 0,07 ns con 256² a 0,11 ns con 512². Con 256², los tres búferes (768 KB) caben en la caché L2 de la T4 (4 MB). Con 512² ocupan 3 MB y con 1.024², 12 MB, así que cada barrido tiene que ir a la DRAM. Es la explicación más probable; no se midió la tasa de aciertos de la L2.
 - **Sobrecostes:** los datos se copian una vez y se reutilizan en 100 barridos, así que lo que queda fuera del kernel (copias, reservas y lanzamientos) es solo **el 26 % del tiempo e2e con 1.024²**. Con 32², los 100 lanzamientos dominan y gana la CPU.
-- **CPU multihilo:** escala poco, igual que en 3.4, porque cada barrido exige una barrera entre hilos. Con 1.024² pasa de 381 a 135 ms con 8 hilos (2,8×).
+- **CPU multihilo:** escala poco, igual que en 3.4, porque cada barrido exige una barrera entre hilos. Con 1.024² pasa de 405 a 130 ms con 8 hilos (3,1×).
 - **Veredicto:** **usar la GPU desde 128²**. Con la rejilla de 64 × 64 de la simulación, la diferencia es de menos de 1 ms al final de la ejecución y no cambia nada. La GPU compensa cuando se quiere una rejilla fina: por ejemplo, 512 × 512 en la ciudad da celdas de unos 18 m.
+
+### 3.12 Histograma, segunda aplicación: perfil del tiempo de respuesta encadenado al stencil (`07_histogram`)
+
+**Tarea:** contar cuántas zonas con calles hay en cada intervalo de 15 s del mapa de tiempo de respuesta (3.11). Son 128 intervalos, con el último abierto (32 min o más), y un contador aparte para las zonas inalcanzables. El simulador imprime el reparto y los minutos que cubren el 50 %, el 90 % y el 100 % de la ciudad.
+- **Por qué es data-paralelo:** cada celda se clasifica en su intervalo de forma independiente. El único punto de encuentro entre hilos son los contadores.
+- **Por qué es una aplicación distinta del histograma de entregas (3.5):** los datos no vienen de la CPU, sino del búfer que deja el stencil en la GPU. Así se puede responder a la pregunta de 3.5: ¿compensaría la GPU si los datos ya estuvieran en ella?
+
+**Diseño:**
+- **Kernels encadenados:** los barridos del stencil dejan el mapa en la GPU, y `privatizedResponseHistogram` lo lee directamente. Solo se copian a la GPU la máscara de zonas con calles (1 B por celda), y a la CPU vuelven **129 contadores (516 B)** en lugar del mapa (4 B por celda, 4 MB con 1.024²).
+- **Privatización:** cada bloque cuenta con `atomicAdd` en su copia de los 129 contadores en memoria compartida y al final suma una vez cada contador no nulo al histograma global.
+- **Contención:** aquí es extrema. En la ciudad, el 90 % de las celdas cae en los dos primeros intervalos. Sin privatización, decenas de miles de hilos harían cola sobre dos contadores de la memoria global. Con ella, cada bloque solo compite consigo mismo en la memoria compartida, y la memoria global recibe como mucho 160 × 129 sumas.
+- Rejilla fija de 160 bloques (4 por SM) con bucle de paso fijo, como en 3.5.
+
+**Correctitud** (`tests/test_response_map.cpp`):
+- Límites de los intervalos: 14 s va al primero y 15 s al segundo; los valores enormes van al último intervalo y los inalcanzables a su contador.
+- La versión encadenada en la GPU cuenta igual que la CPU en 5 rejillas, incluidas 17 × 9 y 100 × 37, y el total coincide con el número de zonas con calles.
+- **Máxima contención:** 40.000 celdas en el mismo intervalo dan exactamente 40.000.
+- `compute-sanitizer` en la T4: **memcheck 0 errores** y **racecheck 0 avisos**.
+
+| Rejilla (100 barridos + histograma) | CPU 1 | CPU N | GPU kernel | GPU e2e | Speedup (kernel / e2e) | ¿Correcto? |
+|---|---|---|---|---|---|---|
+| 32 × 32 | 0,428 | 0,428 (N=1) | 0,351 | 0,647 | 1,2× / 0,66× | sí |
+| 128 × 128 | 3,92 | 3,92 (N=1) | 0,339 | 0,694 | 11,5× / 5,64× | sí |
+| 256 × 256 | 20,3 | 14,7 (N=4) | 0,459 | 0,990 | 32,0× / **14,8×** | sí |
+| 512 × 512 | 101 | 39,0 (N=4) | 2,88 | 4,26 | 13,5× / 9,16× | sí |
+| 1.024 × 1.024 | 407 | 135 (N=8) | 12,4 | 16,5 | 10,9× / 8,16× | sí |
+
+Misma máquina (CPU de Colab, 2 vCPU): 1 hilo 0,51 / 7,65 / 30,1 / 123 / 503 ms; 2 hilos 1,17 / 7,92 / 29,7 / 121 / 489 ms.
+
+![tiempo](figuras/response_histogram_time.png) ![copias](figuras/response_histogram_copy_share.png)
+
+**Lo que ahorra encadenar** (T4, mediana de 10 repeticiones; la versión `gpu_e2e_copy_map` hace el stencil en la GPU, copia el mapa a la CPU y cuenta allí):
+
+| Rejilla | Encadenado (ms) | Copiando el mapa (ms) | Ahorro |
+|---|---|---|---|
+| 32 × 32 | 0,647 | 0,572 | −13 % |
+| 128 × 128 | 0,694 | 0,692 | 0 % |
+| 256 × 256 | 0,990 | 1,281 | **23 %** |
+| 512 × 512 | 4,26 | 5,42 | **21 %** |
+| 1.024 × 1.024 | 16,5 | 22,7 | **27 %** |
+
+- Con mapas pequeños, encadenar **no compensa**: la versión encadenada reserva y copia la máscara y los contadores y lanza un kernel más, y ese coste fijo supera al de copiar unos pocos KB.
+- Desde 256², encadenar ahorra entre un 21 y un 27 %. Se evitan a la vez la copia del mapa por PCIe y la pasada por la CPU.
+
+**En la simulación** (T4, `datos/sim/resultados_mapa_respuesta_t4.txt`):
+- **Ciudad:** de 3.268 zonas con calles, **el 50 % tiene un repartidor a menos de 30 s, el 90 % a menos de 45 s** y todas a menos de 2 minutos.
+- **Equipetrol:** con 15 repartidores, el 50 % está a menos de 1,25 min y el 90 % a menos de 5,75 min. La distribución tiene una cola mucho más larga.
+
+**Análisis:**
+- **`ncu`** (`privatizedResponseHistogram`, 1.024²): **48 µs, DRAM 47 %, SM 29 %**. Es una sola pasada que lee 5 B por celda, así que está limitado por la memoria, como el histograma de 3.5. Frente a los 12 ms de los 100 barridos, **el histograma es menos del 1 % del tiempo de los kernels**.
+- **Ocupación:** 22 registros y 516 B de memoria compartida; el límite son los warps (ocupación teórica del 100 %). La ocupación lograda que da `ncu` (110 %) no es fiable con un kernel tan corto de una sola ola, así que no se usa.
+- **Sobrecostes:** son los mismos que en 3.11, más la máscara de 1 B por celda. Lo que queda fuera del kernel es el 25 % del tiempo e2e con 1.024².
+- **Comparación con 3.5:** el kernel de histograma privatizado es el mismo patrón, pero aquí no hay que subir los datos a la GPU. En 3.5, las copias eran más del 98 % del tiempo; aquí, el histograma solo añade 48 µs.
+- **Veredicto:** **usar la GPU desde 128², y contar en la GPU sin sacar el mapa desde 256²**. En la simulación (64 × 64) cualquiera de las dos versiones tarda menos de 1 ms.
 
 ---
 
@@ -617,6 +677,7 @@ Los techos de la T4 son 320 GB/s de memoria y unas 8,1·10¹² operaciones por s
 | `smoothTiled` | 256 | 33 | 1,6 KB | 6 / 18 / **4** | 100 % / 95,8 % |
 | `jacobiSweepTiled` | 256 | 36 | 1,3 KB | 6 / 21 / **4** | 100 % / 94,6 % |
 | `minPlusSweepTiled` | 256 | 36 | 1,3 KB | 6 / 21 / **4** | 100 % / 93,8 % |
+| `privatizedResponseHistogram` | 256 | 22 | 516 B | 10 / 42 / **4** | 100 % / no fiable (kernel de 48 µs) |
 
 - En todos los kernels el límite efectivo es el **número de warps** (1.024 hilos por SM), no los registros ni la memoria compartida. Por eso no hizo falta reducir registros.
 - Los dos kernels con menor ocupación lograda pierden por **desequilibrio de carga**, no por recursos:
@@ -646,6 +707,7 @@ Los techos de la T4 son 320 GB/s de memoria y unas 8,1·10¹² operaciones por s
 | `smoothTiled` (`DemandHeatmap.cu`) | 16 × 16 | ⌈ancho / 16⌉ × ⌈alto / 16⌉ | Un hilo por celda de salida. El bloque carga 20 × 20 celdas (halo de 2) en memoria compartida y el filtro está en memoria constante. Un bloque de 16 × 16 deja el halo en el 56 % extra; uno de 32 × 32 lo bajaría al 27 %, pero con 1.024 hilos por bloque solo cabría uno por SM. |
 | `jacobiSweepTiled` (`CoverageField.cu`) | 16 × 16 | ⌈ancho / 16⌉ × ⌈alto / 16⌉, **un lanzamiento por barrido** | El halo es de 1 celda (18 × 18 en memoria compartida). Cada barrido necesita el resultado completo del anterior, y la única barrera global entre bloques es el final del kernel; por eso hay un lanzamiento por barrido, con dos búferes que se alternan. |
 | `minPlusSweepTiled` (`ResponseMap.cu`) | 16 × 16 | ⌈ancho / 16⌉ × ⌈alto / 16⌉, **un lanzamiento por barrido** | Mismo esquema que el campo de cobertura: halo de 1 (18 × 18 enteros en memoria compartida) y dos búferes. El halo de fuera de la rejilla se rellena con "inalcanzable" para que el borde no necesite un caso aparte. `threadIdx.x` recorre la columna, que es la dimensión contigua, así que la carga del bloque es coalescida. |
+| `privatizedResponseHistogram` (`ResponseMap.cu`) | 256 | **160 fija** (4 por SM × 40 SMs) | Igual que el histograma de entregas: rejilla fija con bucle de paso fijo y 129 contadores privados por bloque en memoria compartida. Se lanza sobre el búfer que deja el último barrido del stencil, sin copiarlo, así que no hace falta ningún paso intermedio por la CPU. |
 
 ---
 
@@ -811,13 +873,14 @@ Para comprobar el efecto de la GPU cuando de verdad trabaja en cada pedido, la o
 - **Colab es compartido:** no se controla la carga de otros usuarios ni el reloj de la T4. La dispersión se mantuvo baja en la GPU (mín.–máx. dentro de ±5 % en casi todos los tamaños). En la CPU de Colab hubo valores atípicos de hasta 2× (por ejemplo, el máximo de `demand_heatmap` 2.048² con 1 hilo): por eso se informa de la mediana.
 - **WSL2:** las barreras y los cambios de contexto de hilos son más caros que en Linux nativo, y eso penaliza las versiones multihilo con mucha sincronización (el stencil).
 - **Calor del portátil:** se mitigó intercalando versiones y con el plan "Máximo rendimiento", pero no se controló la temperatura.
+- **Estado de energía del portátil (3.11 y 3.12):** una primera medición con la batería al 16 % y cargando dio tiempos de CPU hasta 2,3 veces mayores, y se descartó. Las cifras publicadas son la mediana de 30 repeticiones en 3 rondas que alternan las dos aplicaciones, con el portátil enchufado, en máxima potencia y con el navegador cerrado. Aun así, entre rondas la mediana varió hasta un 20 % en la mayoría de los casos y hasta 1,8× en el peor (mapa de respuesta, 256², 1 hilo), con la tercera ronda algo más lenta. Ninguna conclusión cambia: incluso tomando la ronda más rápida de la CPU, la GPU sigue perdiendo con 32² y ganando desde 128² en las dos aplicaciones.
 - **Modelos de *roofline* derivados del código:** cuentan operaciones enteras y bytes de forma aproximada (por ejemplo, 32 B por cada lectura dispersa de la tabla). Las conclusiones (qué kernels están limitados por la memoria) coinciden con los porcentajes de DRAM, L1 y SM que mide `ncu`.
 - **Frecuencia de cuadros con pantalla virtual:** la combinación "ventana + GPU" se midió en Colab con Xvfb, porque ninguna máquina disponible tiene a la vez pantalla y GPU NVIDIA. Xvfb dibuja por software igual que con una pantalla real, pero no mide el coste de presentar la imagen en un monitor. Los FPS de Colab y del portátil no son comparables entre sí (2 frente a 8 hilos de CPU); la comparación entre modos se hace siempre en la misma máquina.
 - **Tamaños no alcanzados:** la tabla de viajes no se midió por encima de 4.096 nodos, porque su matriz `n²` ocupa 64 MB y el tiempo de la CPU de 1 hilo ya era de casi 1 s. Por la tendencia medida (la GPU pierde cada vez más) no se espera que un grafo mayor cambie el veredicto. El resto de aplicaciones llega a 1–16 millones de elementos.
 - **Emulación:** los tiempos de `cuda_compat.h` no se usaron para ninguna conclusión. Solo validan resultados en los tests.
 
 ### Evidencia de correctitud (resumen)
-- **140 tests** pasan en el portátil (emulación); 133 pasaron en la T4 en la medición del paso 17. Los 7 nuevos (estadísticas de cuadros, despacho forzado y reparto en celdas) no tocan código de GPU.
+- **149 tests** pasan en el portátil (emulación) y en la T4 (notebook `21-histograma-de-respuesta`).
 - `compute-sanitizer --tool memcheck`: **0 errores**, también repetido con la versión que incluye la ventana y `--gpu-dispatch`. `--tool racecheck`: **0 riesgos de carrera**, en la suite completa.
 - **ThreadSanitizer** (portátil): 0 avisos en los tests del `GpuWorker`, ETA, argmin y cobertura, y en la simulación `--headless`.
 - `tools/check_event_log.py` valida el registro de eventos de cada simulación: ningún pedido perdido, duplicado ni asignado a dos repartidores.

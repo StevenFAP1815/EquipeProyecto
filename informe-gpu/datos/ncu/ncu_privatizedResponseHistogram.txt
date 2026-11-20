@@ -1,0 +1,64 @@
+==PROF== Connected to process 5760 (/content/eq/build/delivery_sim)
+Compute backend: GPU (nvcc) | Tesla T4 | 40 SMs | 1024 threads/SM | warp 32
+bench: response_histogram
+==PROF== Profiling "privatizedResponseHistogram": 0%....50%....100% - 8 passes
+bench: 5 rows, 0 incorrect, written to /tmp/x.csv
+==PROF== Disconnected from process 5760
+[5760] delivery_sim@127.0.0.1
+  unnamed>::privatizedResponseHistogram(const int *, const unsigned char *, int, unsigned int *) (160, 1, 1)x(256, 1, 1), Context 1, Stream 7, Device 0, CC 7.5
+    Section: GPU Speed Of Light Throughput
+    ----------------------- ----------- ------------
+    Metric Name             Metric Unit Metric Value
+    ----------------------- ----------- ------------
+    DRAM Frequency                  Ghz         4.98
+    SM Frequency                    Mhz       584.32
+    Elapsed Cycles                cycle       27,978
+    Memory Throughput                 %        46.80
+    DRAM Throughput                   %        46.80
+    Duration                         us        47.87
+    L1/TEX Cache Throughput           %        38.37
+    L2 Cache Throughput               %        12.82
+    SM Active Cycles              cycle    23,188.55
+    Compute (SM) Throughput           %        29.32
+    ----------------------- ----------- ------------
+
+    OPT   This workload exhibits low compute throughput and memory bandwidth utilization relative to the peak           
+          performance of this device. Achieved compute throughput and/or memory bandwidth below 60.0% of peak           
+          typically indicate latency issues. Look at Scheduler Statistics and Warp State Statistics for potential       
+          reasons.                                                                                                      
+
+    Section: Launch Statistics
+    -------------------------------- --------------- ---------------
+    Metric Name                          Metric Unit    Metric Value
+    -------------------------------- --------------- ---------------
+    Block Size                                                   256
+    Function Cache Configuration                     CachePreferNone
+    Grid Size                                                    160
+    Registers Per Thread             register/thread              22
+    Shared Memory Configuration Size           Kbyte           32.77
+    Driver Shared Memory Per Block        byte/block               0
+    Dynamic Shared Memory Per Block       byte/block               0
+    Static Shared Memory Per Block        byte/block             516
+    # SMs                                         SM              40
+    Stack Size                                                 1,024
+    Threads                                   thread          40,960
+    # TPCs                                                        20
+    Enabled TPC IDs                                              all
+    Uses Green Context                                             0
+    Waves Per SM                                                   1
+    -------------------------------- --------------- ---------------
+
+    Section: Occupancy
+    ------------------------------- ----------- ------------
+    Metric Name                     Metric Unit Metric Value
+    ------------------------------- ----------- ------------
+    Block Limit SM                        block           16
+    Block Limit Registers                 block           10
+    Block Limit Shared Mem                block           42
+    Block Limit Warps                     block            4
+    Theoretical Active Warps per SM        warp           32
+    Theoretical Occupancy                     %          100
+    Achieved Occupancy                        %       109.86
+    Achieved Active Warps Per SM           warp        35.16
+    ------------------------------- ----------- ------------
+

@@ -42,3 +42,5 @@ Compiling entry function '_ZN8delivery3gpu49_GLOBAL__N__faaf1571_16_CoverageFiel
 Used 36 registers, used 1 barriers, 1296 bytes smem, 384 bytes cmem[0]
 Compiling entry function '_ZN8delivery3gpu47_GLOBAL__N__c97d74ab_14_ResponseMap_cu_173e975417minPlusSweepTiledEPKiS3_iiPi' for 'sm_75'
 Used 36 registers, used 1 barriers, 1296 bytes smem, 384 bytes cmem[0]
+Compiling entry function '_ZN8delivery3gpu47_GLOBAL__N__c97d74ab_14_ResponseMap_cu_173e975427privatizedResponseHistogramEPKiPKhiPj' for 'sm_75'
+Used 22 registers, used 1 barriers, 516 bytes smem, 384 bytes cmem[0]
