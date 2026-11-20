@@ -39,6 +39,12 @@ Todas las tablas y figuras se generan con `tools/gpu_report.py` a partir de dos 
 
 **Puntos solicitados:** 10, con un mínimo cumplido en cada concepto.
 
+**Marcador de extremo a extremo frente a la mejor CPU del portátil:** **la GPU gana en 5** aplicaciones por encima de su cruce (stencil, ETA, mezcla, ordenación y convolución) y **la CPU gana en 5** (histograma, agrupación, filtro, argmin por separado y Floyd–Warshall a escala de ciudad). Contando solo el kernel, la GPU gana en las 10, entre 10 y 30 veces.
+
+**La regla que lo explica:**
+- **La GPU gana** cuando hay mucho trabajo por cada byte copiado (100 barridos del stencil, 22 pasadas del radix sort) o cuando los datos se quedan en la GPU entre kernels (ETA → argmin: 15×).
+- **La CPU gana** cuando el trabajo es una sola pasada sobre datos que viven en la CPU: las copias por PCIe son entre el 90 y el 98 % del tiempo de la GPU. También gana cuando la GPU ejecuta un algoritmo con más trabajo, como Floyd–Warshall `O(n³)` frente a Dijkstra en un grafo con pocas aristas.
+
 **Veredicto global:**
 - **Con la escala mínima del enunciado** (Equipetrol: 138 nodos y 15 repartidores) **la GPU no compensa en ninguna tarea**: ningún tamaño de ese mapa supera los cruces medidos.
 - **Con la configuración de ciudad** (4.096 nodos, 3.000 repartidores y lotes de cientos de pedidos) solo compensa por encima de un umbral:
