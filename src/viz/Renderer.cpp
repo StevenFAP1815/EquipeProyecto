@@ -129,8 +129,10 @@ void Renderer::drawBackground() {
     drawLabel(background_, attribution, corner);
 }
 
-void Renderer::drawCouriers(cv::Mat& frame) const {
+double Renderer::drawCouriers(cv::Mat& frame) const {
+    const Clock::time_point lockStart = Clock::now();
     std::shared_lock<std::shared_mutex> snapshot(fleet_.transferMutex());
+    const double lockMs = millisecondsBetween(lockStart, Clock::now());
     const bool dense = fleet_.couriers().size() > kDenseFleet;
     const int markerSize = dense ? 5 : 14;
     const int markerThickness = dense ? 1 : 3;
@@ -153,6 +155,7 @@ void Renderer::drawCouriers(cv::Mat& frame) const {
         cv::circle(frame, p, 7, colorFor(courier->state()), cv::FILLED, cv::LINE_AA);
         cv::circle(frame, p, 7, cv::Scalar(0, 0, 0), 1, cv::LINE_AA);
     }
+    return lockMs;
 }
 
 void Renderer::drawPanel(cv::Mat& frame) const {
@@ -276,7 +279,9 @@ void Renderer::run() {
             updateHeatmap();
             drawHeatmap(frame);
         }
-        drawCouriers(frame);
+        const Clock::time_point couriersStart = Clock::now();
+        const double lockMs = drawCouriers(frame);
+        const double couriersMs = millisecondsBetween(couriersStart, Clock::now());
         drawPanel(frame);
         cv::imshow(kWindowName, frame);
         const Clock::time_point drawEnd = Clock::now();
@@ -288,7 +293,8 @@ void Renderer::run() {
             firstFrame = false;
         } else {
             samples.push_back({millisecondsBetween(previous, frameEnd),
-                               millisecondsBetween(drawStart, drawEnd), clock_.nowMs()});
+                               millisecondsBetween(drawStart, drawEnd), clock_.nowMs(), lockMs,
+                               couriersMs});
         }
         previous = frameEnd;
         if (key == kHeatmapKey) {

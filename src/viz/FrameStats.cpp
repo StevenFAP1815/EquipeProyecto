@@ -53,10 +53,12 @@ void writeFrameLog(const std::filesystem::path& path, const std::vector<FrameSam
     if (!out) {
         throw std::runtime_error("cannot write frame log: " + path.string());
     }
-    out << "frame,interval_ms,draw_ms,sim_ms\n" << std::fixed << std::setprecision(3);
+    out << "frame,interval_ms,draw_ms,sim_ms,lock_ms,couriers_ms\n" << std::fixed
+        << std::setprecision(3);
     for (std::size_t i = 0; i < samples.size(); ++i) {
         out << i << ',' << samples[i].intervalMs << ',' << samples[i].drawMs << ','
-            << samples[i].simMs << '\n';
+            << samples[i].simMs << ',' << samples[i].lockMs << ',' << samples[i].couriersMs
+            << '\n';
     }
 }
 }

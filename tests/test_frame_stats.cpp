@@ -34,7 +34,7 @@ TEST_CASE("Cuadros: FPS medio, percentiles y máximo de los intervalos") {
 
 TEST_CASE("Cuadros: el registro CSV tiene cabecera y una fila por cuadro") {
     const auto path = std::filesystem::temp_directory_path() / "frame_stats_test.csv";
-    delivery::viz::writeFrameLog(path, {{33.5, 2.0, 1000}, {34.0, 2.5, 2000}});
+    delivery::viz::writeFrameLog(path, {{33.5, 2.0, 1000, 0.25, 1.5}, {34.0, 2.5, 2000, 0.0, 1.75}});
     std::ifstream in(path);
     std::string header;
     std::string first;
@@ -42,9 +42,9 @@ TEST_CASE("Cuadros: el registro CSV tiene cabecera y una fila por cuadro") {
     std::getline(in, header);
     std::getline(in, first);
     std::getline(in, second);
-    REQUIRE(header == "frame,interval_ms,draw_ms,sim_ms");
-    REQUIRE(first == "0,33.500,2.000,1000");
-    REQUIRE(second == "1,34.000,2.500,2000");
+    REQUIRE(header == "frame,interval_ms,draw_ms,sim_ms,lock_ms,couriers_ms");
+    REQUIRE(first == "0,33.500,2.000,1000,0.250,1.500");
+    REQUIRE(second == "1,34.000,2.500,2000,0.000,1.750");
     in.close();
     std::filesystem::remove(path);
 }

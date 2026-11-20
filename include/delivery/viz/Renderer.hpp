@@ -41,7 +41,7 @@ public:
 private:
     cv::Point toScreen(double lat, double lon) const;
     void drawBackground();
-    void drawCouriers(cv::Mat& frame) const;
+    double drawCouriers(cv::Mat& frame) const;
     void drawPanel(cv::Mat& frame) const;
     bool windowClosed() const;
     std::vector<int> recentDemand() const;

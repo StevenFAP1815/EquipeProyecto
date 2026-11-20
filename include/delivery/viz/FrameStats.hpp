@@ -11,6 +11,8 @@ struct FrameSample {
     double intervalMs = 0.0;
     double drawMs = 0.0;
     std::int64_t simMs = 0;
+    double lockMs = 0.0;
+    double couriersMs = 0.0;
 };
 
 struct FrameSummary {
