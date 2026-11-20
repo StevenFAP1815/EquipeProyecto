@@ -1,0 +1,7 @@
+# notebook 20-mapa-de-respuesta, Tesla T4, simulación completa con la GPU
+## equipetrol
+Compute backend: GPU (nvcc) | Tesla T4 | 40 SMs | 1024 threads/SM | warp 32
+Response time map (64x64 cells, 256 min-plus sweeps, 15 working couriers, 9 s per street cell): worst served cell (40,28) near -17.7611,-63.1882 at 6.15 min from the nearest courier
+## city
+Compute backend: GPU (nvcc) | Tesla T4 | 40 SMs | 1024 threads/SM | warp 32
+Response time map (64x64 cells, 256 min-plus sweeps, 2996 working couriers, 17 s per street cell): worst served cell (13,0) near -17.7397,-63.2037 at 2.26667 min from the nearest courier

@@ -1,6 +1,6 @@
 # Equipetrol Delivery en GPU: aplicaciones por concepto e informe de rendimiento
 
-Este informe resume las diez aplicaciones GPU añadidas al simulador de reparto (una por cada concepto, de `03_memory_tiling` a `12_sorting`). Para cada una responde con mediciones a tres preguntas: **¿conviene la GPU para esta tarea?, ¿a partir de qué tamaño? y ¿por qué?**
+Este informe resume las once aplicaciones GPU añadidas al simulador de reparto: una por cada concepto, de `03_memory_tiling` a `12_sorting`, y una segunda de `06_stencil`. Para cada una responde con mediciones a tres preguntas: **¿conviene la GPU para esta tarea?, ¿a partir de qué tamaño? y ¿por qué?**
 
 Todas las tablas y figuras se generan con `tools/gpu_report.py` a partir de dos archivos CSV, uno del portátil y otro de Colab. Esos CSV los escribe el propio simulador en modo `--bench`, y sus copias están en `datos/`.
 
@@ -9,8 +9,8 @@ Todas las tablas y figuras se generan con `tools/gpu_report.py` a partir de dos 
 | Figura | Qué muestra | Apartado |
 |---|---|---|
 | `thread_sweep.png` | Speedup de la CPU con 1, 2, 4 y 8 hilos en el portátil | 2.3 |
-| `<aplicación>_time.png` (10) | Tiempo frente a tamaño de las 4 versiones, log–log, con el cruce marcado | 3.1–3.10 |
-| `<aplicación>_copy_share.png` (10) | Parte del tiempo de GPU en copias frente a kernels, por tamaño | 3.1–3.10 |
+| `<aplicación>_time.png` (11) | Tiempo frente a tamaño de las 4 versiones, log–log, con el cruce marcado | 3.1–3.11 |
+| `<aplicación>_copy_share.png` (11) | Parte del tiempo de GPU en copias frente a kernels, por tamaño | 3.1–3.11 |
 | `ventana_equipetrol_heatmap.png` | La ventana de la simulación con la capa del mapa de calor | 3.3 |
 | `histograma_entregas_ciudad.png` | El histograma de tiempos de entrega y los percentiles calculados en la T4 (`tools/histogram_plot.py`) | 3.5 |
 | `ventana_ciudad.png` | La ventana de la ciudad con el dibujo simplificado | 5.2 |
@@ -35,6 +35,7 @@ Las líneas de texto citadas están en `datos/sim/resultados_gpu_ciudad.txt` y `
 | 8 | Filtro | Los candidatos que pasan a la ETA; se refleja en las asignaciones | `candidate_filter_*` | 3.8 |
 | 9 | Mezcla (merge) | Texto: `Merged delivery timeline … busiest 10-minute window` (línea 5) | `courier_log_merge_*` | 3.9 |
 | 10 | Ordenación | Texto: `Delivery-time percentiles` (línea 4). **Imagen:** las líneas p50, p90 y p99 de `histograma_entregas_ciudad.png` | `delivery_percentiles_*` | 3.10 |
+| 11 | Mapa de tiempo de respuesta | Texto: `Response time map … worst served cell` (`datos/sim/resultados_mapa_respuesta_t4.txt`), la zona más lejana del repartidor más cercano | `response_map_*` | 3.11 |
 
 ---
 
@@ -56,10 +57,11 @@ Las líneas de texto citadas están en `datos/sim/resultados_gpu_ciudad.txt` y `
 | 8 | Filtro de candidatos por radio | `10_filter` | 1.ª | no se alcanza | 0,68× | Mantener la CPU | 1 |
 | 9 | Línea de tiempo a partir de los registros por repartidor | `11_merge` | 1.ª | 100.000 eventos | 3,82× | Usar la GPU desde 100.000 eventos | 1 |
 | 10 | Percentiles p50, p90 y p99 (radix sort) | `12_sorting` | 1.ª | 100.000 entregas | 2,37× | Usar la GPU desde 100.000 entregas | 1 |
+| 11 | Mapa de tiempo de respuesta (stencil min-plus) | `06_stencil` | 2.ª | 128 × 128 celdas | 15,0× | Usar la GPU desde 128² | 1 |
 
-**Puntos solicitados:** 10, con un mínimo cumplido en cada concepto.
+**Puntos solicitados:** 11, con un mínimo cumplido en cada concepto.
 
-**Marcador de extremo a extremo frente a la mejor CPU del portátil:** **la GPU gana en 5** aplicaciones por encima de su cruce (stencil, ETA, mezcla, ordenación y convolución) y **la CPU gana en 5** (histograma, agrupación, filtro, argmin por separado y Floyd–Warshall a escala de ciudad). Contando solo el kernel, la GPU gana en las 10, entre 10 y 30 veces.
+**Marcador de extremo a extremo frente a la mejor CPU del portátil:** **la GPU gana en 6** aplicaciones por encima de su cruce (los dos stencils, ETA, mezcla, ordenación y convolución) y **la CPU gana en 5** (histograma, agrupación, filtro, argmin por separado y Floyd–Warshall a escala de ciudad). Contando solo el kernel, la GPU gana en las 11, entre 10 y 31 veces.
 
 **La regla que lo explica:**
 - **La GPU gana** cuando hay mucho trabajo por cada byte copiado (100 barridos del stencil, 22 pasadas del radix sort) o cuando los datos se quedan en la GPU entre kernels (ETA → argmin: 15×).
@@ -516,6 +518,60 @@ Todas las celdas de un barrido son independientes.
 - **Mejora posible:** usar 4 u 8 bits por pasada dividiría el número de pasadas entre 4 u 8.
 - **Veredicto:** **usar la GPU desde unas 100.000 entregas**.
 
+### 3.11 Stencil, segunda aplicación: mapa de tiempo de respuesta (`06_stencil`)
+
+**Tarea:** para cada celda de una rejilla sobre la ciudad, cuántos minutos tarda en llegar el repartidor operativo (no averiado) más cercano. Al terminar la simulación se informa de la **celda con calle peor atendida**, que es la zona donde un pedido nuevo esperaría más.
+- Se usan los repartidores operativos, no solo los libres, porque en la ciudad la flota está ocupada durante toda la hora y al final no queda ninguno libre.
+- **Por qué es data-paralelo:** en cada barrido, el valor nuevo de una celda depende solo de ella y de sus 4 vecinas en el barrido anterior. Todas las celdas de un barrido son independientes.
+
+**Diferencia con el campo de cobertura (3.4):** los dos son stencils de 5 puntos con dos búferes, pero calculan cosas distintas.
+
+| | Campo de cobertura (3.4) | Mapa de respuesta (3.11) |
+|---|---|---|
+| Operación por celda | **Promedio** de las vecinas más la fuente (difusión) | **Mínimo** entre la celda y cada vecina más el coste de cruzarla (propagación de distancias) |
+| Tipo de dato | `float` | `int` (segundos) |
+| Bordes | Fijos en 0 | Las vecinas fuera de la rejilla cuentan como inalcanzables |
+| Significado | Densidad relativa, sin unidades | Minutos hasta el repartidor más cercano |
+
+**Diseño:**
+- **Valor inicial:** 0 en las celdas con algún repartidor operativo e "inalcanzable" (2³⁰) en el resto.
+- **Coste de cruzar una celda:** el tamaño de la celda dividido entre la velocidad de la flota (9 s en Equipetrol y 17 s en la ciudad con 64 × 64). Las celdas sin ninguna intersección cuestan 4 veces más.
+- **Barrido min-plus:** `nuevo = min(actual, min(norte, sur, este, oeste) + coste)`. Solo hay sumas y mínimos de enteros, así que el resultado no depende del orden de las operaciones.
+- Bloques de 16 × 16 con un halo de 1 (18 × 18 en memoria compartida). El halo que cae fuera de la rejilla se rellena con "inalcanzable".
+- Un lanzamiento por barrido con dos búferes que se alternan. El mapa se queda en la GPU durante todos los barridos.
+- En la simulación: rejilla de 64 × 64 con 4 × 64 = 256 barridos, suficientes para que el valor llegue de una esquina a la opuesta.
+
+**Correctitud** (`tests/test_response_map.cpp`):
+- Con barridos suficientes, el mapa es **idéntico al de Dijkstra** sobre la misma rejilla (3 rejillas aleatorias). Esto demuestra que el stencil calcula el tiempo mínimo y no una aproximación.
+- La CPU multihilo y el kernel dan el mismo mapa, **exacto**, en rejillas que no son múltiplo de 16 (17 × 9 y 40 × 33).
+- Un barrido avanza exactamente una celda, y sin repartidores ninguna celda es alcanzable.
+- `compute-sanitizer` en la T4: **memcheck 0 errores** y **racecheck 0 avisos** en la memoria compartida.
+
+| Rejilla (100 barridos) | CPU 1 | CPU N | GPU kernel | GPU e2e | Speedup (kernel / e2e) | ¿Correcto? |
+|---|---|---|---|---|---|---|
+| 32 × 32 | 0,245 | 0,245 (N=1) | 0,290 | 0,524 | 0,8× / 0,47× | sí |
+| 128 × 128 | 3,68 | 3,68 (N=1) | 0,283 | 0,582 | 13,0× / 6,33× | sí |
+| 256 × 256 | 16,6 | 13,9 (N=4) | 0,447 | 0,925 | 31,0× / **15,0×** | sí |
+| 512 × 512 | 82,8 | 35,8 (N=4) | 2,86 | 4,33 | 12,5× / 8,26× | sí |
+| 1.024 × 1.024 | 381 | 135 (N=8) | 12,3 | 16,7 | 11,0× / 8,10× | sí |
+
+Misma máquina (CPU de Colab, 2 vCPU): 1 hilo 0,35 / 5,25 / 20,7 / 83,2 / 348 ms, y con 2 hilos siempre más lento (1,14 a 464 ms), por la barrera de cada barrido.
+
+![tiempo](figuras/response_map_time.png) ![copias](figuras/response_map_copy_share.png)
+
+**En la simulación** (T4, `datos/sim/resultados_mapa_respuesta_t4.txt`):
+- **Ciudad:** 2.996 repartidores operativos. La celda con calle peor atendida está a **2,3 minutos** del repartidor más cercano.
+- **Equipetrol:** 15 repartidores. La peor celda está a **6,2 minutos**.
+
+**Análisis:**
+- **Paralelismo:** una celda por hilo. Con 64 × 64 hay 4.096 hilos, que llenan solo 4 de los 40 SMs de la T4. Desde 256 × 256 (65.536 hilos) la GPU está llena.
+- **`ncu`** (1.024², un barrido): **DRAM 41 %, SM 32 %, L1 60 %**, 122 µs por barrido. Como el campo de cobertura, está limitado por la **latencia**: 6 operaciones por unos 13 B (0,46 op/B), lejos de los dos techos.
+- **Ocupación:** 36 registros y 1,3 KB de memoria compartida. El límite son los warps (4 bloques por SM), con ocupación teórica del 100 % y **lograda del 93,8 %**.
+- **Por qué el mejor caso es 256²:** el tiempo del kernel por celda y barrido pasa de 0,07 ns con 256² a 0,11 ns con 512². Con 256², los tres búferes (768 KB) caben en la caché L2 de la T4 (4 MB). Con 512² ocupan 3 MB y con 1.024², 12 MB, así que cada barrido tiene que ir a la DRAM. Es la explicación más probable; no se midió la tasa de aciertos de la L2.
+- **Sobrecostes:** los datos se copian una vez y se reutilizan en 100 barridos, así que lo que queda fuera del kernel (copias, reservas y lanzamientos) es solo **el 26 % del tiempo e2e con 1.024²**. Con 32², los 100 lanzamientos dominan y gana la CPU.
+- **CPU multihilo:** escala poco, igual que en 3.4, porque cada barrido exige una barrera entre hilos. Con 1.024² pasa de 381 a 135 ms con 8 hilos (2,8×).
+- **Veredicto:** **usar la GPU desde 128²**. Con la rejilla de 64 × 64 de la simulación, la diferencia es de menos de 1 ms al final de la ejecución y no cambia nada. La GPU compensa cuando se quiere una rejilla fina: por ejemplo, 512 × 512 en la ciudad da celdas de unos 18 m.
+
 ---
 
 ## 4. Roofline y ocupación
@@ -533,6 +589,7 @@ Los techos de la T4 son 320 GB/s de memoria y unas 8,1·10¹² operaciones por s
 | Convolución 5 × 5 | 2.048² | 4,88 | 255 | Memoria compartida/L1 (91 %) |
 | Histograma privatizado | 16 M | 0,38 | 86 | DRAM (91 %) |
 | Filtro estable | 1 M | 0,55 | 68 | Memoria compartida/L1 (82 %) |
+| Min-plus 5 puntos (mapa de respuesta) | 1.024² | 0,46 | 51 | Latencia (DRAM 41 %) |
 | Jacobi 5 puntos | 1.024² | 0,38 | 42 | Latencia (DRAM 41 %) |
 | ETA SoA | 1.000 × 5.000 | 0,12 | 32 | DRAM (72 %), lecturas dispersas |
 | Argmin por fila | 1.000 × 20.000 | 0,12 | 31 | DRAM (95 %) |
@@ -540,7 +597,7 @@ Los techos de la T4 son 320 GB/s de memoria y unas 8,1·10¹² operaciones por s
 | Mezcla por rondas | 4 M | 0,25 | 13 | Latencia de las búsquedas binarias |
 
 **Conclusiones:**
-- **Siete de los diez kernels** están a la izquierda del punto de quiebre del *roofline* (unas 25 operaciones por byte), es decir, **limitados por la memoria**.
+- **Ocho de los once kernels** están a la izquierda del punto de quiebre del *roofline* (unas 25 operaciones por byte), es decir, **limitados por la memoria**.
 - Los tres que más se acercan a su techo son los que **reutilizan datos en memoria compartida**: tiling, convolución con halo y agrupación.
 - Argmin e histograma están **en** el techo de DRAM: no se pueden acelerar más sin mover menos bytes.
 
@@ -559,6 +616,7 @@ Los techos de la T4 son 320 GB/s de memoria y unas 8,1·10¹² operaciones por s
 | `mergePairsRound` | 256 | 34 | 0 | 6 / 16 / **4** | 100 % / 83,3 % (desequilibrio) |
 | `smoothTiled` | 256 | 33 | 1,6 KB | 6 / 18 / **4** | 100 % / 95,8 % |
 | `jacobiSweepTiled` | 256 | 36 | 1,3 KB | 6 / 21 / **4** | 100 % / 94,6 % |
+| `minPlusSweepTiled` | 256 | 36 | 1,3 KB | 6 / 21 / **4** | 100 % / 93,8 % |
 
 - En todos los kernels el límite efectivo es el **número de warps** (1.024 hilos por SM), no los registros ni la memoria compartida. Por eso no hizo falta reducir registros.
 - Los dos kernels con menor ocupación lograda pierden por **desequilibrio de carga**, no por recursos:
@@ -587,6 +645,7 @@ Los techos de la T4 son 320 GB/s de memoria y unas 8,1·10¹² operaciones por s
 | `mergePairsRound` (`SegmentMerge.cu`) | 256 | ⌈(total / 8) / 256⌉ por ronda | Cada hilo produce 8 elementos de salida y busca con *co-rank* dónde empieza su parte en las dos listas. Un lanzamiento por ronda (⌈log₂ segmentos⌉ rondas) con dos búferes que se alternan. |
 | `smoothTiled` (`DemandHeatmap.cu`) | 16 × 16 | ⌈ancho / 16⌉ × ⌈alto / 16⌉ | Un hilo por celda de salida. El bloque carga 20 × 20 celdas (halo de 2) en memoria compartida y el filtro está en memoria constante. Un bloque de 16 × 16 deja el halo en el 56 % extra; uno de 32 × 32 lo bajaría al 27 %, pero con 1.024 hilos por bloque solo cabría uno por SM. |
 | `jacobiSweepTiled` (`CoverageField.cu`) | 16 × 16 | ⌈ancho / 16⌉ × ⌈alto / 16⌉, **un lanzamiento por barrido** | El halo es de 1 celda (18 × 18 en memoria compartida). Cada barrido necesita el resultado completo del anterior, y la única barrera global entre bloques es el final del kernel; por eso hay un lanzamiento por barrido, con dos búferes que se alternan. |
+| `minPlusSweepTiled` (`ResponseMap.cu`) | 16 × 16 | ⌈ancho / 16⌉ × ⌈alto / 16⌉, **un lanzamiento por barrido** | Mismo esquema que el campo de cobertura: halo de 1 (18 × 18 enteros en memoria compartida) y dos búferes. El halo de fuera de la rejilla se rellena con "inalcanzable" para que el borde no necesite un caso aparte. `threadIdx.x` recorre la columna, que es la dimensión contigua, así que la carga del bloque es coalescida. |
 
 ---
 

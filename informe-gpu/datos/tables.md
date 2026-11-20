@@ -218,6 +218,28 @@ Misma máquina (Colab):
 | 512x512 | 43.0 | 49.1 | 2.791 | 3.960 |
 | 1024x1024 | 169.1 | 191.5 | 12.6 | 15.7 |
 
+### response_map
+
+Cruce (GPU e2e < mejor CPU del portátil): 128x128
+
+| Tamaño | CPU 1 hilo (ms) | CPU N hilos (ms) | GPU kernel (ms) | GPU e2e (ms) | Speedup vs mejor CPU (kernel / e2e) | ¿Correcto? |
+|---|---|---|---|---|---|---|
+| 32x32 | 0.245 | 0.245 (N=1) | 0.290 | 0.524 | 0.8x / 0.47x | sí |
+| 128x128 | 3.680 | 3.680 (N=1) | 0.283 | 0.582 | 13.0x / 6.33x | sí |
+| 256x256 | 16.6 | 13.9 (N=4) | 0.447 | 0.925 | 31.0x / 15.01x | sí |
+| 512x512 | 82.8 | 35.8 (N=4) | 2.860 | 4.326 | 12.5x / 8.26x | sí |
+| 1024x1024 | 380.6 | 135.4 (N=8) | 12.3 | 16.7 | 11.0x / 8.10x | sí |
+
+Misma máquina (Colab):
+
+| Tamaño | cpu_t1 | cpu_t2 | gpu_kernel | gpu_e2e |
+|---|---|---|---|---|
+| 32x32 | 0.354 | 1.136 | 0.290 | 0.524 |
+| 128x128 | 5.252 | 7.508 | 0.283 | 0.582 |
+| 256x256 | 20.7 | 28.6 | 0.447 | 0.925 |
+| 512x512 | 83.2 | 113.3 | 2.860 | 4.326 |
+| 1024x1024 | 347.8 | 463.8 | 12.3 | 16.7 |
+
 ### Roofline
 
 | Aplicación | Kernel | Tamaño | Intensidad (op/B) | Alcanzado (Gop/s) |
@@ -232,3 +254,4 @@ Misma máquina (Colab):
 | courier_log_merge | mezcla por rondas | 4000000 | 0.25 | 13.0 |
 | demand_heatmap | convolución 5x5 | 2048x2048 | 4.88 | 254.5 |
 | coverage_field | Jacobi 5 puntos x100 | 1024x1024 | 0.38 | 41.6 |
+| response_map | min-plus 5 puntos x100 | 1024x1024 | 0.46 | 51.1 |

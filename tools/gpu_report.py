@@ -24,6 +24,8 @@ ROOFLINE_MODELS = {
     "demand_heatmap": ("convolución 5x5", lambda c: 50.0 * c, lambda c: 10.25 * c),
     "coverage_field": ("Jacobi 5 puntos x100", lambda c: 100 * 5.0 * c,
                        lambda c: 100 * 13.1 * c),
+    "response_map": ("min-plus 5 puntos x100", lambda c: 100 * 6.0 * c,
+                     lambda c: 100 * 13.1 * c),
 }
 
 
