@@ -124,44 +124,102 @@ std::vector<int> responseMapCpu(const std::vector<int>& initial, const std::vect
     return buffers[sweeps % 2];
 }
 
-std::vector<int> responseMap(const std::vector<int>& initial, const std::vector<int>& cellCost,
-                             int width, int height, int sweeps, KernelTiming* timing) {
-    validate(initial, cellCost, width, height, sweeps);
-    const std::size_t bytes = initial.size() * sizeof(int);
-    std::vector<int> times(initial.size(), 0);
+namespace {
+struct DeviceMap {
+    int* cost = nullptr;
+    int* times = nullptr;
+    int* scratch = nullptr;
+    double copyMs = 0.0;
+    double kernelMs = 0.0;
+};
 
-    int* dCost = nullptr;
-    int* dA = nullptr;
-    int* dB = nullptr;
-    CHECK(cudaMalloc(&dCost, bytes));
-    CHECK(cudaMalloc(&dA, bytes));
-    CHECK(cudaMalloc(&dB, bytes));
+DeviceMap sweepOnDevice(const std::vector<int>& initial, const std::vector<int>& cellCost,
+                        int width, int height, int sweeps) {
+    const std::size_t bytes = initial.size() * sizeof(int);
+    DeviceMap map;
+    CHECK(cudaMalloc(&map.cost, bytes));
+    CHECK(cudaMalloc(&map.times, bytes));
+    CHECK(cudaMalloc(&map.scratch, bytes));
 
     EventTimer copyTimer;
     EventTimer kernelTimer;
     copyTimer.start();
-    CHECK(cudaMemcpy(dCost, cellCost.data(), bytes, cudaMemcpyHostToDevice));
-    CHECK(cudaMemcpy(dA, initial.data(), bytes, cudaMemcpyHostToDevice));
-    double copyMs = copyTimer.stopMs();
+    CHECK(cudaMemcpy(map.cost, cellCost.data(), bytes, cudaMemcpyHostToDevice));
+    CHECK(cudaMemcpy(map.times, initial.data(), bytes, cudaMemcpyHostToDevice));
+    map.copyMs = copyTimer.stopMs();
 
     const dim3 block(kResponseTile, kResponseTile);
     const dim3 grid((width + kResponseTile - 1) / kResponseTile,
                     (height + kResponseTile - 1) / kResponseTile);
     kernelTimer.start();
     for (int sweep = 0; sweep < sweeps; ++sweep) {
-        launch(minPlusSweepTiled, grid, block, static_cast<const int*>(dA),
-               static_cast<const int*>(dCost), width, height, dB);
-        std::swap(dA, dB);
+        launch(minPlusSweepTiled, grid, block, static_cast<const int*>(map.times),
+               static_cast<const int*>(map.cost), width, height, map.scratch);
+        std::swap(map.times, map.scratch);
     }
     CHECK(cudaGetLastError());
-    const double kernelMs = kernelTimer.stopMs();
+    map.kernelMs = kernelTimer.stopMs();
+    return map;
+}
 
+void release(DeviceMap& map) {
+    CHECK(cudaFree(map.cost));
+    CHECK(cudaFree(map.times));
+    CHECK(cudaFree(map.scratch));
+}
+
+DELIVERY_HD inline int responseBin(int seconds) {
+    if (seconds >= kResponseUnreachable) {
+        return kResponseBins;
+    }
+    const int bin = seconds / kResponseBinSeconds;
+    return bin >= kResponseBins ? kResponseBins - 1 : bin;
+}
+
+constexpr int kResponseHistogramBlock = 256;
+constexpr int kResponseHistogramGrid = 160;
+
+__global__ void privatizedResponseHistogram(const int* times, const unsigned char* counted, int n,
+                                            unsigned* bins) {
+    __shared__ unsigned local[kResponseBins + 1];
+    for (int b = static_cast<int>(threadIdx.x); b <= kResponseBins; b += kResponseHistogramBlock) {
+        local[b] = 0;
+    }
+    __syncthreads();
+    const int stride = static_cast<int>(gridDim.x * blockDim.x);
+    for (int i = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x); i < n; i += stride) {
+        if (counted[i] != 0) {
+            atomicAdd(&local[responseBin(times[i])], 1u);
+        }
+    }
+    __syncthreads();
+    for (int b = static_cast<int>(threadIdx.x); b <= kResponseBins; b += kResponseHistogramBlock) {
+        if (local[b] != 0) {
+            atomicAdd(&bins[b], local[b]);
+        }
+    }
+}
+
+void validateMask(const std::vector<unsigned char>& counted, std::size_t cells) {
+    if (counted.size() != cells) {
+        throw std::invalid_argument("response histogram mask does not match width*height");
+    }
+}
+}
+
+std::vector<int> responseMap(const std::vector<int>& initial, const std::vector<int>& cellCost,
+                             int width, int height, int sweeps, KernelTiming* timing) {
+    validate(initial, cellCost, width, height, sweeps);
+    std::vector<int> times(initial.size(), 0);
+    DeviceMap map = sweepOnDevice(initial, cellCost, width, height, sweeps);
+    const double kernelMs = map.kernelMs;
+    double copyMs = map.copyMs;
+
+    EventTimer copyTimer;
     copyTimer.start();
-    CHECK(cudaMemcpy(times.data(), dA, bytes, cudaMemcpyDeviceToHost));
+    CHECK(cudaMemcpy(times.data(), map.times, times.size() * sizeof(int), cudaMemcpyDeviceToHost));
     copyMs += copyTimer.stopMs();
-    CHECK(cudaFree(dCost));
-    CHECK(cudaFree(dA));
-    CHECK(cudaFree(dB));
+    release(map);
     if (timing != nullptr) {
         timing->kernelMs = kernelMs;
         timing->copyMs = copyMs;
@@ -180,5 +238,69 @@ int worstServedCell(const std::vector<int>& times, const std::vector<bool>& coun
         }
     }
     return worst;
+}
+
+std::vector<unsigned> binResponseTimes(const std::vector<int>& times,
+                                       const std::vector<unsigned char>& counted) {
+    validateMask(counted, times.size());
+    std::vector<unsigned> bins(kResponseBins + 1, 0);
+    for (std::size_t i = 0; i < times.size(); ++i) {
+        if (counted[i] != 0) {
+            ++bins[static_cast<std::size_t>(responseBin(times[i]))];
+        }
+    }
+    return bins;
+}
+
+std::vector<unsigned> responseHistogramCpu(const std::vector<int>& initial,
+                                           const std::vector<int>& cellCost,
+                                           const std::vector<unsigned char>& counted, int width,
+                                           int height, int sweeps, unsigned threads) {
+    validateMask(counted, initial.size());
+    return binResponseTimes(responseMapCpu(initial, cellCost, width, height, sweeps, threads),
+                            counted);
+}
+
+std::vector<unsigned> responseHistogram(const std::vector<int>& initial,
+                                        const std::vector<int>& cellCost,
+                                        const std::vector<unsigned char>& counted, int width,
+                                        int height, int sweeps, KernelTiming* timing) {
+    validate(initial, cellCost, width, height, sweeps);
+    validateMask(counted, initial.size());
+    const int n = static_cast<int>(initial.size());
+    std::vector<unsigned> bins(kResponseBins + 1, 0);
+
+    DeviceMap map = sweepOnDevice(initial, cellCost, width, height, sweeps);
+    unsigned char* dCounted = nullptr;
+    unsigned* dBins = nullptr;
+    CHECK(cudaMalloc(&dCounted, initial.size()));
+    CHECK(cudaMalloc(&dBins, bins.size() * sizeof(unsigned)));
+
+    EventTimer copyTimer;
+    EventTimer kernelTimer;
+    copyTimer.start();
+    CHECK(cudaMemcpy(dCounted, counted.data(), counted.size(), cudaMemcpyHostToDevice));
+    CHECK(cudaMemset(dBins, 0, bins.size() * sizeof(unsigned)));
+    double copyMs = map.copyMs + copyTimer.stopMs();
+
+    const int blocks = std::max(
+        1, std::min(kResponseHistogramGrid, (n + kResponseHistogramBlock - 1) / kResponseHistogramBlock));
+    kernelTimer.start();
+    launch(privatizedResponseHistogram, dim3(blocks), dim3(kResponseHistogramBlock),
+           static_cast<const int*>(map.times), static_cast<const unsigned char*>(dCounted), n, dBins);
+    CHECK(cudaGetLastError());
+    const double kernelMs = map.kernelMs + kernelTimer.stopMs();
+
+    copyTimer.start();
+    CHECK(cudaMemcpy(bins.data(), dBins, bins.size() * sizeof(unsigned), cudaMemcpyDeviceToHost));
+    copyMs += copyTimer.stopMs();
+    CHECK(cudaFree(dCounted));
+    CHECK(cudaFree(dBins));
+    release(map);
+    if (timing != nullptr) {
+        timing->kernelMs = kernelMs;
+        timing->copyMs = copyMs;
+    }
+    return bins;
 }
 }

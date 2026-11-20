@@ -257,6 +257,36 @@ void reportCoverage(const delivery::infra::Config& cfg, const delivery::sim::Fle
               << ", where idle couriers should wait" << std::endl;
 }
 
+std::string describeResponseProfile(const std::vector<unsigned>& bins) {
+    using namespace delivery;
+    unsigned long long reachable = 0;
+    for (int b = 0; b < gpu::kResponseBins; ++b) {
+        reachable += bins[static_cast<std::size_t>(b)];
+    }
+    const unsigned long long unreachable = bins[static_cast<std::size_t>(gpu::kResponseBins)];
+    auto minutesCovering = [&](double fraction) {
+        unsigned long long running = 0;
+        for (int b = 0; b < gpu::kResponseBins; ++b) {
+            running += bins[static_cast<std::size_t>(b)];
+            if (static_cast<double>(running) >= fraction * static_cast<double>(reachable)) {
+                return (b + 1) * gpu::kResponseBinSeconds / 60.0;
+            }
+        }
+        return gpu::kResponseBins * gpu::kResponseBinSeconds / 60.0;
+    };
+    std::ostringstream out;
+    out << "Response time profile (" << reachable + unreachable << " street cells, "
+        << gpu::kResponseBinSeconds << "-s bins): 50% within " << minutesCovering(0.5)
+        << " min, 90% within " << minutesCovering(0.9) << " min, 100% within "
+        << minutesCovering(1.0) << " min, " << unreachable << " unreachable;";
+    for (int b = 0; b < gpu::kResponseBins; ++b) {
+        if (bins[static_cast<std::size_t>(b)] != 0) {
+            out << ' ' << b * gpu::kResponseBinSeconds << "s=" << bins[static_cast<std::size_t>(b)];
+        }
+    }
+    return out.str();
+}
+
 void reportResponseMap(const delivery::infra::Config& cfg, const delivery::sim::Fleet& fleet,
                        delivery::concurrency::GpuWorker& worker, bool useGpu) {
     using namespace delivery;
@@ -315,6 +345,18 @@ void reportResponseMap(const delivery::infra::Config& cfg, const delivery::sim::
               << " s per street cell): worst served cell (" << cx << "," << cy << ") near " << lat
               << "," << lon << " at " << times[static_cast<std::size_t>(worst)] / 60.0
               << " min from the nearest courier" << std::endl;
+
+    const std::vector<unsigned char> streetMask(hasStreet.begin(), hasStreet.end());
+    std::vector<unsigned> bins;
+    if (useGpu) {
+        bins = worker.submit([&initial, &cost, &streetMask] {
+            return gpu::responseHistogram(initial, cost, streetMask, kCells, kCells, kSweeps);
+        }).get();
+    } else {
+        bins = gpu::responseHistogramCpu(initial, cost, streetMask, kCells, kCells, kSweeps,
+                                         cpuThreads());
+    }
+    std::cerr << describeResponseProfile(bins) << std::endl;
 }
 
 void reportDeliveryStatistics(const delivery::infra::Config& cfg,

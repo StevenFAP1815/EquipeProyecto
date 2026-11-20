@@ -5,6 +5,7 @@
 #include <functional>
 #include <queue>
 #include <random>
+#include <stdexcept>
 #include <utility>
 #include <vector>
 
@@ -112,6 +113,65 @@ TEST_CASE("Mapa de respuesta: CPU multihilo y kernel por bloques dan el mismo ma
         gpu::KernelTiming timing;
         REQUIRE(gpu::responseMap(initial, cost, width, height, 25, &timing) == reference);
     }
+}
+
+TEST_CASE("Histograma de respuesta: intervalos de 15 s, último intervalo abierto e inalcanzables aparte") {
+    const std::vector<int> times = {0, 14, 15, 29, 30, 1'000'000, gpu::kResponseUnreachable, 7};
+    const std::vector<unsigned char> counted = {1, 1, 1, 1, 1, 1, 1, 0};
+    const auto bins = gpu::binResponseTimes(times, counted);
+    REQUIRE(bins.size() == static_cast<std::size_t>(gpu::kResponseBins + 1));
+    REQUIRE(bins[0] == 2);
+    REQUIRE(bins[1] == 2);
+    REQUIRE(bins[2] == 1);
+    REQUIRE(bins[gpu::kResponseBins - 1] == 1);
+    REQUIRE(bins[gpu::kResponseBins] == 1);
+    unsigned total = 0;
+    for (unsigned b : bins) {
+        total += b;
+    }
+    REQUIRE(total == 7);
+}
+
+TEST_CASE("Histograma de respuesta: la versión encadenada en la GPU cuenta igual que la CPU") {
+    std::mt19937_64 rng(13);
+    std::bernoulli_distribution street(0.8);
+    for (const auto& [width, height] : std::vector<std::pair<int, int>>{{3, 3}, {16, 16}, {17, 9}, {64, 64}, {100, 37}}) {
+        const int cells = width * height;
+        const auto initial = randomSeeds(rng, cells, 0.02);
+        const auto cost = randomCosts(rng, cells);
+        std::vector<unsigned char> counted(static_cast<std::size_t>(cells));
+        unsigned expectedTotal = 0;
+        for (auto& c : counted) {
+            c = street(rng) ? 1 : 0;
+            expectedTotal += c;
+        }
+        const auto reference = gpu::binResponseTimes(
+            gpu::responseMapCpu(initial, cost, width, height, 30, 1), counted);
+        REQUIRE(gpu::responseHistogramCpu(initial, cost, counted, width, height, 30, 3) == reference);
+        gpu::KernelTiming timing;
+        REQUIRE(gpu::responseHistogram(initial, cost, counted, width, height, 30, &timing) == reference);
+        unsigned total = 0;
+        for (unsigned b : reference) {
+            total += b;
+        }
+        REQUIRE(total == expectedTotal);
+    }
+}
+
+TEST_CASE("Histograma de respuesta: con todas las celdas en el mismo intervalo no se pierde ningún conteo") {
+    const int side = 200;
+    const std::vector<int> initial(side * side, 0);
+    const std::vector<int> cost(side * side, 10);
+    const std::vector<unsigned char> counted(side * side, 1);
+    const auto bins = gpu::responseHistogram(initial, cost, counted, side, side, 5);
+    REQUIRE(bins[0] == static_cast<unsigned>(side * side));
+}
+
+TEST_CASE("Histograma de respuesta: la máscara debe tener una entrada por celda") {
+    const std::vector<int> initial(9, 0);
+    const std::vector<int> cost(9, 10);
+    REQUIRE_THROWS_AS(gpu::responseHistogramCpu(initial, cost, std::vector<unsigned char>(8, 1), 3, 3, 1, 1),
+                      std::invalid_argument);
 }
 
 TEST_CASE("Mapa de respuesta: la peor celda ignora las inalcanzables y desempata por índice") {
