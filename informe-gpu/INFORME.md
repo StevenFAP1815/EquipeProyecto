@@ -17,6 +17,25 @@ Todas las tablas y figuras se generan con `tools/gpu_report.py` a partir de dos 
 | `roofline.png` | Roofline de la T4 con los kernels principales | 4.1 |
 | `fps_frames.png` | FPS por ejecución y distribución del intervalo entre cuadros (`tools/fps_report.py`) | 5.2 |
 
+**Guía de lectura: el resultado de cada aplicación frente a su rendimiento.** Cada aplicación tiene dos tipos de evidencia que no deben confundirse:
+- El **resultado** es lo que calcula la aplicación dentro de la simulación: un histograma, un mapa de calor, una asignación. Demuestra que la GPU hace algo útil y correcto.
+- El **rendimiento** es lo que cuesta calcularlo. Las figuras `_time.png` comparan el tiempo de la CPU y de la GPU según el tamaño, y las `_copy_share.png` muestran qué parte del tiempo de la GPU se va en copias. Por ejemplo, `delivery_histogram_time.png` **no** es un histograma: es el coste de calcularlo.
+
+Las líneas de texto citadas están en `datos/sim/resultados_gpu_ciudad.txt` y `datos/sim_gpu.err`, que es lo que imprime el simulador al terminar 1 hora simulada de la ciudad en la T4.
+
+| # | Aplicación | Dónde se ve el resultado | Figuras de rendimiento | Apartado |
+|---|---|---|---|---|
+| 1 | Tabla de tiempos de viaje | Texto: `Travel table: 4096 nodes on GPU` (línea 2). El despachador la usa para estimar los tiempos de viaje | `travel_table_*` | 3.1 |
+| 2 | ETA por lotes | Las asignaciones pedido → repartidor del despachador (`assigned` en `datos/fps/sim_effect_city_modes.md`) | `eta_batch_*` | 3.2 |
+| 3 | Mapa de calor | **Imagen:** `ventana_equipetrol_heatmap.png`. Texto: `Demand heatmap … hottest cell` (línea 6) | `demand_heatmap_*` | 3.3 |
+| 4 | Campo de cobertura | Texto: `Coverage field … least covered cell` (línea 7), la zona donde conviene esperar | `coverage_field_*` | 3.4 |
+| 5 | Histograma | **Imagen:** `histograma_entregas_ciudad.png`. Texto: `Delivery-time histogram` (línea 3) | `delivery_histogram_*` | 3.5 |
+| 6 | Argmin | El repartidor elegido para cada pedido (mismas asignaciones que la ETA) | `dispatch_argmin_*` | 3.6 |
+| 7 | Agrupación (scan) | Texto: `Deliveries grouped by restaurant` (`datos/sim_gpu.err`, línea 5) | `orders_by_restaurant_*` | 3.7 |
+| 8 | Filtro | Los candidatos que pasan a la ETA; se refleja en las asignaciones | `candidate_filter_*` | 3.8 |
+| 9 | Mezcla (merge) | Texto: `Merged delivery timeline … busiest 10-minute window` (línea 5) | `courier_log_merge_*` | 3.9 |
+| 10 | Ordenación | Texto: `Delivery-time percentiles` (línea 4). **Imagen:** las líneas p50, p90 y p99 de `histograma_entregas_ciudad.png` | `delivery_percentiles_*` | 3.10 |
+
 ---
 
 ## 1. Resumen
