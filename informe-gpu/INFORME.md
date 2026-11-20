@@ -671,6 +671,11 @@ Para comprobar el efecto de la GPU cuando de verdad trabaja en cada pedido, la o
 - **No compensa cuando la GPU ejecuta un algoritmo peor:** Floyd–Warshall `O(n³)` frente a Dijkstra en un grafo con pocas aristas.
 - **A la escala del enunciado** (Equipetrol) ninguna tarea supera su cruce: **la respuesta es mantener la CPU**.
 - **A escala de ciudad**, la respuesta correcta es **usar la GPU solo por encima de un umbral**, y el despachador ya está implementado así. Forzar la GPU en cada pedido (`--gpu-dispatch always`) reduce las asignaciones un 29 % y multiplica por 10 la latencia de despacho.
+- **¿Y con un mapa más grande?** No cambia el marcador. Los barridos de tamaño ya llegan bastante más allá de la ciudad, y muestran tres tendencias:
+  - Donde la GPU gana, gana algo más al crecer (convolución de 1,43× a 1,89×; mezcla de 2,99× a 3,82×).
+  - En las tareas de una pasada, la GPU **no** se recupera, porque la copia por PCIe crece al mismo ritmo que el trabajo de la CPU. El histograma incluso empeora: de 0,59× con 1 millón a 0,27× con 16 millones.
+  - En Floyd–Warshall la CPU gana **más** cuanto mayor es el grafo (de 1,06× con 576 nodos a 0,63× con 4.096): la GPU hace `n³` operaciones y Dijkstra crece aproximadamente como `n² log n` en un mapa de calles.
+- **Mejora posible: despacho por lotes.** El despacho usa la CPU porque atiende un pedido cada vez (~300 candidatos), muy por debajo del cruce de la ETA (~50.000 pares). Acumular los pedidos de una ventana corta (por ejemplo, 200 pedidos × 3.000 repartidores = 600.000 pares) y asignarlos juntos con ETA + argmin en la GPU llevaría la simulación a la zona en la que la GPU gana entre 4× y 15× en el bench. Lo que decide si gana la GPU es la cantidad de trabajo por cada viaje, no el tamaño del mapa.
 - **La GPU no degrada la ventana:** 28,6 FPS en los tres modos en Equipetrol. A escala de ciudad la ventana baja a 4–10 FPS incluso sin GPU, porque el límite es dibujar 3.000 repartidores.
 
 ### Amenazas a la validez
@@ -680,6 +685,7 @@ Para comprobar el efecto de la GPU cuando de verdad trabaja en cada pedido, la o
 - **Calor del portátil:** se mitigó intercalando versiones y con el plan "Máximo rendimiento", pero no se controló la temperatura.
 - **Modelos de *roofline* derivados del código:** cuentan operaciones enteras y bytes de forma aproximada (por ejemplo, 32 B por cada lectura dispersa de la tabla). Las conclusiones (qué kernels están limitados por la memoria) coinciden con los porcentajes de DRAM, L1 y SM que mide `ncu`.
 - **Frecuencia de cuadros con pantalla virtual:** la combinación "ventana + GPU" se midió en Colab con Xvfb, porque ninguna máquina disponible tiene a la vez pantalla y GPU NVIDIA. Xvfb dibuja por software igual que con una pantalla real, pero no mide el coste de presentar la imagen en un monitor. Los FPS de Colab y del portátil no son comparables entre sí (2 frente a 8 hilos de CPU); la comparación entre modos se hace siempre en la misma máquina.
+- **Tamaños no alcanzados:** la tabla de viajes no se midió por encima de 4.096 nodos, porque su matriz `n²` ocupa 64 MB y el tiempo de la CPU de 1 hilo ya era de casi 1 s. Por la tendencia medida (la GPU pierde cada vez más) no se espera que un grafo mayor cambie el veredicto. El resto de aplicaciones llega a 1–16 millones de elementos.
 - **Emulación:** los tiempos de `cuda_compat.h` no se usaron para ninguna conclusión. Solo validan resultados en los tests.
 
 ### Evidencia de correctitud (resumen)
