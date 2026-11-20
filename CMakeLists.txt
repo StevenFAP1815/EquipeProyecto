@@ -93,6 +93,7 @@ set(DELIVERY_GPU_SOURCES
     src/gpu/DemandHeatmap.cu
     src/gpu/CoverageField.cu
     src/gpu/ResponseMap.cu
+    src/gpu/RouteArrivals.cu
 )
 
 add_library(delivery_gpu STATIC ${DELIVERY_GPU_SOURCES})

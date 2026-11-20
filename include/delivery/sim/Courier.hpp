@@ -98,6 +98,7 @@ public:
     core::LatLon position() const;
     core::NodeId currentNode() const;
     std::vector<core::NodeId> deliveryNodesInBag() const;
+    std::vector<core::Order> bagSnapshot() const;
     std::int64_t latestReadyAtMs() const;
     std::size_t ordersInBag() const;
     std::uint64_t ordersHandled() const;

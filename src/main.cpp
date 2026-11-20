@@ -14,10 +14,12 @@
 #include <delivery/gpu/DemandHeatmap.hpp>
 #include <delivery/gpu/DeviceInfo.hpp>
 #include <delivery/gpu/EtaBatch.hpp>
+#include <delivery/gpu/EtaFormula.hpp>
 #include <delivery/gpu/FloydWarshall.hpp>
 #include <delivery/gpu/GroupByKey.hpp>
 #include <delivery/gpu/RadixSort.hpp>
 #include <delivery/gpu/ResponseMap.hpp>
+#include <delivery/gpu/RouteArrivals.hpp>
 #include <delivery/gpu/SegmentMerge.hpp>
 #include <delivery/infra/ConfigLoader.hpp>
 #include <delivery/infra/EventLog.hpp>
@@ -32,6 +34,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <csignal>
 #include <cstdint>
 #include <filesystem>
@@ -359,6 +362,94 @@ void reportResponseMap(const delivery::infra::Config& cfg, const delivery::sim::
     std::cerr << describeResponseProfile(bins) << std::endl;
 }
 
+void reportRouteArrivals(const delivery::core::StreetNetwork& network,
+                         const delivery::core::TravelTable& table, const delivery::sim::Fleet& fleet,
+                         std::int64_t nowMs, delivery::concurrency::GpuWorker& worker, bool useGpu) {
+    using namespace delivery;
+    constexpr std::int64_t kPromiseMs = 30 * 60 * 1000;
+    auto indexOf = [&network](const core::NodeId& node) {
+        return static_cast<int>(*network.nodeIndex(node));
+    };
+    std::vector<int> legMs;
+    std::vector<unsigned char> routeStart;
+    std::vector<int> deadlineMs;
+    int routes = 0;
+    int deliveries = 0;
+    for (const auto& courier : fleet.couriers()) {
+        if (courier->state() == sim::CourierState::BrokenDown) {
+            continue;
+        }
+        const std::vector<core::Order> bag = courier->bagSnapshot();
+        if (bag.empty()) {
+            continue;
+        }
+        const int cmPerSecond =
+            std::max(1, static_cast<int>(std::lround(courier->speedKmh() * 100000.0 / 3600.0)));
+        std::vector<int> legs;
+        std::vector<int> deadlines;
+        int at = indexOf(courier->currentNode());
+        bool reachable = true;
+        if (courier->state() != sim::CourierState::Delivering) {
+            const int restaurant = indexOf(bag.front().restaurantNode);
+            reachable = table.reachable(at, restaurant);
+            if (reachable) {
+                std::int64_t latestReady = 0;
+                for (const core::Order& order : bag) {
+                    latestReady = std::max(latestReady, order.readyAtMs);
+                }
+                const std::int64_t travel = gpu::travelMs(table.centimeters(at, restaurant), cmPerSecond);
+                legs.push_back(static_cast<int>(std::max<std::int64_t>(travel, latestReady - nowMs)));
+                deadlines.push_back(gpu::kNoDeadline);
+                at = restaurant;
+            }
+        }
+        for (const core::Order& order : bag) {
+            const int stop = indexOf(order.deliveryNode);
+            if (!reachable || !table.reachable(at, stop)) {
+                reachable = false;
+                break;
+            }
+            legs.push_back(static_cast<int>(gpu::travelMs(table.centimeters(at, stop), cmPerSecond)));
+            deadlines.push_back(static_cast<int>(order.createdAtMs + kPromiseMs - nowMs));
+            at = stop;
+        }
+        if (!reachable) {
+            continue;
+        }
+        for (std::size_t k = 0; k < legs.size(); ++k) {
+            legMs.push_back(legs[k]);
+            routeStart.push_back(k == 0 ? 1 : 0);
+            deadlineMs.push_back(deadlines[k]);
+        }
+        ++routes;
+        deliveries += static_cast<int>(bag.size());
+    }
+    if (routes == 0) {
+        std::cerr << "Route arrivals: no courier is carrying orders at the end of the run" << std::endl;
+        return;
+    }
+
+    gpu::RouteArrivals arrivals;
+    if (useGpu) {
+        arrivals = worker.submit([&legMs, &routeStart, &deadlineMs] {
+            return gpu::routeArrivals(legMs, routeStart, deadlineMs);
+        }).get();
+    } else {
+        arrivals = gpu::routeArrivalsCpu(legMs, routeStart, deadlineMs, cpuThreads());
+    }
+    int lastDeliveryMs = 0;
+    for (std::size_t i = 0; i < legMs.size(); ++i) {
+        if (deadlineMs[i] != gpu::kNoDeadline) {
+            lastDeliveryMs = std::max(lastDeliveryMs, arrivals.arrivalMs[i]);
+        }
+    }
+    std::cerr << "Route arrivals (" << routes << " couriers carrying " << deliveries << " orders, "
+              << legMs.size() << " legs, " << kPromiseMs / 60000 << "-min promise): "
+              << arrivals.late << " deliveries at risk of arriving late ("
+              << 100.0 * arrivals.late / deliveries << "%), last delivery expected in "
+              << lastDeliveryMs / 60000.0 << " min" << std::endl;
+}
+
 void reportDeliveryStatistics(const delivery::infra::Config& cfg,
                               const delivery::infra::EventLog& log,
                               delivery::concurrency::GpuWorker& worker, bool useGpu) {
@@ -615,6 +706,7 @@ int main(int argc, char** argv) {
         reportDemandHeatmap(cfg, *network, log, gpuWorker, useGpu);
         reportCoverage(cfg, fleet, gpuWorker, useGpu);
         reportResponseMap(cfg, fleet, gpuWorker, useGpu);
+        reportRouteArrivals(*network, *travelTable, fleet, clock.nowMs(), gpuWorker, useGpu);
         gpuWorker.stop();
 
         const infra::Summary summary = log.summary();

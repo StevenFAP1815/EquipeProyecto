@@ -13,8 +13,10 @@
 #include <delivery/gpu/GroupByKey.hpp>
 #include <delivery/gpu/RadixSort.hpp>
 #include <delivery/gpu/ResponseMap.hpp>
+#include <delivery/gpu/RouteArrivals.hpp>
 #include <delivery/gpu/SegmentMerge.hpp>
 
+#include <algorithm>
 #include <memory>
 #include <random>
 #include <string>
@@ -722,6 +724,76 @@ BenchCase responseHistogramCase() {
     return c;
 }
 
+struct RandomRoutes {
+    std::vector<int> leg;
+    std::vector<unsigned char> start;
+    std::vector<int> deadline;
+};
+
+RandomRoutes randomRoutes(int legs, std::uint64_t seed) {
+    std::mt19937_64 rng(seed);
+    std::uniform_int_distribution<int> stops(2, 4);
+    std::uniform_int_distribution<int> legMs(30'000, 600'000);
+    std::uniform_int_distribution<int> deadline(0, 2'400'000);
+    std::bernoulli_distribution pickupFirst(0.5);
+    RandomRoutes r;
+    r.leg.reserve(static_cast<std::size_t>(legs));
+    r.start.reserve(static_cast<std::size_t>(legs));
+    r.deadline.reserve(static_cast<std::size_t>(legs));
+    while (static_cast<int>(r.leg.size()) < legs) {
+        const int count = std::min(stops(rng), legs - static_cast<int>(r.leg.size()));
+        const bool pickup = pickupFirst(rng);
+        for (int k = 0; k < count; ++k) {
+            r.leg.push_back(legMs(rng));
+            r.start.push_back(k == 0 ? 1 : 0);
+            r.deadline.push_back(k == 0 && pickup ? gpu::kNoDeadline : deadline(rng));
+        }
+    }
+    return r;
+}
+
+BenchCase routeArrivalsCase() {
+    static const std::vector<int> sizes = {10'000, 100'000, 1'000'000, 4'000'000, 16'000'000};
+    BenchCase c;
+    c.application = "route_arrivals";
+    for (int size : sizes) {
+        c.sizes.push_back(std::to_string(size));
+    }
+    c.prepare = [](std::size_t sizeIndex) {
+        auto routes = std::make_shared<RandomRoutes>(randomRoutes(sizes[sizeIndex], kBenchSeed + 4));
+        auto reference = std::make_shared<gpu::RouteArrivals>(
+            gpu::routeArrivalsCpu(routes->leg, routes->start, routes->deadline, 1));
+
+        std::vector<Version> versions;
+        for (unsigned threads : threadSweep(hardwareThreads())) {
+            versions.push_back({"cpu_t" + std::to_string(threads), [routes, reference, threads] {
+                                    Stopwatch watch;
+                                    const auto out = gpu::routeArrivalsCpu(routes->leg, routes->start,
+                                                                           routes->deadline, threads);
+                                    const double ms = watch.elapsedMs();
+                                    return Measurement{ms, out == *reference};
+                                }});
+        }
+#ifdef DELIVERY_USE_CUDA
+        versions.push_back({"gpu_kernel", [routes, reference] {
+                                gpu::KernelTiming timing;
+                                const auto out = gpu::routeArrivals(routes->leg, routes->start,
+                                                                    routes->deadline, &timing);
+                                return Measurement{timing.kernelMs, out == *reference};
+                            }});
+        versions.push_back({"gpu_e2e", [routes, reference] {
+                                Stopwatch watch;
+                                const auto out =
+                                    gpu::routeArrivals(routes->leg, routes->start, routes->deadline);
+                                const double ms = watch.elapsedMs();
+                                return Measurement{ms, out == *reference};
+                            }});
+#endif
+        return versions;
+    };
+    return c;
+}
+
 std::vector<BenchCase> allBenchCases(const infra::Config&) {
     std::vector<BenchCase> cases;
     cases.push_back(travelTableCase());
@@ -736,6 +808,7 @@ std::vector<BenchCase> allBenchCases(const infra::Config&) {
     cases.push_back(coverageFieldCase());
     cases.push_back(responseMapCase());
     cases.push_back(responseHistogramCase());
+    cases.push_back(routeArrivalsCase());
     return cases;
 }
 }
