@@ -125,6 +125,7 @@ python3 tools/gpu_report.py --laptop laptop_results.csv --colab colab_results.cs
 # Frecuencia de cuadros con ventana (portátil, WSL2 con WSLg)
 cmake -S . -B build-viewer -DCMAKE_BUILD_TYPE=Release -DENABLE_VIEWER=ON && cmake --build build-viewer -j
 ./build-viewer/delivery_sim config/city.json --log sim.log --frame-log frames_laptop_city.csv
+./build-viewer/delivery_sim config/city.json --heatmap --log sim.log --frame-log frames_laptop_city_lock.csv
 
 # Colab (T4): notebook 18-fps-aos-soa, ventana sobre la pantalla virtual Xvfb
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DUSE_CUDA=ON -DENABLE_VIEWER=ON && cmake --build build -j
@@ -685,7 +686,20 @@ Para comprobar el efecto de la GPU cuando de verdad trabaja en cada pedido, la o
 | 400–499 | 63,0 | 4.472 | 173 |
 | 500–578 | 69,8 | 4.137 | 197 |
 
-  El dibujo empeora a medida que crece la carga de la simulación: hay 29 cuadros de más de 200 ms y dos de más de 4 s. No viene de la GPU, que trabaja en otro hilo al que la ventana nunca espera. La explicación más probable es que en 2 vCPU el hilo de la ventana espera su turno frente a 3.000 hilos de repartidores, y que el *lock* que protege las posiciones de la flota está ocupado por la simulación. Es una hipótesis que aún no se ha medido por separado.
+  El dibujo empeora a medida que crece la carga de la simulación: hay 29 cuadros de más de 200 ms y dos de más de 4 s. No viene de la GPU, que trabaja en otro hilo al que la ventana nunca espera.
+
+**¿De dónde vienen los congelones?** Para averiguarlo, el registro de cuadros guarda dos tiempos más por cuadro: `lock_ms`, la espera del *lock* compartido de la flota (`transferMutex`), y `couriers_ms`, el dibujo completo de los repartidores con esa espera incluida. Ejecución de la ciudad en el portátil con `--heatmap`, 790 cuadros (`datos/fps/frames_laptop_city_lock.csv`):
+
+| Cuadros | Dibujo p50 / máx (ms) | Espera del *lock* p50 / máx (ms) | Repartidores p50 / máx (ms) |
+|---|---|---|---|
+| 0–99 | 10,0 / 73 | 0,00 / 0,0 | 4,0 / 58 |
+| 300–399 | 23,0 / 125 | 0,00 / 0,1 | 14,8 / 110 |
+| 500–599 | 32,5 / 811 | 0,00 / 0,0 | 21,9 / 808 |
+| 700–789 | 33,5 / 195 | 0,00 / 0,0 | 23,1 / 192 |
+
+- **El *lock* de la flota no es la causa:** la espera nunca pasa de 0,1 ms. La hipótesis inicial queda descartada.
+- **La causa está en el bucle que dibuja a los repartidores:** se lleva el **75 %** del tiempo de los 38 cuadros de más de 100 ms. En el peor cuadro, 808 de 811 ms. En ese bucle, la ventana pide tres veces por cuadro el *mutex* propio de cada uno de los 3.000 repartidores (bolsa de pedidos, posición y estado). Si el hilo del repartidor lo tiene tomado, o si el sistema operativo saca a la ventana de la CPU a mitad del bucle, el cuadro se alarga. Con esta medición no se puede separar una causa de la otra.
+- La mejora posible sería que cada repartidor publique su posición en una copia que la ventana lea sin pedir 3.000 *mutex*. Es un cambio de diseño de la parte concurrente y queda fuera del alcance de las aplicaciones GPU.
 - La captura de la ciudad muestra 2.512 pedidos rechazados por `queueFull`. Es el mismo efecto de la CPU de Colab descrito en el apartado 5 (2 vCPU frente a 3.000 hilos) y no depende de la ventana.
 
 ![ventana de la ciudad](figuras/ventana_ciudad.png)
