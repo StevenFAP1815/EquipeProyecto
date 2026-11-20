@@ -16,6 +16,8 @@ RUNS = [
     ("frames_colab_city_cpu.csv", "Colab, ciudad, --cpu-only"),
     ("frames_colab_city_measured.csv", "Colab, ciudad, measured"),
     ("frames_colab_city_always.csv", "Colab, ciudad, always"),
+    ("frames_colab_equipetrol_heatmap.csv", "Colab, Equipetrol, mapa de calor GPU"),
+    ("frames_colab_city_dense_heatmap.csv", "Colab, ciudad, dibujo simplificado + mapa de calor"),
 ]
 FRAME_CEILING_FPS = 1000.0 / 34.0
 

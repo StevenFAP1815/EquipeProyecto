@@ -137,6 +137,11 @@ l1tex__t_requests_pipe_lsu_mem_global_op_ld.sum,l1tex__t_sectors_pipe_lsu_mem_gl
 l1tex__t_bytes_pipe_lsu_mem_global_op_ld.sum -k regex:etaKernelSoA -c 1 \
     ./build/delivery_sim config/city.json --headless --bench x.csv --bench-once --bench-only eta_batch --bench-size 1000x5000
 
+# Colab (T4): notebook 19-validar-ventana, dibujo simplificado y mapa de calor
+xvfb-run -a -s "-screen 0 1280x800x24" ./build/delivery_sim config/city.json --heatmap \
+    --screenshot ventana.png --frame-log frames_colab_city_dense_heatmap.csv --log sim.log
+compute-sanitizer --tool memcheck ./build/tests/delivery_tests
+
 # ThreadSanitizer (portátil, WSL2)
 cmake -S . -B build-tsan -DENABLE_TSAN=ON -DENABLE_VIEWER=OFF && cmake --build build-tsan -j
 ./build-tsan/tests/delivery_tests && ./build-tsan/delivery_sim config/equipetrol.json --headless
@@ -658,6 +663,30 @@ Para comprobar el efecto de la GPU cuando de verdad trabaja en cada pedido, la o
 - El dibujo por cuadro baja **de 68 a 15 ms (4,5 veces menos)** y la frecuencia **se duplica**. El suavizado de bordes de 3.000 círculos con contorno era la mayor parte del coste.
 - La ventana sigue por debajo del techo (~29 FPS) porque los 3.000 hilos de repartidores compiten por 8 hilos de CPU: el p95 del intervalo (80 ms) dobla al del dibujo (41 ms).
 - Las mediciones de Colab de la tabla anterior se hicieron con el dibujo original; la comparación entre modos de despacho sigue siendo válida, porque los tres modos usaban el mismo dibujo.
+
+**Confirmación en la T4** (notebook `19-validar-ventana`, compilación con CUDA, Xvfb, modo `measured`, `--heatmap`): la compilación con la ventana pasa los **140 tests** y `compute-sanitizer --tool memcheck` informa **0 errores**.
+
+| Colab, T4 | FPS | Intervalo p50 / p95 / máx (ms) | Dibujo p50 / p95 (ms) |
+|---|---|---|---|
+| Equipetrol, mapa de calor en la GPU | 27,6 | 36,0 / 38,0 / 40,9 | 1,9 / 3,4 |
+| Ciudad, dibujo original, sin mapa de calor (tabla anterior) | 4,1 | 140 / 464 / 6.016 | 106 / 422 |
+| Ciudad, dibujo simplificado **y** mapa de calor | **9,9** | 56,7 / 204 / 5.307 | **22,9** / 157 |
+
+- En la T4 el dibujo típico de la ciudad baja **de 106 a 23 ms (4,6 veces menos)** y la frecuencia sube **de 4,1 a 9,9 FPS (2,4 veces)**, aunque ahora además se dibuja el mapa de calor. Es el mismo efecto medido en el portátil.
+- En Equipetrol el mapa de calor cuesta 1 FPS (de 28,6 a 27,6), igual que en el portátil: suavizar en la GPU no frena la ventana.
+- **Los congelones siguen.** Dividiendo la ejecución de la ciudad en tramos de 100 cuadros (`datos/fps/frames_colab_city_dense_heatmap.csv`):
+
+| Cuadros | Dibujo p50 (ms) | Dibujo máx (ms) | Intervalo medio (ms) |
+|---|---|---|---|
+| 0–99 | 11,8 | 62 | 49 |
+| 100–199 | 10,9 | 36 | 48 |
+| 200–299 | 14,7 | 58 | 51 |
+| 300–399 | 55,2 | 409 | 112 |
+| 400–499 | 63,0 | 4.472 | 173 |
+| 500–578 | 69,8 | 4.137 | 197 |
+
+  El dibujo empeora a medida que crece la carga de la simulación: hay 29 cuadros de más de 200 ms y dos de más de 4 s. No viene de la GPU, que trabaja en otro hilo al que la ventana nunca espera. La explicación más probable es que en 2 vCPU el hilo de la ventana espera su turno frente a 3.000 hilos de repartidores, y que el *lock* que protege las posiciones de la flota está ocupado por la simulación. Es una hipótesis que aún no se ha medido por separado.
+- La captura de la ciudad muestra 2.512 pedidos rechazados por `queueFull`. Es el mismo efecto de la CPU de Colab descrito en el apartado 5 (2 vCPU frente a 3.000 hilos) y no depende de la ventana.
 
 ![ventana de la ciudad](figuras/ventana_ciudad.png)
 
