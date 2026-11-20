@@ -12,6 +12,7 @@
 #include <delivery/gpu/FloydWarshall.hpp>
 #include <delivery/gpu/GroupByKey.hpp>
 #include <delivery/gpu/RadixSort.hpp>
+#include <delivery/gpu/ResponseMap.hpp>
 #include <delivery/gpu/SegmentMerge.hpp>
 
 #include <memory>
@@ -600,6 +601,61 @@ BenchCase coverageFieldCase() {
     return c;
 }
 
+BenchCase responseMapCase() {
+    static const std::vector<int> sides = {32, 128, 256, 512, 1024};
+    constexpr int kSweeps = 100;
+    BenchCase c;
+    c.application = "response_map";
+    for (int side : sides) {
+        c.sizes.push_back(std::to_string(side) + "x" + std::to_string(side));
+    }
+    c.prepare = [](std::size_t sizeIndex) {
+        const int side = sides[sizeIndex];
+        const std::size_t cells = static_cast<std::size_t>(side) * side;
+        std::mt19937_64 rng(kBenchSeed + 2);
+        std::bernoulli_distribution idle(0.002);
+        std::uniform_int_distribution<int> crossing(10, 40);
+        auto initial = std::make_shared<std::vector<int>>(cells, gpu::kResponseUnreachable);
+        auto cost = std::make_shared<std::vector<int>>(cells);
+        for (std::size_t i = 0; i < cells; ++i) {
+            if (idle(rng)) {
+                (*initial)[i] = 0;
+            }
+            (*cost)[i] = crossing(rng);
+        }
+        auto reference = std::make_shared<std::vector<int>>(
+            gpu::responseMapCpu(*initial, *cost, side, side, kSweeps, 1));
+
+        std::vector<Version> versions;
+        for (unsigned threads : threadSweep(hardwareThreads())) {
+            versions.push_back({"cpu_t" + std::to_string(threads),
+                                [initial, cost, reference, side, threads] {
+                                    Stopwatch watch;
+                                    const auto times = gpu::responseMapCpu(*initial, *cost, side, side,
+                                                                           kSweeps, threads);
+                                    const double ms = watch.elapsedMs();
+                                    return Measurement{ms, times == *reference};
+                                }});
+        }
+#ifdef DELIVERY_USE_CUDA
+        versions.push_back({"gpu_kernel", [initial, cost, reference, side] {
+                                gpu::KernelTiming timing;
+                                const auto times =
+                                    gpu::responseMap(*initial, *cost, side, side, kSweeps, &timing);
+                                return Measurement{timing.kernelMs, times == *reference};
+                            }});
+        versions.push_back({"gpu_e2e", [initial, cost, reference, side] {
+                                Stopwatch watch;
+                                const auto times = gpu::responseMap(*initial, *cost, side, side, kSweeps);
+                                const double ms = watch.elapsedMs();
+                                return Measurement{ms, times == *reference};
+                            }});
+#endif
+        return versions;
+    };
+    return c;
+}
+
 std::vector<BenchCase> allBenchCases(const infra::Config&) {
     std::vector<BenchCase> cases;
     cases.push_back(travelTableCase());
@@ -612,6 +668,7 @@ std::vector<BenchCase> allBenchCases(const infra::Config&) {
     cases.push_back(courierLogMergeCase());
     cases.push_back(demandHeatmapCase());
     cases.push_back(coverageFieldCase());
+    cases.push_back(responseMapCase());
     return cases;
 }
 }

@@ -36,6 +36,7 @@ add_executable(delivery_tests
     test_segment_merge.cpp
     test_demand_heatmap.cpp
     test_coverage_field.cpp
+    test_response_map.cpp
     test_gpu_thresholds.cpp
     test_frame_stats.cpp
     test_grid_binning.cpp

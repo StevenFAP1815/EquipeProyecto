@@ -17,6 +17,7 @@
 #include <delivery/gpu/FloydWarshall.hpp>
 #include <delivery/gpu/GroupByKey.hpp>
 #include <delivery/gpu/RadixSort.hpp>
+#include <delivery/gpu/ResponseMap.hpp>
 #include <delivery/gpu/SegmentMerge.hpp>
 #include <delivery/infra/ConfigLoader.hpp>
 #include <delivery/infra/EventLog.hpp>
@@ -254,6 +255,66 @@ void reportCoverage(const delivery::infra::Config& cfg, const delivery::sim::Fle
               << " couriers): least covered cell (" << cx << "," << cy << ") near " << lat << ","
               << lon << " with coverage " << field[static_cast<std::size_t>(least)]
               << ", where idle couriers should wait" << std::endl;
+}
+
+void reportResponseMap(const delivery::infra::Config& cfg, const delivery::sim::Fleet& fleet,
+                       delivery::concurrency::GpuWorker& worker, bool useGpu) {
+    using namespace delivery;
+    constexpr int kCells = 64;
+    constexpr int kSweeps = 4 * kCells;
+    constexpr int kOffStreetFactor = 4;
+    const auto& bounds = cfg.map.bounds;
+    const double widthMeters = core::GeoBounds::distanceMeters({bounds.north(), bounds.west()},
+                                                               {bounds.north(), bounds.east()});
+    const double heightMeters = core::GeoBounds::distanceMeters({bounds.north(), bounds.west()},
+                                                                {bounds.south(), bounds.west()});
+    const double cellMeters = (widthMeters + heightMeters) / (2.0 * kCells);
+    const double metersPerSecond = std::max(1.0, cfg.fleet.speedKmh) / 3.6;
+    const int streetCost = std::max(1, static_cast<int>(cellMeters / metersPerSecond + 0.5));
+
+    const std::size_t cells = static_cast<std::size_t>(kCells) * kCells;
+    std::vector<bool> hasStreet(cells, false);
+    for (const core::Node& node : cfg.nodes) {
+        hasStreet[static_cast<std::size_t>(core::cellIndex({node.lat, node.lon}, bounds, kCells))] = true;
+    }
+    std::vector<int> cost(cells);
+    for (std::size_t i = 0; i < cells; ++i) {
+        cost[i] = hasStreet[i] ? streetCost : streetCost * kOffStreetFactor;
+    }
+    std::vector<int> initial(cells, gpu::kResponseUnreachable);
+    int working = 0;
+    for (const auto& courier : fleet.couriers()) {
+        if (courier->state() != sim::CourierState::BrokenDown) {
+            initial[static_cast<std::size_t>(core::cellIndex(courier->position(), bounds, kCells))] = 0;
+            ++working;
+        }
+    }
+    if (working == 0) {
+        std::cerr << "Response time map: no working couriers at the end of the run" << std::endl;
+        return;
+    }
+
+    std::vector<int> times;
+    if (useGpu) {
+        times = worker.submit([&initial, &cost] {
+            return gpu::responseMap(initial, cost, kCells, kCells, kSweeps);
+        }).get();
+    } else {
+        times = gpu::responseMapCpu(initial, cost, kCells, kCells, kSweeps, cpuThreads());
+    }
+    const int worst = gpu::worstServedCell(times, hasStreet);
+    if (worst < 0) {
+        return;
+    }
+    const int cx = worst % kCells;
+    const int cy = worst / kCells;
+    const double lat = bounds.north() - (cy + 0.5) / kCells * (bounds.north() - bounds.south());
+    const double lon = bounds.west() + (cx + 0.5) / kCells * (bounds.east() - bounds.west());
+    std::cerr << "Response time map (" << kCells << "x" << kCells << " cells, " << kSweeps
+              << " min-plus sweeps, " << working << " working couriers, " << streetCost
+              << " s per street cell): worst served cell (" << cx << "," << cy << ") near " << lat
+              << "," << lon << " at " << times[static_cast<std::size_t>(worst)] / 60.0
+              << " min from the nearest courier" << std::endl;
 }
 
 void reportDeliveryStatistics(const delivery::infra::Config& cfg,
@@ -511,6 +572,7 @@ int main(int argc, char** argv) {
         reportDeliveryStatistics(cfg, log, gpuWorker, useGpu);
         reportDemandHeatmap(cfg, *network, log, gpuWorker, useGpu);
         reportCoverage(cfg, fleet, gpuWorker, useGpu);
+        reportResponseMap(cfg, fleet, gpuWorker, useGpu);
         gpuWorker.stop();
 
         const infra::Summary summary = log.summary();
