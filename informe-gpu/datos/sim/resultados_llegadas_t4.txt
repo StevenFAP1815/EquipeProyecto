@@ -1,0 +1,7 @@
+# notebook 22-llegadas-por-ruta (v2), Tesla T4, simulación completa con la GPU
+## equipetrol
+Compute backend: GPU (nvcc) | Tesla T4 | 40 SMs | 1024 threads/SM | warp 32
+Route arrivals (13 couriers carrying 17 orders, 20 legs, 30-min promise): 0 deliveries at risk of arriving late (0%), last delivery expected in 9.5477 min
+## city
+Compute backend: GPU (nvcc) | Tesla T4 | 40 SMs | 1024 threads/SM | warp 32
+Route arrivals (2983 couriers carrying 5685 orders, 6521 legs, 30-min promise): 2680 deliveries at risk of arriving late (47.1416%), last delivery expected in 62.1262 min

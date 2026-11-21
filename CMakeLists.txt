@@ -49,11 +49,27 @@ endif()
 if(MSVC)
     add_compile_options(/W4 /permissive-)
 else()
-    add_compile_options(-Wall -Wextra -Wpedantic)
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-Wall> $<$<COMPILE_LANGUAGE:CXX>:-Wextra>
+                        $<$<COMPILE_LANGUAGE:CXX>:-Wpedantic>)
+endif()
+
+option(ENABLE_VIEWER "Build the OpenCV window" ON)
+option(USE_CUDA "Compile the .cu sources with nvcc for an NVIDIA GPU" OFF)
+
+if(USE_CUDA)
+    if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+        set(CMAKE_CUDA_ARCHITECTURES 75)
+    endif()
+    enable_language(CUDA)
+    set(CMAKE_CUDA_STANDARD 17)
+    set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+    find_package(CUDAToolkit REQUIRED)
 endif()
 
 find_package(Threads REQUIRED)
-find_package(OpenCV REQUIRED COMPONENTS core highgui imgproc imgcodecs)
+if(ENABLE_VIEWER)
+    find_package(OpenCV REQUIRED COMPONENTS core highgui imgproc imgcodecs)
+endif()
 
 include(FetchContent)
 FetchContent_Declare(
@@ -63,36 +79,81 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(nlohmann_json)
 
+set(DELIVERY_GPU_SOURCES
+    src/gpu/DeviceInfo.cu
+    src/gpu/EventTimer.cu
+    src/gpu/FloydWarshall.cu
+    src/gpu/CandidateFilter.cu
+    src/gpu/EtaBatch.cu
+    src/gpu/ArgminReduction.cu
+    src/gpu/DeliveryHistogram.cu
+    src/gpu/RadixSort.cu
+    src/gpu/GroupByKey.cu
+    src/gpu/SegmentMerge.cu
+    src/gpu/DemandHeatmap.cu
+    src/gpu/CoverageField.cu
+    src/gpu/ResponseMap.cu
+    src/gpu/RouteArrivals.cu
+)
+
+add_library(delivery_gpu STATIC ${DELIVERY_GPU_SOURCES})
+target_include_directories(delivery_gpu PUBLIC include)
+target_link_libraries(delivery_gpu PUBLIC Threads::Threads)
+
+if(USE_CUDA)
+    target_link_libraries(delivery_gpu PUBLIC CUDA::cudart)
+    target_compile_definitions(delivery_gpu PUBLIC DELIVERY_USE_CUDA)
+else()
+    set_source_files_properties(${DELIVERY_GPU_SOURCES} PROPERTIES LANGUAGE CXX)
+    if(NOT MSVC)
+        target_compile_options(delivery_gpu PRIVATE -x c++)
+    endif()
+endif()
+
 add_library(delivery_core STATIC
     src/core/GeoBounds.cpp
     src/core/PathFinder.cpp
     src/core/StreetNetwork.cpp
+    src/core/CsrGraph.cpp
+    src/core/TravelTable.cpp
+    src/core/PlanarProjection.cpp
+    src/core/CandidateFilter.cpp
+    src/core/GridBinning.cpp
     src/infra/ConfigLoader.cpp
     src/infra/EventLog.cpp
     src/concurrency/ShutdownToken.cpp
     src/concurrency/ChangeSignal.cpp
     src/concurrency/PickupDesk.cpp
     src/concurrency/OrderBook.cpp
+    src/concurrency/GpuWorker.cpp
     src/sim/SimClock.cpp
     src/sim/OrderGenerator.cpp
     src/sim/Courier.cpp
     src/sim/Fleet.cpp
     src/sim/Dispatcher.cpp
+    src/bench/BenchRunner.cpp
+    src/bench/Applications.cpp
+    src/viz/FrameStats.cpp
 )
 target_include_directories(delivery_core PUBLIC include)
 target_link_libraries(delivery_core PUBLIC
+    delivery_gpu
     nlohmann_json::nlohmann_json
     Threads::Threads
 )
 
 add_executable(delivery_sim
     src/main.cpp
-    src/viz/Renderer.cpp
 )
 target_link_libraries(delivery_sim PRIVATE
     delivery_core
-    ${OpenCV_LIBS}
 )
+
+if(ENABLE_VIEWER)
+    target_sources(delivery_sim PRIVATE src/viz/Renderer.cpp)
+    target_link_libraries(delivery_sim PRIVATE ${OpenCV_LIBS})
+    target_compile_definitions(delivery_sim PRIVATE DELIVERY_HAS_VIEWER)
+endif()
 
 if(ENABLE_TSAN)
     target_sources(delivery_sim PRIVATE src/analysis/tsan_default_suppressions.cpp)

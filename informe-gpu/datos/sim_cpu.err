@@ -1,0 +1,8 @@
+Compute backend: GPU (nvcc) | Tesla T4 | 40 SMs | 1024 threads/SM | warp 32
+Travel table: 4096 nodes on CPU (parallel Dijkstra) in 1049.22 ms
+Delivery-time histogram (1-minute bins, 9496 deliveries): 3m=1 4m=1 5m=8 6m=17 7m=37 8m=58 9m=86 10m=105 11m=167 12m=217 13m=292 14m=306 15m=361 16m=349 17m=394 18m=440 19m=419 20m=454 21m=483 22m=463 23m=482 24m=463 25m=494 26m=439 27m=374 28m=381 29m=359 30m=302 31m=285 32m=229 33m=180 34m=170 35m=142 36m=123 37m=85 38m=78 39m=62 40m=45 41m=32 42m=26 43m=25 44m=15 45m=15 46m=12 47m=8 48m=7 49m=4 51m=1
+Delivery-time percentiles (9496 deliveries): p50=1392644 ms, p90=2008224 ms, p99=2561283 ms
+Deliveries grouped by restaurant (60 restaurants): busiest r9 (212 deliveries), slowest average r13 (1950527 ms)
+Merged delivery timeline (9496 deliveries from 2935 couriers, ordered=yes): busiest 10-minute window starts at 2931977 ms with 2687 deliveries
+Demand heatmap (64x64 cells, 5x5 Gaussian, 17836 orders): hottest cell (21,14) near -17.7576,-63.1934 with smoothed demand 7.48828
+Coverage field (64x64 cells, 200 Jacobi sweeps, 3000 couriers): least covered cell (1,1) near -17.741,-63.219 with coverage 0.423459, where idle couriers should wait

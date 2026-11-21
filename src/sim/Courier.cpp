@@ -122,6 +122,11 @@ std::vector<core::NodeId> Courier::deliveryNodesInBag() const {
     return nodes;
 }
 
+std::vector<core::Order> Courier::bagSnapshot() const {
+    std::lock_guard<std::mutex> lock(stateMutex_);
+    return bag_;
+}
+
 std::int64_t Courier::latestReadyAtLocked() const {
     std::int64_t latest = 0;
     for (const core::Order& order : bag_) {

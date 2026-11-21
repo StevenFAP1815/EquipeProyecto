@@ -46,15 +46,32 @@ cmake -DENABLE_TSAN=ON .. && make   # ThreadSanitizer (mismo target delivery_sim
 cmake -DENABLE_ASAN=ON .. && make   # AddressSanitizer + LeakSanitizer
 ```
 
-**Tests:** `cd build && ctest --output-on-failure` (70 tests).
+**Tests:** `cd build && ctest --output-on-failure` (140 tests).
+
+**GPU (CUDA):** las funciones GPU están en `src/gpu/*.cu`. Sin opciones, los `.cu` se compilan como C++ a través de `include/delivery/gpu/cuda_compat.h` y el simulador usa las versiones de CPU. Con una GPU NVIDIA:
+
+```bash
+cmake -DUSE_CUDA=ON -DENABLE_VIEWER=OFF .. && make
+./delivery_sim ../config/city.json --headless              # GPU por encima de los umbrales medidos
+./delivery_sim ../config/city.json --headless --cpu-only   # misma simulación, solo CPU
+./delivery_sim ../config/city.json --gpu-dispatch always   # GPU en cada pedido, sin umbrales
+./delivery_sim ../config/city.json --frame-log frames.csv  # con ventana: tiempos por cuadro en CSV
+./delivery_sim ../config/equipetrol.json --heatmap --screenshot ventana.png   # capa del mapa de calor (tecla h)
+./delivery_sim ../config/city.json --headless --bench results.csv [--bench-once] [--bench-only <app>] [--bench-size <tamaño>]
+```
+
+El informe de rendimiento (diez aplicaciones, mediciones en portátil y en una Tesla T4, roofline, ocupación y efecto en la simulación) está en [`informe-gpu/INFORME.md`](informe-gpu/INFORME.md); sus tablas y figuras se regeneran con `python3 tools/gpu_report.py --laptop <csv> --colab <csv> --out <dir>`.
 
 ## Ejecución
 
 ```bash
 ./delivery_sim ../config/equipetrol.json
 ./delivery_sim ../config/equipetrol.json --log run1.log
+./delivery_sim ../config/equipetrol.json --headless
 ```
 
+- `config/city.json` es una ciudad sintética de 4.096 intersecciones, 60 restaurantes y 3.000 repartidores, generada con semilla fija por `python3 tools/make_city.py` (parámetros `--rows --cols --couriers --restaurants --seed --out`).
+- `--headless` ejecuta la simulación sin ventana. Compilando con `cmake -DENABLE_VIEWER=OFF ..` el programa no necesita OpenCV y siempre corre sin ventana.
 - Cuando todos los hilos están en marcha imprime `Simulation has started...`.
 - Abre una ventana con el mapa, los restaurantes, cada repartidor como un punto que se mueve por las calles (con un color por estado), los puntos de entrega y un panel de contadores.
 - Cada cambio de estado se escribe como una línea JSON en `events.log` (o en la ruta de `--log`).

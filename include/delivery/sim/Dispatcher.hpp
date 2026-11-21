@@ -1,10 +1,14 @@
 #pragma once
 
 #include <delivery/concurrency/ChangeSignal.hpp>
+#include <delivery/concurrency/GpuWorker.hpp>
+#include <delivery/core/PlanarProjection.hpp>
 #include <delivery/concurrency/OrderBook.hpp>
 #include <delivery/concurrency/ShutdownToken.hpp>
 #include <delivery/core/Order.hpp>
 #include <delivery/core/StreetNetwork.hpp>
+#include <delivery/core/TravelTable.hpp>
+#include <delivery/gpu/EtaBatch.hpp>
 #include <delivery/infra/Config.hpp>
 #include <delivery/infra/EventLog.hpp>
 #include <delivery/sim/Courier.hpp>
@@ -16,6 +20,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <vector>
 
 namespace delivery::sim {
@@ -25,6 +30,8 @@ struct QuoteRequest {
     core::NodeId deliveryNode;
     std::int64_t readyAtMs = 0;
 };
+
+enum class GpuDispatch { Measured, Always };
 
 class Dispatcher {
 public:
@@ -43,6 +50,25 @@ public:
     Dispatcher(const Dispatcher&) = delete;
     Dispatcher& operator=(const Dispatcher&) = delete;
 
+    static constexpr std::int32_t kCandidateRadiusDm = 20000;
+    static constexpr std::size_t kGpuFilterMinCouriers = 64000;
+    static constexpr std::size_t kGpuEtaMinPairs = 10000;
+
+    static bool gpuFilterWorthIt(std::size_t couriers) { return couriers >= kGpuFilterMinCouriers; }
+    static bool gpuEtaWorthIt(std::size_t orders, std::size_t couriers) {
+        return orders * couriers >= kGpuEtaMinPairs;
+    }
+    static bool gpuFilterWanted(GpuDispatch policy, std::size_t couriers) {
+        return policy == GpuDispatch::Always || gpuFilterWorthIt(couriers);
+    }
+    static bool gpuEtaWanted(GpuDispatch policy, std::size_t orders, std::size_t couriers) {
+        return policy == GpuDispatch::Always || gpuEtaWorthIt(orders, couriers);
+    }
+
+    void useTravelTable(std::shared_ptr<const core::TravelTable> table);
+    void useGpu(concurrency::GpuWorker& worker, GpuDispatch policy = GpuDispatch::Measured);
+    void useEtaEngine(gpu::EtaEngine* engine);
+
     void run();
 
     std::uint64_t unreachableCount() const { return unreachable_.load(); }
@@ -57,10 +83,26 @@ private:
     void dispatch(core::Order& order);
     Courier* chooseCourier(const QuoteRequest& request);
     std::vector<Courier*> nearestCandidates(const QuoteRequest& request) const;
+    std::vector<Courier*> filteredCandidates(const QuoteRequest& request) const;
+    Courier* chooseCourierBatch(const QuoteRequest& request);
+    gpu::BestCourier batchBest(const gpu::EtaOrders& orders, const gpu::EtaCouriers& couriers,
+                               long long nowMs);
+    int nodeIndexOf(const core::NodeId& node) const;
+    static int cmPerSecond(double speedKmh);
+    std::vector<int> filterCandidates(const std::vector<std::int32_t>& xDm,
+                                      const std::vector<std::int32_t>& yDm,
+                                      const std::vector<std::uint8_t>& available,
+                                      core::PlanarPoint center) const;
     std::int64_t estimateDeliveryMs(const Courier& courier, QuoteRequest request) const;
+    std::optional<double> travelMeters(const core::NodeId& from, const core::NodeId& to) const;
 
     const infra::Config& config_;
     std::shared_ptr<const core::StreetNetwork> network_;
+    std::shared_ptr<const core::TravelTable> travelTable_;
+    concurrency::GpuWorker* gpuWorker_ = nullptr;
+    GpuDispatch gpuPolicy_ = GpuDispatch::Measured;
+    gpu::EtaEngine* etaEngine_ = nullptr;
+    core::PlanarProjection projection_;
     concurrency::OrderBook& book_;
     Fleet& fleet_;
     SimClock& clock_;
@@ -68,6 +110,7 @@ private:
     concurrency::ShutdownToken& stop_;
     infra::EventLog& log_;
     Estimator estimator_;
+    const bool customEstimator_;
     const std::size_t maxCandidates_;
 
     std::atomic<std::uint64_t> unreachable_{0};

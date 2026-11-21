@@ -1,23 +1,49 @@
+#include <delivery/bench/Applications.hpp>
+#include <delivery/bench/BenchRunner.hpp>
+#include <delivery/bench/Stopwatch.hpp>
 #include <delivery/concurrency/ChangeSignal.hpp>
+#include <delivery/concurrency/GpuWorker.hpp>
 #include <delivery/concurrency/OrderBook.hpp>
 #include <delivery/concurrency/ShutdownToken.hpp>
+#include <delivery/core/CsrGraph.hpp>
+#include <delivery/core/GridBinning.hpp>
 #include <delivery/core/StreetNetwork.hpp>
+#include <delivery/core/TravelTable.hpp>
+#include <delivery/gpu/CoverageField.hpp>
+#include <delivery/gpu/DeliveryHistogram.hpp>
+#include <delivery/gpu/DemandHeatmap.hpp>
+#include <delivery/gpu/DeviceInfo.hpp>
+#include <delivery/gpu/EtaBatch.hpp>
+#include <delivery/gpu/EtaFormula.hpp>
+#include <delivery/gpu/FloydWarshall.hpp>
+#include <delivery/gpu/GroupByKey.hpp>
+#include <delivery/gpu/RadixSort.hpp>
+#include <delivery/gpu/ResponseMap.hpp>
+#include <delivery/gpu/RouteArrivals.hpp>
+#include <delivery/gpu/SegmentMerge.hpp>
 #include <delivery/infra/ConfigLoader.hpp>
 #include <delivery/infra/EventLog.hpp>
 #include <delivery/sim/Dispatcher.hpp>
 #include <delivery/sim/Fleet.hpp>
 #include <delivery/sim/OrderGenerator.hpp>
 #include <delivery/sim/SimClock.hpp>
+#ifdef DELIVERY_HAS_VIEWER
 #include <delivery/viz/Renderer.hpp>
+#endif
 
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <csignal>
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
+#include <map>
+#include <memory>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <thread>
 
@@ -53,20 +79,530 @@ void waitForEndOfSimulation(const delivery::infra::Config& cfg,
 struct Arguments {
     std::filesystem::path configPath;
     std::filesystem::path logPath = "events.log";
+    bool headless = false;
+    std::filesystem::path benchPath;
+    bool benchOnce = false;
+    std::string benchOnly;
+    std::string benchSize;
+    bool cpuOnly = false;
+    std::filesystem::path frameLogPath;
+    delivery::sim::GpuDispatch gpuDispatch = delivery::sim::GpuDispatch::Measured;
+    bool showHeatmap = false;
+    std::filesystem::path screenshotPath;
 };
 
+bool gpuCompiledIn() {
+#ifdef DELIVERY_USE_CUDA
+    return true;
+#else
+    return false;
+#endif
+}
+
+unsigned cpuThreads() {
+    return std::max(1u, std::thread::hardware_concurrency());
+}
+
+std::string describeGroups(const delivery::infra::Config& cfg,
+                           const delivery::gpu::Grouping& groups,
+                           const std::vector<long long>& durations) {
+    std::ostringstream out;
+    out << "Deliveries grouped by restaurant (" << cfg.restaurants.size() << " restaurants):";
+    int busiest = -1;
+    int slowest = -1;
+    int busiestCount = 0;
+    double slowestAverage = -1.0;
+    for (std::size_t r = 0; r + 1 < groups.offsets.size(); ++r) {
+        const int begin = groups.offsets[r];
+        const int end = groups.offsets[r + 1];
+        if (end == begin) {
+            continue;
+        }
+        long long total = 0;
+        for (int p = begin; p < end; ++p) {
+            total += durations[static_cast<std::size_t>(groups.order[static_cast<std::size_t>(p)])];
+        }
+        const double average = static_cast<double>(total) / (end - begin);
+        if (end - begin > busiestCount) {
+            busiestCount = end - begin;
+            busiest = static_cast<int>(r);
+        }
+        if (average > slowestAverage) {
+            slowestAverage = average;
+            slowest = static_cast<int>(r);
+        }
+    }
+    if (busiest < 0) {
+        out << " none";
+        return out.str();
+    }
+    out << " busiest " << cfg.restaurants[static_cast<std::size_t>(busiest)].id.str() << " ("
+        << busiestCount << " deliveries), slowest average "
+        << cfg.restaurants[static_cast<std::size_t>(slowest)].id.str() << " ("
+        << static_cast<long long>(slowestAverage) << " ms)";
+    return out.str();
+}
+
+delivery::gpu::Timeline timelineByCourier(const std::vector<delivery::infra::DeliveryStamp>& stamps,
+                                          std::vector<int>& offsets) {
+    std::map<std::string, int> courierIndex;
+    std::vector<std::vector<long long>> perCourier;
+    for (const auto& stamp : stamps) {
+        const auto [it, inserted] =
+            courierIndex.emplace(stamp.courier, static_cast<int>(perCourier.size()));
+        if (inserted) {
+            perCourier.emplace_back();
+        }
+        perCourier[static_cast<std::size_t>(it->second)].push_back(stamp.t);
+    }
+    delivery::gpu::Timeline segments;
+    offsets.assign(1, 0);
+    for (std::size_t c = 0; c < perCourier.size(); ++c) {
+        for (long long t : perCourier[c]) {
+            segments.t.push_back(t);
+            segments.source.push_back(static_cast<int>(c));
+        }
+        offsets.push_back(static_cast<int>(segments.t.size()));
+    }
+    return segments;
+}
+
+std::string describeTimeline(const delivery::gpu::Timeline& merged, int couriers) {
+    constexpr long long kWindowMs = 10 * 60 * 1000;
+    std::size_t bestCount = 0;
+    long long bestStart = 0;
+    std::size_t begin = 0;
+    for (std::size_t end = 0; end < merged.t.size(); ++end) {
+        while (merged.t[end] - merged.t[begin] >= kWindowMs) {
+            ++begin;
+        }
+        if (end - begin + 1 > bestCount) {
+            bestCount = end - begin + 1;
+            bestStart = merged.t[begin];
+        }
+    }
+    std::ostringstream out;
+    out << "Merged delivery timeline (" << merged.t.size() << " deliveries from " << couriers
+        << " couriers, ordered=" << (std::is_sorted(merged.t.begin(), merged.t.end()) ? "yes" : "no")
+        << "): busiest 10-minute window starts at " << bestStart << " ms with " << bestCount
+        << " deliveries";
+    return out.str();
+}
+
+void reportDemandHeatmap(const delivery::infra::Config& cfg,
+                         const delivery::core::StreetNetwork& network,
+                         const delivery::infra::EventLog& log,
+                         delivery::concurrency::GpuWorker& worker, bool useGpu) {
+    using namespace delivery;
+    constexpr int kCells = 64;
+    const auto& bounds = cfg.map.bounds;
+    std::vector<core::LatLon> points;
+    for (const std::string& node : log.createdDeliveryNodes()) {
+        if (const auto position = network.nodeLatLon(core::NodeId(node))) {
+            points.push_back(*position);
+        }
+    }
+    const std::vector<int> counts = core::binPoints(points, bounds, kCells);
+    const auto orders = points.size();
+
+    std::vector<int> smoothed;
+    if (useGpu) {
+        smoothed = worker.submit([&counts] {
+            return gpu::smoothDemand(counts, kCells, kCells);
+        }).get();
+    } else {
+        smoothed = gpu::smoothDemandCpu(counts, kCells, kCells, cpuThreads());
+    }
+
+    const auto hottest = std::max_element(smoothed.begin(), smoothed.end());
+    const auto index = static_cast<int>(hottest - smoothed.begin());
+    const int cx = index % kCells;
+    const int cy = index / kCells;
+    const double lat = bounds.north() - (cy + 0.5) / kCells * (bounds.north() - bounds.south());
+    const double lon = bounds.west() + (cx + 0.5) / kCells * (bounds.east() - bounds.west());
+    std::cerr << "Demand heatmap (" << kCells << "x" << kCells << " cells, " << gpu::kHeatWidth
+              << "x" << gpu::kHeatWidth << " Gaussian, " << orders << " orders): hottest cell ("
+              << cx << "," << cy << ") near " << lat << "," << lon << " with smoothed demand "
+              << static_cast<double>(*hottest) / gpu::kHeatWeightSum << std::endl;
+}
+
+void reportCoverage(const delivery::infra::Config& cfg, const delivery::sim::Fleet& fleet,
+                    delivery::concurrency::GpuWorker& worker, bool useGpu) {
+    using namespace delivery;
+    constexpr int kCells = 64;
+    constexpr int kSweeps = 200;
+    const auto& bounds = cfg.map.bounds;
+    std::vector<float> density(static_cast<std::size_t>(kCells) * kCells, 0.0f);
+    for (const auto& courier : fleet.couriers()) {
+        density[static_cast<std::size_t>(core::cellIndex(courier->position(), bounds, kCells))] += 1.0f;
+    }
+
+    std::vector<float> field;
+    if (useGpu) {
+        field = worker.submit([&density] {
+            return gpu::coverageField(density, kCells, kCells, kSweeps);
+        }).get();
+    } else {
+        field = gpu::coverageFieldCpu(density, kCells, kCells, kSweeps, cpuThreads());
+    }
+    const int least = gpu::leastCoveredInteriorCell(field, kCells, kCells);
+    if (least < 0) {
+        return;
+    }
+    const int cx = least % kCells;
+    const int cy = least / kCells;
+    const double lat = bounds.north() - (cy + 0.5) / kCells * (bounds.north() - bounds.south());
+    const double lon = bounds.west() + (cx + 0.5) / kCells * (bounds.east() - bounds.west());
+    std::cerr << "Coverage field (" << kCells << "x" << kCells << " cells, " << kSweeps
+              << " Jacobi sweeps, " << fleet.couriers().size()
+              << " couriers): least covered cell (" << cx << "," << cy << ") near " << lat << ","
+              << lon << " with coverage " << field[static_cast<std::size_t>(least)]
+              << ", where idle couriers should wait" << std::endl;
+}
+
+std::string describeResponseProfile(const std::vector<unsigned>& bins) {
+    using namespace delivery;
+    unsigned long long reachable = 0;
+    for (int b = 0; b < gpu::kResponseBins; ++b) {
+        reachable += bins[static_cast<std::size_t>(b)];
+    }
+    const unsigned long long unreachable = bins[static_cast<std::size_t>(gpu::kResponseBins)];
+    auto minutesCovering = [&](double fraction) {
+        unsigned long long running = 0;
+        for (int b = 0; b < gpu::kResponseBins; ++b) {
+            running += bins[static_cast<std::size_t>(b)];
+            if (static_cast<double>(running) >= fraction * static_cast<double>(reachable)) {
+                return (b + 1) * gpu::kResponseBinSeconds / 60.0;
+            }
+        }
+        return gpu::kResponseBins * gpu::kResponseBinSeconds / 60.0;
+    };
+    std::ostringstream out;
+    out << "Response time profile (" << reachable + unreachable << " street cells, "
+        << gpu::kResponseBinSeconds << "-s bins): 50% within " << minutesCovering(0.5)
+        << " min, 90% within " << minutesCovering(0.9) << " min, 100% within "
+        << minutesCovering(1.0) << " min, " << unreachable << " unreachable;";
+    for (int b = 0; b < gpu::kResponseBins; ++b) {
+        if (bins[static_cast<std::size_t>(b)] != 0) {
+            out << ' ' << b * gpu::kResponseBinSeconds << "s=" << bins[static_cast<std::size_t>(b)];
+        }
+    }
+    return out.str();
+}
+
+void reportResponseMap(const delivery::infra::Config& cfg, const delivery::sim::Fleet& fleet,
+                       delivery::concurrency::GpuWorker& worker, bool useGpu) {
+    using namespace delivery;
+    constexpr int kCells = 64;
+    constexpr int kSweeps = 4 * kCells;
+    constexpr int kOffStreetFactor = 4;
+    const auto& bounds = cfg.map.bounds;
+    const double widthMeters = core::GeoBounds::distanceMeters({bounds.north(), bounds.west()},
+                                                               {bounds.north(), bounds.east()});
+    const double heightMeters = core::GeoBounds::distanceMeters({bounds.north(), bounds.west()},
+                                                                {bounds.south(), bounds.west()});
+    const double cellMeters = (widthMeters + heightMeters) / (2.0 * kCells);
+    const double metersPerSecond = std::max(1.0, cfg.fleet.speedKmh) / 3.6;
+    const int streetCost = std::max(1, static_cast<int>(cellMeters / metersPerSecond + 0.5));
+
+    const std::size_t cells = static_cast<std::size_t>(kCells) * kCells;
+    std::vector<bool> hasStreet(cells, false);
+    for (const core::Node& node : cfg.nodes) {
+        hasStreet[static_cast<std::size_t>(core::cellIndex({node.lat, node.lon}, bounds, kCells))] = true;
+    }
+    std::vector<int> cost(cells);
+    for (std::size_t i = 0; i < cells; ++i) {
+        cost[i] = hasStreet[i] ? streetCost : streetCost * kOffStreetFactor;
+    }
+    std::vector<int> initial(cells, gpu::kResponseUnreachable);
+    int working = 0;
+    for (const auto& courier : fleet.couriers()) {
+        if (courier->state() != sim::CourierState::BrokenDown) {
+            initial[static_cast<std::size_t>(core::cellIndex(courier->position(), bounds, kCells))] = 0;
+            ++working;
+        }
+    }
+    if (working == 0) {
+        std::cerr << "Response time map: no working couriers at the end of the run" << std::endl;
+        return;
+    }
+
+    std::vector<int> times;
+    if (useGpu) {
+        times = worker.submit([&initial, &cost] {
+            return gpu::responseMap(initial, cost, kCells, kCells, kSweeps);
+        }).get();
+    } else {
+        times = gpu::responseMapCpu(initial, cost, kCells, kCells, kSweeps, cpuThreads());
+    }
+    const int worst = gpu::worstServedCell(times, hasStreet);
+    if (worst < 0) {
+        return;
+    }
+    const int cx = worst % kCells;
+    const int cy = worst / kCells;
+    const double lat = bounds.north() - (cy + 0.5) / kCells * (bounds.north() - bounds.south());
+    const double lon = bounds.west() + (cx + 0.5) / kCells * (bounds.east() - bounds.west());
+    std::cerr << "Response time map (" << kCells << "x" << kCells << " cells, " << kSweeps
+              << " min-plus sweeps, " << working << " working couriers, " << streetCost
+              << " s per street cell): worst served cell (" << cx << "," << cy << ") near " << lat
+              << "," << lon << " at " << times[static_cast<std::size_t>(worst)] / 60.0
+              << " min from the nearest courier" << std::endl;
+
+    const std::vector<unsigned char> streetMask(hasStreet.begin(), hasStreet.end());
+    std::vector<unsigned> bins;
+    if (useGpu) {
+        bins = worker.submit([&initial, &cost, &streetMask] {
+            return gpu::responseHistogram(initial, cost, streetMask, kCells, kCells, kSweeps);
+        }).get();
+    } else {
+        bins = gpu::responseHistogramCpu(initial, cost, streetMask, kCells, kCells, kSweeps,
+                                         cpuThreads());
+    }
+    std::cerr << describeResponseProfile(bins) << std::endl;
+}
+
+void reportRouteArrivals(const delivery::core::StreetNetwork& network,
+                         const delivery::core::TravelTable& table, const delivery::sim::Fleet& fleet,
+                         std::int64_t nowMs, delivery::concurrency::GpuWorker& worker, bool useGpu) {
+    using namespace delivery;
+    constexpr std::int64_t kPromiseMs = 30 * 60 * 1000;
+    auto indexOf = [&network](const core::NodeId& node) {
+        return static_cast<int>(*network.nodeIndex(node));
+    };
+    std::vector<int> legMs;
+    std::vector<unsigned char> routeStart;
+    std::vector<int> deadlineMs;
+    int routes = 0;
+    int deliveries = 0;
+    for (const auto& courier : fleet.couriers()) {
+        if (courier->state() == sim::CourierState::BrokenDown) {
+            continue;
+        }
+        const std::vector<core::Order> bag = courier->bagSnapshot();
+        if (bag.empty()) {
+            continue;
+        }
+        const int cmPerSecond =
+            std::max(1, static_cast<int>(std::lround(courier->speedKmh() * 100000.0 / 3600.0)));
+        std::vector<int> legs;
+        std::vector<int> deadlines;
+        int at = indexOf(courier->currentNode());
+        bool reachable = true;
+        if (courier->state() != sim::CourierState::Delivering) {
+            const int restaurant = indexOf(bag.front().restaurantNode);
+            reachable = table.reachable(at, restaurant);
+            if (reachable) {
+                std::int64_t latestReady = 0;
+                for (const core::Order& order : bag) {
+                    latestReady = std::max(latestReady, order.readyAtMs);
+                }
+                const std::int64_t travel = gpu::travelMs(table.centimeters(at, restaurant), cmPerSecond);
+                legs.push_back(static_cast<int>(std::max<std::int64_t>(travel, latestReady - nowMs)));
+                deadlines.push_back(gpu::kNoDeadline);
+                at = restaurant;
+            }
+        }
+        for (const core::Order& order : bag) {
+            const int stop = indexOf(order.deliveryNode);
+            if (!reachable || !table.reachable(at, stop)) {
+                reachable = false;
+                break;
+            }
+            legs.push_back(static_cast<int>(gpu::travelMs(table.centimeters(at, stop), cmPerSecond)));
+            deadlines.push_back(static_cast<int>(order.createdAtMs + kPromiseMs - nowMs));
+            at = stop;
+        }
+        if (!reachable) {
+            continue;
+        }
+        for (std::size_t k = 0; k < legs.size(); ++k) {
+            legMs.push_back(legs[k]);
+            routeStart.push_back(k == 0 ? 1 : 0);
+            deadlineMs.push_back(deadlines[k]);
+        }
+        ++routes;
+        deliveries += static_cast<int>(bag.size());
+    }
+    if (routes == 0) {
+        std::cerr << "Route arrivals: no courier is carrying orders at the end of the run" << std::endl;
+        return;
+    }
+
+    gpu::RouteArrivals arrivals;
+    if (useGpu) {
+        arrivals = worker.submit([&legMs, &routeStart, &deadlineMs] {
+            return gpu::routeArrivals(legMs, routeStart, deadlineMs);
+        }).get();
+    } else {
+        arrivals = gpu::routeArrivalsCpu(legMs, routeStart, deadlineMs, cpuThreads());
+    }
+    int lastDeliveryMs = 0;
+    for (std::size_t i = 0; i < legMs.size(); ++i) {
+        if (deadlineMs[i] != gpu::kNoDeadline) {
+            lastDeliveryMs = std::max(lastDeliveryMs, arrivals.arrivalMs[i]);
+        }
+    }
+    std::cerr << "Route arrivals (" << routes << " couriers carrying " << deliveries << " orders, "
+              << legMs.size() << " legs, " << kPromiseMs / 60000 << "-min promise): "
+              << arrivals.late << " deliveries at risk of arriving late ("
+              << 100.0 * arrivals.late / deliveries << "%), last delivery expected in "
+              << lastDeliveryMs / 60000.0 << " min" << std::endl;
+}
+
+void reportDeliveryStatistics(const delivery::infra::Config& cfg,
+                              const delivery::infra::EventLog& log,
+                              delivery::concurrency::GpuWorker& worker, bool useGpu) {
+    using namespace delivery;
+    const auto raw = log.deliveryDurationsMs();
+    const std::vector<long long> durations(raw.begin(), raw.end());
+
+    std::vector<unsigned> histogram;
+    if (useGpu) {
+        histogram = worker.submit([&durations] { return gpu::deliveryHistogram(durations); }).get();
+    } else {
+        histogram = gpu::deliveryHistogramCpu(durations, cpuThreads());
+    }
+    std::cerr << gpu::describeHistogram(histogram) << std::endl;
+
+    const std::vector<unsigned> keys = gpu::toSortKeys(durations);
+    std::vector<unsigned> sorted;
+    if (useGpu) {
+        sorted = worker.submit([&keys] { return gpu::radixSort(keys); }).get();
+    } else {
+        sorted = gpu::sortKeysCpu(keys, cpuThreads());
+    }
+    std::cerr << gpu::describePercentiles(gpu::percentilesOfSorted(sorted), sorted.size())
+              << std::endl;
+
+    const std::vector<std::string> restaurants = log.deliveryRestaurants();
+    std::vector<int> restaurantKeys;
+    std::vector<long long> keyedDurations;
+    for (std::size_t i = 0; i < restaurants.size() && i < durations.size(); ++i) {
+        const auto found = cfg.restaurantIndex.find(core::RestaurantId(restaurants[i]));
+        if (found != cfg.restaurantIndex.end()) {
+            restaurantKeys.push_back(static_cast<int>(found->second));
+            keyedDurations.push_back(durations[i]);
+        }
+    }
+    const int restaurantCount = static_cast<int>(cfg.restaurants.size());
+    if (restaurantCount == 0 || restaurantCount > gpu::kMaxGroupKeys) {
+        return;
+    }
+    gpu::Grouping groups;
+    if (useGpu) {
+        groups = worker.submit([&restaurantKeys, restaurantCount] {
+            return gpu::groupByKey(restaurantKeys, restaurantCount);
+        }).get();
+    } else {
+        groups = gpu::groupByKeyCpu(restaurantKeys, restaurantCount, cpuThreads());
+    }
+    std::cerr << describeGroups(cfg, groups, keyedDurations) << std::endl;
+
+    std::vector<int> offsets;
+    const gpu::Timeline perCourier = timelineByCourier(log.deliveryStamps(), offsets);
+    gpu::Timeline merged;
+    if (useGpu) {
+        merged = worker.submit([&perCourier, &offsets] {
+            return gpu::mergeSegments(perCourier, offsets);
+        }).get();
+    } else {
+        merged = gpu::mergeSegmentsCpu(perCourier, offsets, cpuThreads());
+    }
+    std::cerr << describeTimeline(merged, static_cast<int>(offsets.size()) - 1) << std::endl;
+}
+
+std::shared_ptr<const delivery::core::TravelTable> buildTravelTable(
+    const delivery::core::StreetNetwork& network, delivery::concurrency::GpuWorker& worker,
+    bool useGpu) {
+    using namespace delivery;
+    const core::CsrGraph graph = core::CsrGraph::fromNetwork(network);
+    const bench::Stopwatch watch;
+    std::shared_ptr<const core::TravelTable> table;
+    if (useGpu) {
+        std::vector<std::int32_t> centimeters = worker.submit([&graph] {
+            return gpu::floydWarshallTiled(graph.n, core::denseAdjacency(graph));
+        }).get();
+        table = std::make_shared<const core::TravelTable>(graph.n, std::move(centimeters));
+    } else {
+        const unsigned threads = std::max(1u, std::thread::hardware_concurrency());
+        table = std::make_shared<const core::TravelTable>(core::allPairsDijkstra(graph, threads));
+    }
+    std::cerr << "Travel table: " << graph.n << " nodes on "
+              << (useGpu ? "GPU (tiled Floyd-Warshall)" : "CPU (parallel Dijkstra)") << " in "
+              << watch.elapsedMs() << " ms" << std::endl;
+    return table;
+}
+
+int runBenchmarks(const delivery::infra::Config& cfg, const Arguments& args) {
+    using namespace delivery;
+    std::ofstream csv(args.benchPath);
+    if (!csv) {
+        std::cerr << "Cannot write " << args.benchPath << "\n";
+        return 1;
+    }
+    bench::BenchOptions options;
+    options.only = args.benchOnly;
+    options.onlySize = args.benchSize;
+    if (args.benchOnce) {
+        options.repetitions = 1;
+        options.warmup = false;
+    }
+    bench::BenchRunner runner(csv, options);
+    for (const bench::BenchCase& benchCase : bench::allBenchCases(cfg)) {
+        if (!args.benchOnly.empty() && args.benchOnly != benchCase.application) {
+            continue;
+        }
+        std::cerr << "bench: " << benchCase.application << std::endl;
+        runner.run(benchCase);
+    }
+    std::cout << "bench: " << runner.rowsWritten() << " rows, " << runner.failures()
+              << " incorrect, written to " << args.benchPath.string() << std::endl;
+    return runner.failures() == 0 ? 0 : 3;
+}
+
 std::optional<Arguments> parseArguments(int argc, char** argv) {
-    if (argc != 2 && argc != 4) {
+    if (argc < 2) {
         return std::nullopt;
     }
     Arguments args;
     args.configPath = argv[1];
-    if (argc == 4) {
-        if (std::string(argv[2]) != "--log") {
+    for (int i = 2; i < argc; ++i) {
+        const std::string option = argv[i];
+        if (option == "--log" && i + 1 < argc) {
+            args.logPath = argv[++i];
+        } else if (option == "--headless") {
+            args.headless = true;
+        } else if (option == "--bench" && i + 1 < argc) {
+            args.benchPath = argv[++i];
+        } else if (option == "--cpu-only") {
+            args.cpuOnly = true;
+        } else if (option == "--bench-once") {
+            args.benchOnce = true;
+        } else if (option == "--bench-only" && i + 1 < argc) {
+            args.benchOnly = argv[++i];
+        } else if (option == "--bench-size" && i + 1 < argc) {
+            args.benchSize = argv[++i];
+        } else if (option == "--frame-log" && i + 1 < argc) {
+            args.frameLogPath = argv[++i];
+        } else if (option == "--screenshot" && i + 1 < argc) {
+            args.screenshotPath = argv[++i];
+        } else if (option == "--heatmap") {
+            args.showHeatmap = true;
+        } else if (option == "--gpu-dispatch" && i + 1 < argc) {
+            const std::string policy = argv[++i];
+            if (policy == "always") {
+                args.gpuDispatch = delivery::sim::GpuDispatch::Always;
+            } else if (policy != "measured") {
+                return std::nullopt;
+            }
+        } else {
             return std::nullopt;
         }
-        args.logPath = argv[3];
     }
+#ifndef DELIVERY_HAS_VIEWER
+    args.headless = true;
+#endif
     return args;
 }
 }
@@ -76,14 +612,23 @@ int main(int argc, char** argv) {
 
     const std::optional<Arguments> args = parseArguments(argc, argv);
     if (!args) {
-        std::cerr << "Usage: delivery_sim <config.json> [--log <path>]\n";
+        std::cerr << "Usage: delivery_sim <config.json> [--log <path>] [--headless] [--cpu-only]"
+                     " [--frame-log <frames.csv>] [--gpu-dispatch measured|always] [--heatmap]"
+                     " [--screenshot <frame.png>]\n"
+                     "       delivery_sim <config.json> --headless --bench <results.csv>"
+                     " [--bench-once] [--bench-only <application>] [--bench-size <size>]\n";
         return 1;
     }
 
     try {
         const infra::Config cfg = infra::loadConfigFromFile(args->configPath);
-        const std::filesystem::path imagePath =
-            args->configPath.parent_path() / cfg.map.imagePath;
+        if (!args->benchPath.empty()) {
+            std::cerr << gpu::describe(gpu::queryDevice()) << std::endl;
+            return runBenchmarks(cfg, *args);
+        }
+        concurrency::GpuWorker gpuWorker;
+        std::cerr << gpu::describe(gpuWorker.submit([] { return gpu::queryDevice(); }).get())
+                  << std::endl;
         const auto network = core::StreetNetwork::build(cfg.nodes, cfg.streets);
 
         infra::EventLog log(args->logPath);
@@ -96,7 +641,27 @@ int main(int argc, char** argv) {
         sim::OrderGenerator generator(cfg, book, stop, clock, orderIdCounter, log);
         sim::Fleet fleet(cfg, network, clock, stop, freedSignal, log);
         sim::Dispatcher dispatcher(cfg, network, book, fleet, clock, freedSignal, stop, log);
-        viz::Renderer renderer(cfg, imagePath, fleet, book, log, clock, stop);
+        const bool useGpu = gpuCompiledIn() && !args->cpuOnly;
+        const auto travelTable = buildTravelTable(*network, gpuWorker, useGpu);
+        dispatcher.useTravelTable(travelTable);
+        std::unique_ptr<gpu::EtaEngine> etaEngine;
+        if (useGpu) {
+            dispatcher.useGpu(gpuWorker, args->gpuDispatch);
+            etaEngine = gpuWorker.submit([&travelTable] {
+                return std::make_unique<gpu::EtaEngine>(travelTable->size(), travelTable->data());
+            }).get();
+            dispatcher.useEtaEngine(etaEngine.get());
+        }
+#ifdef DELIVERY_HAS_VIEWER
+        std::optional<viz::Renderer> renderer;
+        if (!args->headless) {
+            const std::filesystem::path imagePath =
+                args->configPath.parent_path() / cfg.map.imagePath;
+            renderer.emplace(cfg, imagePath, fleet, book, log, clock, stop, args->frameLogPath,
+                             useGpu ? &gpuWorker : nullptr, args->showHeatmap,
+                             args->screenshotPath);
+        }
+#endif
 
         std::signal(SIGINT, onSignal);
         std::signal(SIGTERM, onSignal);
@@ -108,9 +673,14 @@ int main(int argc, char** argv) {
         std::thread tDispatcher([&dispatcher] {
             dispatcher.run();
         });
-        std::thread tRenderer([&renderer] {
-            renderer.run();
-        });
+        std::thread tRenderer;
+#ifdef DELIVERY_HAS_VIEWER
+        if (renderer) {
+            tRenderer = std::thread([&renderer] {
+                renderer->run();
+            });
+        }
+#endif
 
         std::cout << "Simulation has started..." << std::endl;
 
@@ -124,8 +694,20 @@ int main(int argc, char** argv) {
 
         tProducer.join();
         tDispatcher.join();
-        tRenderer.join();
+        if (etaEngine) {
+            gpuWorker.submit([&etaEngine] { etaEngine.reset(); }).get();
+        }
+        if (tRenderer.joinable()) {
+            tRenderer.join();
+        }
         fleet.join();
+
+        reportDeliveryStatistics(cfg, log, gpuWorker, useGpu);
+        reportDemandHeatmap(cfg, *network, log, gpuWorker, useGpu);
+        reportCoverage(cfg, fleet, gpuWorker, useGpu);
+        reportResponseMap(cfg, fleet, gpuWorker, useGpu);
+        reportRouteArrivals(*network, *travelTable, fleet, clock.nowMs(), gpuWorker, useGpu);
+        gpuWorker.stop();
 
         const infra::Summary summary = log.summary();
         const std::uint64_t pendingInSystem =

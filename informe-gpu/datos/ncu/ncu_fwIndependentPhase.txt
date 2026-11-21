@@ -1,0 +1,62 @@
+==PROF== Connected to process 17592 (/content/eq/build/delivery_sim)
+Compute backend: GPU (nvcc) | Tesla T4 | 40 SMs | 1024 threads/SM | warp 32
+bench: travel_table
+==PROF== Profiling "fwIndependentPhase": 0%....50%....100% - 8 passes
+bench: 4 rows, 0 incorrect, written to /tmp/ncu.csv
+==PROF== Disconnected from process 17592
+[17592] delivery_sim@127.0.0.1
+  unnamed>::fwIndependentPhase(int *, int, int) (128, 128, 1)x(32, 32, 1), Context 1, Stream 7, Device 0, CC 7.5
+    Section: GPU Speed Of Light Throughput
+    ----------------------- ----------- ------------
+    Metric Name             Metric Unit Metric Value
+    ----------------------- ----------- ------------
+    DRAM Frequency                  Ghz         5.00
+    SM Frequency                    Mhz       584.99
+    Elapsed Cycles                cycle    1,631,684
+    Memory Throughput                 %        75.98
+    DRAM Throughput                   %        19.41
+    Duration                         ms         2.79
+    L1/TEX Cache Throughput           %        88.79
+    L2 Cache Throughput               %         9.06
+    SM Active Cycles              cycle 1,564,071.48
+    Compute (SM) Throughput           %        75.98
+    ----------------------- ----------- ------------
+
+    INF   Compute and Memory are well-balanced: To reduce runtime, both computation and memory traffic must be reduced. 
+          Check both the Compute Workload Analysis and Memory Workload Analysis sections.                               
+
+    Section: Launch Statistics
+    -------------------------------- --------------- ---------------
+    Metric Name                          Metric Unit    Metric Value
+    -------------------------------- --------------- ---------------
+    Block Size                                                 1,024
+    Function Cache Configuration                     CachePreferNone
+    Grid Size                                                 16,384
+    Registers Per Thread             register/thread              30
+    Shared Memory Configuration Size           Kbyte           32.77
+    Driver Shared Memory Per Block        byte/block               0
+    Dynamic Shared Memory Per Block       byte/block               0
+    Static Shared Memory Per Block       Kbyte/block            8.19
+    # SMs                                         SM              40
+    Stack Size                                                 1,024
+    Threads                                   thread      16,777,216
+    # TPCs                                                        20
+    Enabled TPC IDs                                              all
+    Uses Green Context                                             0
+    Waves Per SM                                              409.60
+    -------------------------------- --------------- ---------------
+
+    Section: Occupancy
+    ------------------------------- ----------- ------------
+    Metric Name                     Metric Unit Metric Value
+    ------------------------------- ----------- ------------
+    Block Limit SM                        block           16
+    Block Limit Registers                 block            2
+    Block Limit Shared Mem                block            4
+    Block Limit Warps                     block            1
+    Theoretical Active Warps per SM        warp           32
+    Theoretical Occupancy                     %          100
+    Achieved Occupancy                        %        97.94
+    Achieved Active Warps Per SM           warp        31.34
+    ------------------------------- ----------- ------------
+

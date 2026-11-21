@@ -1,0 +1,15 @@
+== GPU
+name, driver_version, clocks.max.sm [MHz], clocks.max.memory [MHz], memory.total [MiB]
+Tesla T4, 580.82.07, 1590 MHz, 5001 MHz, 15360 MiB
+== CUDA
+Cuda compilation tools, release 13.0, V13.0.88
+Build cuda_13.0.r13.0/compiler.36424714_0
+== CPU de Colab
+CPU(s):                                  2
+Model name:                              Intel(R) Xeon(R) CPU @ 2.00GHz
+Thread(s) per core:                      2
+Core(s) per socket:                      1
+Socket(s):                               1
+== Compilador
+g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+cmake version 3.31.10

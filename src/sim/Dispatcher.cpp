@@ -1,10 +1,13 @@
 #include <delivery/sim/Dispatcher.hpp>
 
+#include <delivery/core/CandidateFilter.hpp>
 #include <delivery/core/GeoBounds.hpp>
 #include <delivery/core/PathFinder.hpp>
+#include <delivery/gpu/CandidateFilter.hpp>
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <future>
 #include <limits>
 #include <stdexcept>
@@ -30,6 +33,8 @@ Dispatcher::Dispatcher(const infra::Config& config,
                        Estimator estimator)
     : config_(config),
       network_(std::move(network)),
+      projection_(core::LatLon{(config.map.bounds.north() + config.map.bounds.south()) / 2.0,
+                               (config.map.bounds.west() + config.map.bounds.east()) / 2.0}),
       book_(book),
       fleet_(fleet),
       clock_(clock),
@@ -37,12 +42,102 @@ Dispatcher::Dispatcher(const infra::Config& config,
       stop_(stop),
       log_(log),
       estimator_(std::move(estimator)),
+      customEstimator_(static_cast<bool>(estimator_)),
       maxCandidates_(chooseMaxCandidates()) {
     if (!estimator_) {
         estimator_ = [this](const Courier& courier, QuoteRequest request) {
             return estimateDeliveryMs(courier, std::move(request));
         };
     }
+}
+
+void Dispatcher::useTravelTable(std::shared_ptr<const core::TravelTable> table) {
+    travelTable_ = std::move(table);
+}
+
+void Dispatcher::useEtaEngine(gpu::EtaEngine* engine) {
+    etaEngine_ = engine;
+}
+
+int Dispatcher::nodeIndexOf(const core::NodeId& node) const {
+    return static_cast<int>(*network_->nodeIndex(node));
+}
+
+int Dispatcher::cmPerSecond(double speedKmh) {
+    return std::max(1, static_cast<int>(std::lround(speedKmh * 100000.0 / 3600.0)));
+}
+
+gpu::BestCourier Dispatcher::batchBest(const gpu::EtaOrders& orders,
+                                       const gpu::EtaCouriers& couriers, long long nowMs) {
+    if (etaEngine_ != nullptr && gpuWorker_ != nullptr &&
+        gpuEtaWanted(gpuPolicy_, static_cast<std::size_t>(orders.size()),
+                     static_cast<std::size_t>(couriers.size()))) {
+        try {
+            auto best = gpuWorker_->submit([engine = etaEngine_, orders, couriers, nowMs] {
+                return engine->bestPerOrder(orders, couriers, nowMs);
+            });
+            const auto deadline = std::chrono::steady_clock::now() +
+                                  std::chrono::milliseconds(config_.dispatch.quoteTimeoutMs);
+            if (best.wait_until(deadline) == std::future_status::ready) {
+                return best.get().front();
+            }
+            ++lateQuotes_;
+        } catch (const std::exception&) {
+            ++quoteErrors_;
+        }
+    }
+    const auto etas = gpu::etaMatrixCpu(travelTable_->data(), travelTable_->size(), orders,
+                                        couriers, nowMs, 1);
+    return gpu::rowArgminCpu(etas, orders.size(), couriers.size(), 1).front();
+}
+
+Courier* Dispatcher::chooseCourierBatch(const QuoteRequest& request) {
+    const std::vector<Courier*> candidates = filteredCandidates(request);
+    if (candidates.empty()) {
+        return nullptr;
+    }
+    gpu::EtaOrders orders;
+    orders.restaurant.push_back(nodeIndexOf(request.restaurantNode));
+    orders.delivery.push_back(nodeIndexOf(request.deliveryNode));
+    orders.readyAtMs.push_back(request.readyAtMs);
+
+    gpu::EtaCouriers couriers;
+    for (const Courier* courier : candidates) {
+        std::vector<int> stops;
+        for (const core::NodeId& stop : courier->deliveryNodesInBag()) {
+            stops.push_back(nodeIndexOf(stop));
+        }
+        couriers.add(nodeIndexOf(courier->currentNode()), stops, courier->latestReadyAtMs(),
+                     cmPerSecond(courier->speedKmh()));
+    }
+
+    const gpu::BestCourier best = batchBest(orders, couriers, clock_.nowMs());
+    if (best.index < 0) {
+        return nullptr;
+    }
+    return candidates[static_cast<std::size_t>(best.index)];
+}
+
+std::optional<double> Dispatcher::travelMeters(const core::NodeId& from,
+                                               const core::NodeId& to) const {
+    if (travelTable_) {
+        const auto a = network_->nodeIndex(from);
+        const auto b = network_->nodeIndex(to);
+        if (!a || !b) {
+            return std::nullopt;
+        }
+        const int i = static_cast<int>(*a);
+        const int j = static_cast<int>(*b);
+        if (!travelTable_->reachable(i, j)) {
+            return std::nullopt;
+        }
+        return travelTable_->centimeters(i, j) / 100.0;
+    }
+    const auto route = core::findShortestPath(*network_, from, to);
+    if (!route) {
+        return std::nullopt;
+    }
+    return route->totalMeters;
 }
 
 void Dispatcher::run() {
@@ -62,9 +157,9 @@ void Dispatcher::run() {
 
 bool Dispatcher::isReachable(const core::Order& order) const {
     const core::NodeId& start = config_.fleet.startNode;
-    return core::findShortestPath(*network_, start, order.restaurantNode) &&
-           core::findShortestPath(*network_, order.restaurantNode, order.deliveryNode) &&
-           core::findShortestPath(*network_, order.deliveryNode, start);
+    return travelMeters(start, order.restaurantNode) &&
+           travelMeters(order.restaurantNode, order.deliveryNode) &&
+           travelMeters(order.deliveryNode, start);
 }
 
 void Dispatcher::dispatch(core::Order& order) {
@@ -95,6 +190,10 @@ void Dispatcher::dispatch(core::Order& order) {
 }
 
 Courier* Dispatcher::chooseCourier(const QuoteRequest& request) {
+    if (travelTable_ && !customEstimator_ &&
+        config_.fleet.bagCapacity <= gpu::kMaxBagStops) {
+        return chooseCourierBatch(request);
+    }
     const std::vector<Courier*> candidates = nearestCandidates(request);
 
     std::vector<std::future<std::int64_t>> quotes;
@@ -127,23 +226,82 @@ Courier* Dispatcher::chooseCourier(const QuoteRequest& request) {
     return best;
 }
 
-std::vector<Courier*> Dispatcher::nearestCandidates(const QuoteRequest& request) const {
-    const core::LatLon restaurant = *network_->nodeLatLon(request.restaurantNode);
+void Dispatcher::useGpu(concurrency::GpuWorker& worker, GpuDispatch policy) {
+    gpuWorker_ = &worker;
+    gpuPolicy_ = policy;
+}
 
-    std::vector<std::pair<double, Courier*>> free;
-    for (const auto& courier : fleet_.couriers()) {
-        if (courier->canAccept(request.restaurant)) {
-            const double meters =
-                core::GeoBounds::distanceMeters(courier->position(), restaurant);
-            free.emplace_back(meters, courier.get());
+std::vector<int> Dispatcher::filterCandidates(const std::vector<std::int32_t>& xDm,
+                                              const std::vector<std::int32_t>& yDm,
+                                              const std::vector<std::uint8_t>& available,
+                                              core::PlanarPoint center) const {
+    if (gpuWorker_ != nullptr && gpuFilterWanted(gpuPolicy_, xDm.size())) {
+        try {
+            auto inside = gpuWorker_->submit([xDm, yDm, available, center] {
+                return gpu::filterWithinRadius(xDm, yDm, available, center.xDm, center.yDm,
+                                               kCandidateRadiusDm);
+            });
+            const auto deadline = std::chrono::steady_clock::now() +
+                                  std::chrono::milliseconds(config_.dispatch.quoteTimeoutMs);
+            if (inside.wait_until(deadline) == std::future_status::ready) {
+                return inside.get();
+            }
+        } catch (const std::exception&) {
+        }
+    }
+    return core::filterWithinRadiusCpu(xDm, yDm, available, center.xDm, center.yDm,
+                                       kCandidateRadiusDm, 1);
+}
+
+std::vector<Courier*> Dispatcher::nearestCandidates(const QuoteRequest& request) const {
+    std::vector<Courier*> result = filteredCandidates(request);
+    if (result.size() > maxCandidates_) {
+        result.resize(maxCandidates_);
+    }
+    return result;
+}
+
+std::vector<Courier*> Dispatcher::filteredCandidates(const QuoteRequest& request) const {
+    const core::LatLon restaurant = *network_->nodeLatLon(request.restaurantNode);
+    const auto& couriers = fleet_.couriers();
+
+    std::vector<core::LatLon> positions;
+    std::vector<std::int32_t> xDm;
+    std::vector<std::int32_t> yDm;
+    std::vector<std::uint8_t> available;
+    positions.reserve(couriers.size());
+    xDm.reserve(couriers.size());
+    yDm.reserve(couriers.size());
+    available.reserve(couriers.size());
+    for (const auto& courier : couriers) {
+        const core::LatLon position = courier->position();
+        const core::PlanarPoint planar = projection_.toDecimeters(position);
+        positions.push_back(position);
+        xDm.push_back(planar.xDm);
+        yDm.push_back(planar.yDm);
+        available.push_back(courier->canAccept(request.restaurant) ? 1 : 0);
+    }
+
+    std::vector<int> selected =
+        filterCandidates(xDm, yDm, available, projection_.toDecimeters(restaurant));
+    if (selected.size() < maxCandidates_) {
+        selected.clear();
+        for (std::size_t i = 0; i < available.size(); ++i) {
+            if (available[i] != 0) {
+                selected.push_back(static_cast<int>(i));
+            }
         }
     }
 
-    std::sort(free.begin(), free.end(),
-              [](const auto& a, const auto& b) { return a.first < b.first; });
-    if (free.size() > maxCandidates_) {
-        free.resize(maxCandidates_);
+    std::vector<std::pair<double, Courier*>> free;
+    for (int index : selected) {
+        const auto i = static_cast<std::size_t>(index);
+        free.emplace_back(core::GeoBounds::distanceMeters(positions[i], restaurant),
+                          couriers[i].get());
     }
+
+    std::stable_sort(free.begin(), free.end(),
+                     [](const auto& a, const auto& b) { return a.first < b.first; });
 
     std::vector<Courier*> result;
     for (const auto& entry : free) {
@@ -153,8 +311,7 @@ std::vector<Courier*> Dispatcher::nearestCandidates(const QuoteRequest& request)
 }
 
 std::int64_t Dispatcher::estimateDeliveryMs(const Courier& courier, QuoteRequest request) const {
-    const auto toRestaurant =
-        core::findShortestPath(*network_, courier.currentNode(), request.restaurantNode);
+    const auto toRestaurant = travelMeters(courier.currentNode(), request.restaurantNode);
     if (!toRestaurant) {
         throw std::runtime_error("courier " + courier.id().str() +
                                  " cannot reach restaurant node " +
@@ -165,18 +322,18 @@ std::int64_t Dispatcher::estimateDeliveryMs(const Courier& courier, QuoteRequest
     std::vector<core::NodeId> stops = courier.deliveryNodesInBag();
     stops.push_back(request.deliveryNode);
     for (const core::NodeId& stop : stops) {
-        const auto leg = core::findShortestPath(*network_, at, stop);
+        const auto leg = travelMeters(at, stop);
         if (!leg) {
             throw std::runtime_error("no route between deliveries");
         }
-        metersAfterPickup += leg->totalMeters;
+        metersAfterPickup += *leg;
         at = stop;
     }
 
     const double metersPerMs = courier.speedKmh() / 3600.0;
     const std::int64_t now = clock_.nowMs();
     const std::int64_t arrival =
-        now + static_cast<std::int64_t>(toRestaurant->totalMeters / metersPerMs);
+        now + static_cast<std::int64_t>(*toRestaurant / metersPerMs);
     const std::int64_t pickup =
         std::max({arrival, request.readyAtMs, courier.latestReadyAtMs()});
     const std::int64_t delivered =

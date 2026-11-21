@@ -1,0 +1,23 @@
+==PROF== Connected to process 17801 (/content/eq/build/delivery_sim)
+Compute backend: GPU (nvcc) | Tesla T4 | 40 SMs | 1024 threads/SM | warp 32
+bench: eta_batch
+==PROF== Profiling "etaKernelAoS": 0%....50%....100% - 3 passes
+bench: 6 rows, 0 incorrect, written to /tmp/ncu.csv
+==PROF== Disconnected from process 17801
+[17801] delivery_sim@127.0.0.1
+  unnamed>::etaKernelAoS(const int *, int, const int *, const int *, const long long *, const unnamed>::CourierRecord *, int, long long, long long *) (20, 1000, 1)x(256, 1, 1), Context 1, Stream 7, Device 0, CC 7.5
+    Section: Command line profiler metrics
+    -------------------------------------------------- ----------- ------------
+    Metric Name                                        Metric Unit Metric Value
+    -------------------------------------------------- ----------- ------------
+    dram__bytes_read.sum                                     Mbyte       683.63
+    dram__bytes_write.sum                                    Mbyte        50.24
+    dram__throughput.avg.pct_of_peak_sustained_elapsed           %        71.78
+    gpu__time_duration.sum                                      ms         3.21
+    l1tex__t_bytes_pipe_lsu_mem_global_op_ld.sum             Gbyte         1.40
+    l1tex__t_requests_pipe_lsu_mem_global_op_ld.sum                   2,355,000
+    l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum          sector   43,740,925
+    l1tex__t_sectors_pipe_lsu_mem_global_op_st.sum          sector    1,250,000
+    lts__t_bytes.sum                                         Mbyte       886.08
+    -------------------------------------------------- ----------- ------------
+

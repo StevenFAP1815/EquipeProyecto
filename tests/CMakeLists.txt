@@ -22,6 +22,25 @@ add_executable(delivery_tests
     test_courier_bag.cpp
     test_breakdowns.cpp
     test_event_log.cpp
+    test_device_info.cpp
+    test_city_config.cpp
+    test_bench_runner.cpp
+    test_gpu_worker.cpp
+    test_travel_table.cpp
+    test_candidate_filter.cpp
+    test_eta_batch.cpp
+    test_argmin_reduction.cpp
+    test_delivery_histogram.cpp
+    test_radix_sort.cpp
+    test_group_by_key.cpp
+    test_segment_merge.cpp
+    test_demand_heatmap.cpp
+    test_coverage_field.cpp
+    test_response_map.cpp
+    test_route_arrivals.cpp
+    test_gpu_thresholds.cpp
+    test_frame_stats.cpp
+    test_grid_binning.cpp
 )
 
 target_link_libraries(delivery_tests PRIVATE
@@ -31,6 +50,7 @@ target_link_libraries(delivery_tests PRIVATE
 
 target_compile_definitions(delivery_tests PRIVATE
     TESTS_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data"
+    CONFIG_DIR="${PROJECT_SOURCE_DIR}/config"
 )
 
 include(Catch)

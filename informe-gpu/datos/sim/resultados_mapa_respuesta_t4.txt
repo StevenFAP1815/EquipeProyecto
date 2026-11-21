@@ -1,0 +1,17 @@
+# notebook 20-mapa-de-respuesta, Tesla T4, simulación completa con la GPU
+## equipetrol
+Compute backend: GPU (nvcc) | Tesla T4 | 40 SMs | 1024 threads/SM | warp 32
+Response time map (64x64 cells, 256 min-plus sweeps, 15 working couriers, 9 s per street cell): worst served cell (40,28) near -17.7611,-63.1882 at 6.15 min from the nearest courier
+## city
+Compute backend: GPU (nvcc) | Tesla T4 | 40 SMs | 1024 threads/SM | warp 32
+Response time map (64x64 cells, 256 min-plus sweeps, 2996 working couriers, 17 s per street cell): worst served cell (13,0) near -17.7397,-63.2037 at 2.26667 min from the nearest courier
+
+# notebook 21-histograma-de-respuesta, Tesla T4, simulación completa con la GPU (mapa y perfil)
+## equipetrol
+Compute backend: GPU (nvcc) | Tesla T4 | 40 SMs | 1024 threads/SM | warp 32
+Response time map (64x64 cells, 256 min-plus sweeps, 15 working couriers, 9 s per street cell): worst served cell (40,28) near -17.7611,-63.1882 at 6.15 min from the nearest courier
+Response time profile (78 street cells, 15-s bins): 50% within 1.25 min, 90% within 5.75 min, 100% within 6.25 min, 0 unreachable; 0s=19 15s=8 45s=10 60s=6 75s=2 90s=2 105s=1 120s=2 135s=1 150s=1 165s=1 180s=2 195s=2 225s=3 240s=4 255s=4 270s=2 330s=4 345s=1 360s=3
+## city
+Compute backend: GPU (nvcc) | Tesla T4 | 40 SMs | 1024 threads/SM | warp 32
+Response time map (64x64 cells, 256 min-plus sweeps, 3000 working couriers, 17 s per street cell): worst served cell (63,18) near -17.7627,-63.1397 at 1.98333 min from the nearest courier
+Response time profile (3268 street cells, 15-s bins): 50% within 0.5 min, 90% within 0.75 min, 100% within 2 min, 0 unreachable; 0s=1565 15s=1368 30s=263 45s=52 60s=8 75s=5 90s=4 105s=3

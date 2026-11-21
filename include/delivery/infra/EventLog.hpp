@@ -28,6 +28,11 @@ struct Summary {
     std::uint64_t noCourier = 0;
 };
 
+struct DeliveryStamp {
+    std::int64_t t = 0;
+    std::string courier;
+};
+
 std::string toJsonLine(const Summary& summary);
 
 class EventLog {
@@ -54,6 +59,10 @@ public:
     void simulationStopping(std::int64_t t);
 
     Summary summary() const;
+    std::vector<std::int64_t> deliveryDurationsMs() const;
+    std::vector<std::string> deliveryRestaurants() const;
+    std::vector<DeliveryStamp> deliveryStamps() const;
+    std::vector<std::string> createdDeliveryNodes() const;
 
 private:
     void writeLine(const std::string& line);
@@ -62,6 +71,11 @@ private:
     std::ofstream file_;
     Summary counts_;
     std::int64_t totalDeliveryMs_ = 0;
+    std::vector<std::int64_t> deliveryDurationsMs_;
+    std::vector<std::string> deliveryRestaurants_;
+    std::vector<DeliveryStamp> deliveredAt_;
+    std::vector<std::string> createdDeliveryNodes_;
+    std::unordered_map<std::string, std::string> restaurantByOrder_;
     std::unordered_map<std::string, std::int64_t> createdAtByOrder_;
 };
 }
