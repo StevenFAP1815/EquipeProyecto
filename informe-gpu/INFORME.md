@@ -47,23 +47,21 @@ Las líneas de texto citadas están en `datos/sim/resultados_gpu_ciudad.txt` y `
 - **Cruce:** el tamaño a partir del cual la GPU, de extremo a extremo (*e2e*, es decir, contando copias, reservas de memoria y lanzamiento), es más rápida que **la mejor versión multihilo del portátil**.
 - **Mejor speedup e2e:** el máximo medido frente a esa misma referencia.
 
-| # | Aplicación | Concepto (`ec2`) | Aplicación n.º | Cruce frente al portátil | Mejor speedup e2e | Veredicto | Puntos |
-|---|---|---|---|---|---|---|---|
-| 1 | Tabla de tiempos de viaje (Floyd–Warshall por bloques) | `03_memory_tiling` | 1.ª | 576 nodos (solo hasta ~1.000) | 1,06× | Mantener la CPU (Dijkstra multihilo) | 1 |
-| 2 | ETA por lotes pedido × repartidor (SoA) | `04_performance` | 1.ª | 100 × 500 pares | 4,0× (15,0× encadenada con el argmin) | Usar la GPU en lotes desde ~50.000 pares | 1 |
-| 3 | Mapa de calor de la demanda | `05_conv` | 1.ª | 256 × 256 celdas | 1,89× | Usar la GPU con rejillas finas; CPU con 64 × 64 | 1 |
-| 4 | Campo de cobertura (Jacobi) | `06_stencil` | 1.ª | 128 × 128 celdas | 5,45× | Usar la GPU desde 128² | 1 |
-| 5 | Histograma de tiempos de entrega | `07_histogram` | 1.ª | no se alcanza | 0,59× | Mantener la CPU | 1 |
-| 6 | Argmin del despachador | `08_reduction` | 1.ª | no se alcanza (sola) | 0,26× sola; dentro del flujo de la ETA, sí | Solo encadenada con la ETA | 1 |
-| 7 | Entregas agrupadas por restaurante | `09_scan` | 1.ª | no se alcanza | 0,56× | Mantener la CPU | 1 |
-| 8 | Filtro de candidatos por radio | `10_filter` | 1.ª | no se alcanza | 0,68× | Mantener la CPU | 1 |
-| 9 | Línea de tiempo a partir de los registros por repartidor | `11_merge` | 1.ª | 100.000 eventos | 3,82× | Usar la GPU desde 100.000 eventos | 1 |
-| 10 | Percentiles p50, p90 y p99 (radix sort) | `12_sorting` | 1.ª | 100.000 entregas | 2,37× | Usar la GPU desde 100.000 entregas | 1 |
-| 11 | Mapa de tiempo de respuesta (stencil min-plus) | `06_stencil` | 2.ª | 128 × 128 celdas | 17,6× | Usar la GPU desde 128² | 1 |
-| 12 | Perfil del tiempo de respuesta, encadenado tras el stencil | `07_histogram` | 2.ª | 128 × 128 celdas | 14,8× (27 % menos que copiando el mapa) | Usar la GPU desde 128², sin sacar el mapa de la GPU | 1 |
-| 13 | Horas de llegada por ruta (scan segmentado) | `09_scan` | 2.ª | no se alcanza | 0,55× | Mantener la CPU | 1 |
-
-**Puntos solicitados:** 13, con un mínimo cumplido en cada concepto.
+| # | Aplicación | Concepto (`ec2`) | Aplicación n.º | Cruce frente al portátil | Mejor speedup e2e | Veredicto |
+|---|---|---|---|---|---|---|
+| 1 | Tabla de tiempos de viaje (Floyd–Warshall por bloques) | `03_memory_tiling` | 1.ª | 576 nodos (solo hasta ~1.000) | 1,06× | Mantener la CPU (Dijkstra multihilo) |
+| 2 | ETA por lotes pedido × repartidor (SoA) | `04_performance` | 1.ª | 100 × 500 pares | 4,0× (15,0× encadenada con el argmin) | Usar la GPU en lotes desde ~50.000 pares |
+| 3 | Mapa de calor de la demanda | `05_conv` | 1.ª | 256 × 256 celdas | 1,89× | Usar la GPU con rejillas finas; CPU con 64 × 64 |
+| 4 | Campo de cobertura (Jacobi) | `06_stencil` | 1.ª | 128 × 128 celdas | 5,45× | Usar la GPU desde 128² |
+| 5 | Histograma de tiempos de entrega | `07_histogram` | 1.ª | no se alcanza | 0,59× | Mantener la CPU |
+| 6 | Argmin del despachador | `08_reduction` | 1.ª | no se alcanza (sola) | 0,26× sola; dentro del flujo de la ETA, sí | Solo encadenada con la ETA |
+| 7 | Entregas agrupadas por restaurante | `09_scan` | 1.ª | no se alcanza | 0,56× | Mantener la CPU |
+| 8 | Filtro de candidatos por radio | `10_filter` | 1.ª | no se alcanza | 0,68× | Mantener la CPU |
+| 9 | Línea de tiempo a partir de los registros por repartidor | `11_merge` | 1.ª | 100.000 eventos | 3,82× | Usar la GPU desde 100.000 eventos |
+| 10 | Percentiles p50, p90 y p99 (radix sort) | `12_sorting` | 1.ª | 100.000 entregas | 2,37× | Usar la GPU desde 100.000 entregas |
+| 11 | Mapa de tiempo de respuesta (stencil min-plus) | `06_stencil` | 2.ª | 128 × 128 celdas | 17,6× | Usar la GPU desde 128² |
+| 12 | Perfil del tiempo de respuesta, encadenado tras el stencil | `07_histogram` | 2.ª | 128 × 128 celdas | 14,8× (27 % menos que copiando el mapa) | Usar la GPU desde 128², sin sacar el mapa de la GPU |
+| 13 | Horas de llegada por ruta (scan segmentado) | `09_scan` | 2.ª | no se alcanza | 0,55× | Mantener la CPU |
 
 **Marcador de extremo a extremo frente a la mejor CPU del portátil:** **la GPU gana en 7** aplicaciones por encima de su cruce (los dos stencils, el perfil de respuesta, ETA, mezcla, ordenación y convolución) y **la CPU gana en 6** (histograma de entregas, agrupación, filtro, llegadas por ruta, argmin por separado y Floyd–Warshall a escala de ciudad). Contando solo el kernel, la GPU gana en las 13, entre 10 y 36 veces en el tamaño mayor.
 
@@ -74,7 +72,7 @@ Las líneas de texto citadas están en `datos/sim/resultados_gpu_ciudad.txt` y `
 - **La CPU gana** cuando el trabajo es una sola pasada sobre datos que viven en la CPU: las copias por PCIe son entre el 90 y el 98 % del tiempo de la GPU. También gana cuando la GPU ejecuta un algoritmo con más trabajo, como Floyd–Warshall `O(n³)` frente a Dijkstra en un grafo con pocas aristas.
 
 **Veredicto global:**
-- **Con la escala mínima del enunciado** (Equipetrol: 138 nodos y 15 repartidores) **la GPU no compensa en ninguna tarea**: ningún tamaño de ese mapa supera los cruces medidos.
+- **Con la escala mínima** (Equipetrol: 138 nodos y 15 repartidores) **la GPU no compensa en ninguna tarea**: ningún tamaño de ese mapa supera los cruces medidos.
 - **Con la configuración de ciudad** (4.096 nodos, 3.000 repartidores y lotes de cientos de pedidos) solo compensa por encima de un umbral:
   - la ETA por lotes;
   - el stencil y la convolución en rejillas finas;
@@ -106,7 +104,7 @@ Las líneas de texto citadas están en `datos/sim/resultados_gpu_ciudad.txt` y `
 
 | Configuración | Nodos | Calles | Restaurantes | Repartidores | Pedidos |
 |---|---|---|---|---|---|
-| `config/equipetrol.json` (escala mínima del enunciado) | 138 | 181 | 6 | 15 | 1 por minuto (ráfagas de hasta 12) |
+| `config/equipetrol.json` (escala mínima) | 138 | 181 | 6 | 15 | 1 por minuto (ráfagas de hasta 12) |
 | `config/city.json` (ciudad, generada con `tools/make_city.py --seed 2026`) | 4.096 | 8.064 | 60 | 3.000 | 1 cada 300 ms simulados (ráfagas de hasta 20), cola de hasta 1.000 |
 
 Los tamaños del bench se generan con semilla fija (`kBenchSeed = 2026`) dentro de `src/bench/Applications.cpp`.
@@ -920,7 +918,7 @@ Para comprobar el efecto de la GPU cuando de verdad trabaja en cada pedido, la o
   - convolución con rejillas finas: 1,9×.
 - **No compensa cuando el trabajo es de una pasada y los datos viven en la CPU** (filtro, histograma, agrupación y argmin por separado): el kernel es entre 10 y 30 veces más rápido, pero **las copias por PCIe suponen entre el 90 y el 98 % del tiempo**.
 - **No compensa cuando la GPU ejecuta un algoritmo peor:** Floyd–Warshall `O(n³)` frente a Dijkstra en un grafo con pocas aristas.
-- **A la escala del enunciado** (Equipetrol) ninguna tarea supera su cruce: **la respuesta es mantener la CPU**.
+- **A la escala mínima** (Equipetrol) ninguna tarea supera su cruce: **la respuesta es mantener la CPU**.
 - **A escala de ciudad**, la respuesta correcta es **usar la GPU solo por encima de un umbral**, y el despachador ya está implementado así. Forzar la GPU en cada pedido (`--gpu-dispatch always`) reduce las asignaciones un 29 % y multiplica por 10 la latencia de despacho.
 - **¿Y con un mapa más grande?** No cambia el marcador. Los barridos de tamaño ya llegan bastante más allá de la ciudad, y muestran tres tendencias:
   - Donde la GPU gana, gana algo más al crecer (convolución de 1,43× a 1,89×; mezcla de 2,99× a 3,82×).
